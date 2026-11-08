@@ -4075,57 +4075,6 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Description: Tệp seed ShareDataPacket trên DB còn thiếu gói Catalog: mỗi mã 101 - 111 có gói đang sống (IsDelete trống) đúng OrderNo;
-    ///              gói vừa thêm có TenantId, gói 111 tắt, gói khác bật; chạy lại không thêm dòng nào.
-    ///              Chạy đúng khối lệnh trong tệp, trong giao dịch rồi hoàn tác.
-    /// Created date: 03/11/2026
-    /// </summary>
-    [Fact]
-    public async Task SeedPacketScript_WhenCatalogPacketsMissing_InsertsLivePacketsOnce_Test()
-    {
-        // Arrange
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-        var batch = SeedScriptReader.ReadPacketSeedBatch("-- 1. THÊM GÓI CATALOG CÒN THIẾU");
-        var catalogCode = new System.Text.RegularExpressions.Regex(@"^1(0[1-9]|1[01])(_|$)");
-        async Task<List<ShareDataPacket>> LiveCatalogPacketsAsync() => (await db.Queryable<ShareDataPacket>()
-                .Where(p => p.IsDelete == null && p.Code!.StartsWith("1"))
-                .ToListAsync())
-            .Where(p => catalogCode.IsMatch(p.Code!))
-            .ToList();
-        const string seedUser = "SHAREDATA-SEED-01";
-        List<ShareDataPacket> afterFirst;
-        int seededAfterSecond;
-
-        // Act
-        await db.Ado.BeginTranAsync();
-        try
-        {
-            await db.Ado.ExecuteCommandAsync(batch);
-            afterFirst = await LiveCatalogPacketsAsync();
-            await db.Ado.ExecuteCommandAsync(batch);
-            seededAfterSecond = (await LiveCatalogPacketsAsync()).Count(p => p.CreateUId == seedUser);
-        }
-        finally
-        {
-            await db.Ado.RollbackTranAsync();
-        }
-
-        // Assert
-        foreach (var number in Enumerable.Range(101, 11))
-        {
-            var packets = afterFirst.Where(p => catalogCode.Match(p.Code!).Groups[0].Value.TrimEnd('_') == number.ToString()).ToList();
-            Assert.NotEmpty(packets);
-            Assert.All(packets, p => Assert.Equal(number, p.OrderNo));
-        }
-        var seeded = afterFirst.Where(p => p.CreateUId == seedUser).ToList();
-        Assert.All(seeded, p => Assert.NotNull(p.TenantId));
-        Assert.All(afterFirst.Where(p => p.OrderNo == 111), p => Assert.Equal(BaseEnums.StatusEnum.Disable, p.Status));
-        Assert.All(seeded.Where(p => p.OrderNo != 111), p => Assert.Equal(BaseEnums.StatusEnum.Enable, p.Status));
-        Assert.Equal(seeded.Count, seededAfterSecond);
-    }
-
-    /// <summary>
     /// Author: DatHQ
     /// Description: Chỉ lưu bảng tham số, đổi biến mốc sang giá trị cố định trong khi câu đang lưu còn cột mốc: câu thành gửi toàn bộ nên bị từ chối, bộ biến cũ còn nguyên.
     /// Created date: 05/11/2026

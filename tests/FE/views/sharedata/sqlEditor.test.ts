@@ -1737,12 +1737,12 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         const lead = panel.locator('.svp-check-lead');
         await expect(lead).toContainText('(2/3)');
 
-        // Người dùng có thể chọn nguồn "Nối tiếp lần trước theo key" cho @since trên dropdown Nguồn giá trị -> đạt (3/3) ngay
+        // Người dùng có thể chọn nguồn "Theo Mốc đang chạy" cho @since trên dropdown Nguồn giá trị -> đạt (3/3) ngay
         const sinceRow = table.locator('tbody tr', { hasText: '@since' });
         await sinceRow.locator('.svp-source-select').click();
         const popper = page.locator('.svp-source-popper:visible');
         await expect(popper.locator('.svp-source-opt')).toHaveCount(2);
-        await popper.locator('.el-select-dropdown__item', { hasText: 'Nối tiếp lần trước theo key' }).click();
+        await popper.locator('.el-select-dropdown__item', { hasText: 'Theo Mốc đang chạy' }).click();
         await expect(lead).toContainText('(3/3)');
         await expect(sinceRow.locator('.cvi-picker input')).toBeEnabled();
 
@@ -1755,7 +1755,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(editor).toHaveValue(new RegExp(`> @lastKey`));
         await expect(lead).toContainText('(3/3)');
         await expect(table.locator('tbody tr', { hasText: '@since' })).toHaveCount(0);
-        await expect(table.locator('tbody tr', { hasText: '@lastKey' })).toContainText('Nối tiếp lần trước');
+        await expect(table.locator('tbody tr', { hasText: '@lastKey' })).toContainText('Theo Mốc đang chạy');
         await save.click();
         await expect.poll(() => saveBodies.length, { timeout: 10_000 }).toBe(2);
         expect(saveBodies[1].extractSql).not.toContain('@since');
@@ -1784,7 +1784,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) => r.fulfill(json({ code: 200, result: { extractSql: sql, status: 1, fields: SAVED_FIELDS } })));
         await openSqlCenter(page);
         const table = page.locator('.sql-variable-panel .svp-table').first();
-        await expect(table.locator('tbody tr', { hasText: '@since' })).toContainText('Nối tiếp lần trước', { timeout: 10_000 });
+        await expect(table.locator('tbody tr', { hasText: '@since' })).toContainText('Theo Mốc đang chạy', { timeout: 10_000 });
         await expect(table.locator('tbody tr', { hasText: '@yearStart' })).toContainText('Giá trị nhập');
         await expect(table.locator('tbody tr', { hasText: '@yearStart' }).locator('.svp-const-input input')).toHaveValue('');
         await expect(page.locator('.sql-variable-panel .svp-check-lead')).toContainText('(3/3)');
@@ -1956,7 +1956,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         // Chưa có mốc: ô ngày trống là gửi toàn bộ dữ liệu; nút có sẵn của ô ngày lấy giờ hiện tại bằng một lần bấm
         await expect(picker).toHaveValue('', { timeout: 10_000 });
-        await expect(picker).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+        await expect(picker).toHaveAttribute('placeholder', 'Đối tác chưa có mốc: gửi toàn bộ');
         await picker.click();
         await page.locator('.el-picker-panel:visible .el-picker-panel__link-btn').first().click();
         await expect(picker).toHaveValue(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/);
@@ -2065,7 +2065,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         await expect(paramCodes).toHaveText(['@pageSize', '@lastKey']);
         const lastKeyRow = page.locator('.sql-variable-panel .svp-params-card tbody tr', { hasText: '@lastKey' });
-        await expect(lastKeyRow.locator('.cvi-picker input')).toHaveAttribute('placeholder', 'Gửi toàn bộ dữ liệu');
+        await expect(lastKeyRow.locator('.cvi-picker input')).toHaveAttribute('placeholder', 'Đối tác chưa có mốc: gửi toàn bộ');
         await expect(lastKeyRow.locator('.cvi-info')).toHaveCount(0);
     });
 

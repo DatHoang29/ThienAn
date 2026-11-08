@@ -716,7 +716,7 @@ Ngoài ra còn các cảnh báo: gói tin không tìm thấy cấu hình, bộ k
 Để phục vụ công tác nghiệm thu chính thức của QA/QC (chị Như), tiêu chuẩn kiểm thử toàn trình được định nghĩa chi tiết tại **Mục §5 ("Tiêu chí Nghiệm thu & Ma trận Kiểm thử")** trong tài liệu [`Đặc tả Background Service ShareData.md`](Đặc%20tả%20Background%20Service%20ShareData.md#5-tiêu-chí-nghiệm-thu--ma-trận-kiểm-thử-acceptance-criteria), bao gồm:
 
 1. **Chiều Gửi (Outbound Acceptance Criteria):**
-   - **AC-OUT-01 (Happy Path - Gửi định kỳ):** Đến kỳ gửi, trích xuất đúng số bản ghi, ánh xạ JSON chuẩn `TargetShapeJson`, quy đổi `CodeSet`, gửi HTTP 200 OK thành công, lưu bản sao file backup, tăng `SerialNbr`, tiến mốc cursor `LastTime/LastKey`, log cha `Send` Thành công.
+   - **AC-OUT-01 (Happy Path - Gửi định kỳ):** Đến kỳ gửi, trích xuất đúng số bản ghi, ánh xạ JSON chuẩn `TargetShapeJson`, quy đổi `CodeSet`, gửi HTTP 200 OK thành công, lưu bản sao file backup, tăng `SerialNbr`, tiến Mốc đang chạy (`LastKey`), log cha `Send` Thành công.
    - **AC-OUT-02 (Theo sự kiện - Event Trigger):** Kích hoạt gửi ngay lập tức khi phát sinh bản ghi mới (`SendOnNewData = true`), không chờ hết chu kỳ lịch.
    - **AC-OUT-03 (Chặn khi thiếu hồ sơ ánh xạ):** Hủy kết xuất an toàn, không gửi HTTP, ghi log Cảnh báo mã `ESH-1304`, không tiến mốc cursor.
    - **AC-OUT-04 (Chặn khi thiếu trường bắt buộc):** Dừng kết xuất khi trường `required = true` bị NULL và không có giá trị mặc định, ghi cảnh báo `ESH-1202`.

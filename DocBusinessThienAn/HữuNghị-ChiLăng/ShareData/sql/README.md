@@ -1,7 +1,7 @@
 # 🗄️ Danh Mục Kịch Bản SQL Phân Hệ ShareData (ESHARE)
 
 > **Căn cứ quy chuẩn:** [`.agents/rules/database-mcp_thienan.md` §2.3](../../../../.agents/rules/database-mcp_thienan.md) (Rule 19.85: Entity là SSOT, CodeFirst tạo khung trước; Rule 19.101: tệp `_local.sql` chỉ chạy trên DB local; Rule 19.103: **mỗi tệp chỉ ghi một bảng, tên tệp mang hậu tố tên bảng**).  
-> **Cập nhật lần cuối:** 06/11/2026
+> **Cập nhật lần cuối:** 08/11/2026
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Loại | Vị trí / tên tệp | Chạy trên DB nào | Nội dung |
 | :--- | :--- | :--- | :--- |
-| **Dữ liệu chuẩn** | `sql/sharedata-…sql` (**không** có `_local`) | **Mọi DB**: local, dev, staging, production. DB local cũng phải chạy đủ tệp 1 → 16 | Dữ liệu hệ thống cần để chạy: gói 101–111, câu SQL mẫu, mã lỗi, bảng nguồn, cấu hình, bản dịch, chuyển đổi mốc, đối tác, bộ mã chuẩn hóa, hồ sơ ánh xạ |
+| **Dữ liệu chuẩn** | `sql/sharedata-…sql` (**không** có `_local`) | **Mọi DB**: local, dev, staging, production. DB local cũng phải chạy đủ các tệp còn trong bảng mục 3A (2 → 16) | Dữ liệu hệ thống cần để chạy: câu SQL mẫu gói 101–111, mã lỗi, bảng nguồn, cấu hình, bản dịch, menu, đối tác, bộ mã chuẩn hóa, hồ sơ ánh xạ |
 | **Dữ liệu giả lập** | `sql/local/…_local.sql` | **Chỉ DB local** trên máy lập trình viên. ⛔ Cấm chạy trên DB ở máy chủ khác (dev chung, staging, UAT, production) | Dữ liệu giả để thử, chạy sau dữ liệu chuẩn |
 
 > Nhớ nhanh: **có `_local` = chỉ DB local**. **Không có `_local` = dữ liệu chuẩn, DB nào cũng chạy, kể cả local.**
@@ -32,8 +32,8 @@
 
 | Thứ tự | Tệp | Bảng ghi | Nội dung |
 | :---: | :--- | :--- | :--- |
-| **1** | [`sharedata-seed-goi-tin-ShareDataPacket.sql`](sharedata-seed-goi-tin-ShareDataPacket.sql) | `ShareDataPacket` | Thêm 11 gói Catalog (101–111) nếu chưa có gói đang sống cùng mã, chuẩn hóa `OrderNo`, chuẩn hóa `Status` (bật 110, tắt 111). Không chứa câu SQL. Viết lại 03/11/2026 (tệp bị mất ngày 27/10/2026); dòng mới để `IsDelete` trống và có `TenantId`. |
-| **2** | [`sharedata-seed-goi-tin-ShareDataSql.sql`](sharedata-seed-goi-tin-ShareDataSql.sql) | `ShareDataSql` | Chuyển câu SQL cũ (cột `ShareDataPacket.ExtractSql`, bảng `ShareDataPartnerSql`, cột `ShareDataMapping.ExtractSql`) sang `ShareDataSql`; nạp câu mẫu chung (dòng `PartnerId` trống) khi đang trống — **nơi duy nhất chứa câu SQL mẫu chuẩn 101–111**; đổi `__rowid` → `__lastKey`; 7 câu nối đuôi (101, 103, 104, 106, 107, 109, 111) dùng một chuỗi ghép `CONVERT(varchar(23), <thời gian>, 121) + '_' + <ID> AS __lastKey` (02/11/2026); bước 1b điền bộ biến cho câu còn trống. Gói 101 lấy `COALESCE(zs.UpdateTime, zs.CreateTime)` từ 04/11/2026: DB đã có câu mẫu thì chạy tệp này với `@GhiDeMaGoi = N'101'`; đối tác dùng mẫu chung đang có mốc sẽ bị Worker bỏ mốc cũ và gửi lại (ESH-1308), muốn tránh thì tắt đăng ký và Đặt mốc trước. **Chạy sau tệp 1** vì cần bản ghi gói. Bộ biến câu truy vấn lưu ở cột `VariablesJson` (bỏ bảng `ShareDataSqlVariable`, tự chuyển dữ liệu cũ); câu ghi chiều nhận ở `WriteSql`, `AffectedTables` của dòng mẫu chung. |
+| ~~1~~ | ~~`sharedata-seed-goi-tin-ShareDataPacket.sql`~~ | — | **Đã xóa tệp 06/11/2026** (commit `a9cf99ec`): CSDL đã có 11 gói Catalog thì không cần. CSDL mới chưa có gói thì lấy lại tệp bằng `git show a9cf99ec^:"DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql/sharedata-seed-goi-tin-ShareDataPacket.sql"` và chạy trước tệp 2. Nội dung cũ: Thêm 11 gói Catalog (101–111) nếu chưa có gói đang sống cùng mã, chuẩn hóa `OrderNo`, chuẩn hóa `Status` (bật 110, tắt 111). |
+| **2** | [`sharedata-seed-goi-tin-ShareDataSql.sql`](sharedata-seed-goi-tin-ShareDataSql.sql) | `ShareDataSql` | Chuyển câu SQL cũ (cột `ShareDataPacket.ExtractSql`, bảng `ShareDataPartnerSql`, cột `ShareDataMapping.ExtractSql`) sang `ShareDataSql`; nạp câu mẫu chung (dòng `PartnerId` trống) khi đang trống — **nơi duy nhất chứa câu SQL mẫu chuẩn 101–111**; đổi `__rowid` → `__lastKey`; 7 câu nối đuôi (101, 103, 104, 106, 107, 109, 111) dùng một chuỗi ghép `CONVERT(varchar(23), <thời gian>, 121) + '_' + <ID> AS __lastKey` (02/11/2026); bước 1b điền bộ biến cho câu còn trống. Gói 101 lấy `COALESCE(zs.UpdateTime, zs.CreateTime)` từ 04/11/2026: DB đã có câu mẫu thì chạy tệp này với `@GhiDeMaGoi = N'101'`; đối tác dùng mẫu chung đang có mốc sẽ bị Worker bỏ mốc cũ và gửi lại (ESH-1308), muốn tránh thì tắt đăng ký và Đặt mốc trước. Cần bản ghi gói đã có trong `ShareDataPacket`. Bộ biến câu truy vấn lưu ở cột `VariablesJson` (bỏ bảng `ShareDataSqlVariable`, tự chuyển dữ liệu cũ); câu ghi chiều nhận ở `WriteSql`, `AffectedTables` của dòng mẫu chung. |
 | ~~3~~ | ~~`sharedata-seed-goi-tin-ShareDataPacketSql.sql`~~ | — | **Đã gộp vào tệp 2 (27/10/2026):** câu ghi chiều nhận nằm ở cột `WriteSql`, `AffectedTables` của dòng mẫu chung `ShareDataSql`; tệp 2 tự chuyển dữ liệu cũ từ bảng `ShareDataPacketSql`. |
 | **4** | [`sharedata-seed-cau-hinh-SysConfigType.sql`](sharedata-seed-cau-hinh-SysConfigType.sql) | `SysConfigType` | Khởi tạo loại danh mục `sharedata_error_code`. |
 | **5** | [`sharedata-seed-cau-hinh-SysConfigData.sql`](sharedata-seed-cau-hinh-SysConfigData.sql) | `SysConfigData` | Nạp 26 mã cảnh báo `ESH-xxxx`; đăng ký nhóm `sharedata_config` vào loại `operation_config_type`. **Chạy sau tệp 4.** |
@@ -42,9 +42,9 @@
 | ~~8~~ | ~~`sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigData.sql`~~ | — | **Đã xóa tệp 28/10/2026:** việc dọn nhóm cũ `sharedata_fe_config` chạy một lần, DB mới không có nhóm này. |
 | ~~9~~ | ~~`sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigType.sql`~~ | — | **Đã xóa tệp 28/10/2026:** như tệp 8. |
 | **10** | [`sharedata-dich-thuat-SysTerminology.sql`](sharedata-dich-thuat-SysTerminology.sql) | `SysTerminology` | Nạp 168 khóa thuật ngữ (336 dòng vi-VN / en-US) qua `MERGE` không ghi đè bản dịch đã sửa. Có sửa lại 11 câu lỗi đã nạp từ trước: câu dịch lỗi dùng cho cả máy chủ (`string.Format`) lẫn màn hình, nên không được có `{'@'}`, và lỗi nối đuôi không dùng chỗ điền `{0}` (04/11/2026). Chạy xong bấm 🔄 ở avatar góc phải trên → Ngôn ngữ để làm mới cache. |
-| **11** | [`sharedata-chuyen-doi-moc-ShareDataLastSend.sql`](sharedata-chuyen-doi-moc-ShareDataLastSend.sql) | `ShareDataLastSend` | Gỡ unique index 2 cột cũ `index_ShareDataLastSend_Partner_Packet`; chép không trùng các dòng nhóm mốc có tên từ bảng cũ `ShareDataLastSendKey` (chỉ đọc) sang `ShareDataLastSend`. **Phải chạy sau CodeFirst; tắt Worker trước khi chạy.** |
-| **12** | [`sharedata-xoa-bang-cu-ShareDataLastSendKey.sql`](sharedata-xoa-bang-cu-ShareDataLastSendKey.sql) | `ShareDataLastSendKey` | Xóa bảng cũ `ShareDataLastSendKey` sau khi đã gộp cột `CursorKey` vào `ShareDataLastSend` (chặn bằng `SET NOEXEC ON` nếu cột `CursorKey` chưa có hoặc còn dòng chưa chuyển). **Chạy sau tệp 11.** |
-| **13** | [`sharedata-seed-menu-SysMenu.sql`](sharedata-seed-menu-SysMenu.sql) | `SysMenu` | Cấu hình menu phân hệ ShareData dạng tab (`tabPage/index`) gồm 2 nhóm: **Cấu hình chia sẻ** (Cấu hình, Cấu hình gói tin, Ánh xạ dữ liệu, Bộ mã Chuẩn hóa, Mốc gửi, Nguồn sự kiện) và **Theo dõi chia sẻ** (Lịch sử chia sẻ, Cảnh báo & lỗi); chuyển các menu chức năng thành tab con (giữ nguyên ID), thêm menu Mốc gửi nếu chưa có. Chạy lại an toàn. |
+| ~~11~~ | ~~`sharedata-chuyen-doi-moc-ShareDataLastSend.sql`~~ | — | **Đã xóa tệp 06/11/2026:** việc chuyển mốc một lần, DB mới không cần. Nội dung cũ: Gỡ unique index 2 cột cũ `index_ShareDataLastSend_Partner_Packet`; chép không trùng các dòng nhóm mốc có tên từ bảng cũ `ShareDataLastSendKey` (chỉ đọc) sang `ShareDataLastSend`. **Phải chạy sau CodeFirst; tắt Worker trước khi chạy.** |
+| ~~12~~ | ~~`sharedata-xoa-bang-cu-ShareDataLastSendKey.sql`~~ | — | **Đã xóa tệp 06/11/2026:** như tệp 11. Nội dung cũ: Xóa bảng cũ `ShareDataLastSendKey` sau khi đã gộp cột `CursorKey` vào `ShareDataLastSend` (chặn bằng `SET NOEXEC ON` nếu cột `CursorKey` chưa có hoặc còn dòng chưa chuyển). **Chạy sau tệp 11.** |
+| **13** | [`sharedata-seed-menu-SysMenu.sql`](sharedata-seed-menu-SysMenu.sql) | `SysMenu` | Cấu hình menu phân hệ ShareData dạng tab (`tabPage/index`) gồm 2 nhóm: **Cấu hình chia sẻ** (Cấu hình, Cấu hình gói tin, Ánh xạ dữ liệu, Bộ mã Chuẩn hóa, Nguồn sự kiện) và **Theo dõi chia sẻ** (Lịch sử chia sẻ, Cảnh báo & lỗi); chuyển các menu chức năng thành tab con (giữ nguyên ID), gỡ menu Mốc gửi (`shareDataCursor`, xóa mềm) vì mốc đang chạy nay ở khối 4 của Cấu hình gói tin (07/11/2026). Chạy lại an toàn; chạy xong đăng nhập lại để nạp menu. |
 | **14** | [`sharedata-seed-doi-tac-ShareDataPartner.sql`](sharedata-seed-doi-tac-ShareDataPartner.sql) | `ShareDataPartner` | Tạo 2 đối tác `PC08` (Phòng Cảnh sát giao thông) và `TTDHT` (Trung tâm điều hành tuyến) nếu chưa có đối tác đang sống cùng mã. Chưa có địa chỉ kết nối nên để trống `Address`, `Port`, `EndPointApiUrl`; đối tác để bật vì màn hình Cấu hình chia sẻ ẩn đối tác tắt (chưa có đăng ký nên Worker chưa gửi gì). Nhập địa chỉ bằng nút sửa đối tác. Chạy lại an toàn; dòng do bản trước của tệp tạo ở trạng thái tắt, chưa ai sửa, sẽ được bật lên. |
 | **15** | [`sharedata-seed-bo-ma-ShareDataCodeSet.sql`](sharedata-seed-bo-ma-ShareDataCodeSet.sql) | `ShareDataCodeSet` | Nạp 9 bộ mã chuẩn hóa (`traffic_condition`, `lane_code`, `device_state`, `vds_vehicle_class`, `toll_vehicle_type`, `incident_direction`, `incident_state`, `incident_source`, và `incident_type` đọc từ `TmsEventType`); dọn mềm dòng thử nghiệm cũ `condition` nếu không có hồ sơ ánh xạ đang sống tham chiếu. Không ghi đè bộ mã quản trị đã sửa khi `@GhiDeBoMaMau = 0`. **Chạy trước tệp 16.** |
 | **16** | [`sharedata-seed-anh-xa-ShareDataMapping.sql`](sharedata-seed-anh-xa-ShareDataMapping.sql) | `ShareDataMapping` | Xóa mềm hồ sơ ánh xạ thừa của `PC08`, `TTDHT`; tạo/cập nhật 3 hồ sơ gói `101_commonData` đang bật (`PC08_101COMMONDATA_OUT`, `PC08_101COMMONDATA_IN`, `TTDHT_101COMMONDATA_IN`) áp dụng bộ mã chuẩn hóa `lane_code` (cho `laneId`) và `traffic_condition` (cho `trafficCondition`). Hồ sơ quản trị đã sửa tay trên giao diện được giữ nguyên khi `@GhiDeAnhXaMau = 0`. **Chạy sau tệp 2, 14 và 15.** |
@@ -53,16 +53,16 @@
 
 | Thứ tự | Tệp | Bảng ghi | Nội dung |
 | :---: | :--- | :--- | :--- |
-| **D1** | [`sharedata-xoa-cot-thua-ShareDataPacket.sql`](sharedata-xoa-cot-thua-ShareDataPacket.sql) | `ShareDataPacket` | Xóa 5 cột entity đã bỏ (`ExtractSql`, `TemplateSql`, `CursorTimeColumn`, `SyncMode`, `MaxLookBackDays`) trên DB tạo trước 27/10/2026. **Chạy sau tệp 2**, vì tệp 2 chuyển `ExtractSql`, `CursorTimeColumn` cũ sang `ShareDataSql`; DB mới tạo bằng CodeFirst không có các cột này nên bỏ qua. |
-| **D2** | [`sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql`](sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql) | `ShareDataSql` | Sửa câu SQL riêng của đối tác còn mốc 2 cột (`__lastTime`, `@lastTime`) chép từ câu mẫu gói 101 cũ sang một chuỗi ghép `COALESCE(zs.UpdateTime, zs.CreateTime)`, giống nút **Sửa câu**; bỏ biến `lastTime`. Câu khác khuôn hoặc đối tác đã có mốc thì chỉ in tên, sửa bằng nút **Sửa câu** trên giao diện. Chạy lại không sao. **DB dev (đọc 04/11/2026):** sửa được câu riêng gói 101 của TTCSDL và Kiên. |
-| **D3** | [`sharedata-xoa-doi-tac-cu-ShareDataPartner.sql`](sharedata-xoa-doi-tac-cu-ShareDataPartner.sql) | `ShareDataPartner` | **Chỉ chạy trên `DEV_ITS015`** (CSDL khác tệp tự bỏ qua). Xóa mềm 8 đối tác thử nghiệm còn sót (`ddlt`, `ddlt1`, `DDTL`, `DDTL2`, `DDTL-2`, `Partner`, `PartnerPartner`, `TTCSDL`) giống nút Xóa: tắt đối tác, đặt chưa kết nối, ghi `IsDelete`. **Tắt Worker trước, chạy trước D4–D6.** |
-| **D4** | [`sharedata-xoa-dang-ky-doi-tac-da-xoa-ShareDataSubscription.sql`](sharedata-xoa-dang-ky-doi-tac-da-xoa-ShareDataSubscription.sql) | `ShareDataSubscription` | Đăng ký của đối tác đã xóa: đang chạy thì chuyển hủy (`State = 4`, ghi `ResolvedAt`), rồi xóa mềm tất cả. Đăng ký của đối tác đang sống giữ nguyên. **Chạy sau D3.** |
-| **D5** | [`sharedata-xoa-anh-xa-doi-tac-da-xoa-ShareDataMapping.sql`](sharedata-xoa-anh-xa-doi-tac-da-xoa-ShareDataMapping.sql) | `ShareDataMapping` | Xóa mềm cấu hình ánh xạ của đối tác đã xóa. **Chạy sau D3.** |
-| **D6** | [`sharedata-dong-phien-doi-tac-da-xoa-ShareDataSession.sql`](sharedata-dong-phien-doi-tac-da-xoa-ShareDataSession.sql) | `ShareDataSession` | Đóng phiên đang mở của đối tác đã xóa (`State = 8`, `EndReason = partnerDisabled`); phiên vẫn còn trong lịch sử. **Chạy sau D3.** |
-| **D7** | [`sharedata-dat-lai-mau-chung-ShareDataSql.sql`](sharedata-dat-lai-mau-chung-ShareDataSql.sql) | `ShareDataSql` | Đặt lại phần mẫu chung gói 101–111 để nạp mới bản chuẩn: xóa trắng câu SQL, bộ biến, danh sách trường, câu ghi; tệp 2 chạy ngay sau thấy ô trống nên nạp lại câu SQL mẫu chuẩn, bộ biến và câu ghi chuẩn Catalog (câu SQL chuẩn vẫn chỉ ở tệp 2). Không đụng câu riêng của đối tác. Còn bảng cũ `ShareDataPacketSql` thì tệp 2 chép lại câu ghi cũ, nên xóa bảng đó trước. Danh sách trường lập lại bằng **Dò cột trả về** rồi **Lưu** từng gói. **Tắt Worker, chạy ngay trước tệp 2.** |
+| ~~D1~~ | ~~`sharedata-xoa-cot-thua-ShareDataPacket.sql`~~ | — | **Đã xóa tệp 06/11/2026** (commit `a9cf99ec`): DB mới tạo bằng CodeFirst không có các cột này. Nội dung cũ: Xóa 5 cột entity đã bỏ (`ExtractSql`, `TemplateSql`, `CursorTimeColumn`, `SyncMode`, `MaxLookBackDays`) trên DB tạo trước 27/10/2026. |
+| ~~D2~~ | ~~`sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql`~~ | — | **Đã xóa tệp 06/11/2026** (commit `a9cf99ec`): câu SQL riêng chưa theo quy chuẩn mốc sửa bằng nút **Sửa câu** trên giao diện. Nội dung cũ: Sửa câu SQL riêng của đối tác còn mốc 2 cột chép từ câu mẫu gói 101 cũ sang một chuỗi ghép `COALESCE(zs.UpdateTime, zs.CreateTime)`. |
+| ~~D3~~ | ~~`sharedata-xoa-doi-tac-cu-ShareDataPartner.sql`~~ | — | **Không có tệp trong git:** việc dọn một lần trên `DEV_ITS015` cũ, DB mới không cần. Nội dung cũ: Xóa mềm 8 đối tác thử nghiệm còn sót (`ddlt`, `ddlt1`, `DDTL`, `DDTL2`, `DDTL-2`, `Partner`, `PartnerPartner`, `TTCSDL`). |
+| ~~D4~~ | ~~`sharedata-xoa-dang-ky-doi-tac-da-xoa-ShareDataSubscription.sql`~~ | — | **Không có tệp trong git:** như D3. Nội dung cũ: Hủy rồi xóa mềm đăng ký của đối tác đã xóa. |
+| ~~D5~~ | ~~`sharedata-xoa-anh-xa-doi-tac-da-xoa-ShareDataMapping.sql`~~ | — | **Không có tệp trong git:** như D3. Nội dung cũ: Xóa mềm cấu hình ánh xạ của đối tác đã xóa. |
+| ~~D6~~ | ~~`sharedata-dong-phien-doi-tac-da-xoa-ShareDataSession.sql`~~ | — | **Không có tệp trong git:** như D3. Nội dung cũ: Đóng phiên đang mở của đối tác đã xóa. |
+| ~~D7~~ | ~~`sharedata-dat-lai-mau-chung-ShareDataSql.sql`~~ | — | **Không có tệp trong git.** Muốn đưa câu mẫu chung về bản chuẩn thì chạy tệp 2 với `@GhiDeMauGoiTin = 1` hoặc `@GhiDeMaGoi` (xem mục 4, *Nạp lại câu mẫu chung*). |
 | **N1** | [`sharedata-tao-bang-dich-chieu-nhan-InboundDB.sql`](sharedata-tao-bang-dich-chieu-nhan-InboundDB.sql) | 14 bảng đích trong CSDL nhận `*_Inbound` | Tạo bảng đích của câu ghi chiều nhận gói 101–109 (`TmsZone`, `TmsTrafficStatistic`, `TmsZoneStatus`, `TmsEquipment`, `CctvDevice`, `TmsTrafficData`, `TmsWeather`, `TmsVehicleRegistration`, `TollTransactionOut`, `TmsEventType`, `TmsIncident`, `VmsCurrent`, `TollStation`, `TollLane`) trong CSDL nhận riêng, cấu trúc chép từ CSDL vận hành (cột, kiểu, mặc định, khóa chính). Dữ liệu nhận chỉ ghi vào CSDL nhận (đặc tả AC-IN-06). Chạy trên CSDL không có hậu tố `_Inbound` thì tự bỏ qua. Ngoại lệ Rule 19.103: một tệp tạo nhiều bảng của một CSDL riêng. **Chạy sau CodeFirst của ConfigId `ShareDataDB`.** |
-| **D8** | [`sharedata-xoa-cot-thua-ShareDataSql.sql`](sharedata-xoa-cot-thua-ShareDataSql.sql) | `ShareDataSql` | Xóa cột `CursorTimeColumn` đã bỏ khỏi entity 03/11/2026 (cột mốc nay suy từ câu SQL). Chạy lại không sao. |
-| **D9** | [`sharedata-xoa-cot-thua-ShareDataSubscription.sql`](sharedata-xoa-cot-thua-ShareDataSubscription.sql) | `ShareDataSubscription` | Xóa cột `MappingId` đã bỏ khỏi entity (hồ sơ ánh xạ chọn lúc gửi theo đối tác × gói × chiều; lịch sử xem ở `ShareDataActivityLog.MappingId`). Chạy lại không sao. |
+| ~~D8~~ | ~~`sharedata-xoa-cot-thua-ShareDataSql.sql`~~ | — | **Không có tệp trong git:** DB mới tạo bằng CodeFirst không có cột này. Nội dung cũ: Xóa cột `CursorTimeColumn` đã bỏ khỏi entity 03/11/2026. |
+| ~~D9~~ | ~~`sharedata-xoa-cot-thua-ShareDataSubscription.sql`~~ | — | **Không có tệp trong git:** như D8. Nội dung cũ: Xóa cột `MappingId` đã bỏ khỏi entity. |
 
 ### B. Dữ liệu giả lập (⛔ chỉ DB local, hậu tố `_local`, thư mục con [`local/`](local/))
 
@@ -70,7 +70,7 @@ Chỉ giả lập bảng nghiệp vụ ShareData; không ghi vào bảng của p
 
 | Thứ tự | Tệp | Bảng ghi | Nội dung |
 | :---: | :--- | :--- | :--- |
-| **G1** | [`sharedata-du-lieu-gia-lap-ShareDataPacket_local.sql`](local/sharedata-du-lieu-gia-lap-ShareDataPacket_local.sql) | `ShareDataPacket` | Gói kiểm thử `E2E_INBOUND_TEST`. Chạy sau tệp 1. |
+| **G1** | [`sharedata-du-lieu-gia-lap-ShareDataPacket_local.sql`](local/sharedata-du-lieu-gia-lap-ShareDataPacket_local.sql) | `ShareDataPacket` | Gói kiểm thử `E2E_INBOUND_TEST`. Chạy sau dữ liệu chuẩn (mục 3A). |
 | **G2** | [`sharedata-du-lieu-gia-lap-ShareDataSql_local.sql`](local/sharedata-du-lieu-gia-lap-ShareDataSql_local.sql) | `ShareDataSql` | Câu mẫu chung của `E2E_INBOUND_TEST` theo gói 101. Chạy sau G1 và tệp 2. |
 | ~~G3~~ | ~~`sharedata-du-lieu-gia-lap-ShareDataPacketSql_local.sql`~~ | — | **Đã gộp vào G2 (27/10/2026):** khối câu ghi MERGE của `E2E_INBOUND_TEST` nằm ở mục 2 của `sharedata-du-lieu-gia-lap-ShareDataSql_local.sql`. |
 
@@ -85,11 +85,11 @@ Chỉ giả lập bảng nghiệp vụ ShareData; không ghi vào bảng của p
 > 🔴 **Nguyên tắc cốt lõi (Rule 19.85):** Entity là SSOT cho cấu trúc bảng và index. CodeFirst tạo khung trước (`TableSettings.EnableInitTable = true`), script SQL chỉ seed dữ liệu. Tuyệt đối **KHÔNG** `CREATE TABLE`, `ALTER TABLE ... ADD`, `CREATE INDEX` cho bảng đã có entity.
 
 ```
-CodeFirst tạo khung ➔ 1 ➔ 2 ➔ 4 ➔ 5 ➔ 6 ➔ 7 ➔ 10 ➔ 11 ➔ 12 ➔ 13 ➔ 14 ➔ 15 ➔ 16 ➔ (tùy chọn) G1 ➔ G2
+CodeFirst tạo khung ➔ 2 ➔ 4 ➔ 5 ➔ 6 ➔ 7 ➔ 10 ➔ 13 ➔ 14 ➔ 15 ➔ 16 ➔ (tùy chọn) G1 ➔ G2
 ```
 
 1. **Bước 0 — CodeFirst:** khởi động WebAPI (bật tạm `TableSettings.EnableInitTable = true` trong cấu hình debug local) để tạo đủ bảng và index, gồm `ShareDataSql` (câu SQL, bộ biến `VariablesJson`, danh sách trường `FieldsJson` và câu ghi `WriteSql`, unique theo gói + đối tác), `ShareDataLastSend` (mốc nối đuôi nhóm mặc định và nhóm có tên theo `CursorKey`, unique `index_ShareDataLastSend_Partner_Packet_Key` trên `(PartnerCode, PacketCode, CursorKey)`), `ShareDataSourceTable` (unique `UX_ShareDataSourceTable_TableName`).
-2. **Bước 1 — chạy tệp 1 → 16** theo bảng mục 3A, bỏ các dòng gạch ngang (mọi DB, kể cả local). DB cũ còn cột thừa ở `ShareDataPacket` thì chạy thêm tệp D1 ở mục 3C.
+2. **Bước 1 — chạy tệp 2 → 16** theo bảng mục 3A, bỏ các dòng gạch ngang (mọi DB, kể cả local). CSDL phải có sẵn 11 gói Catalog; CSDL mới chưa có gói thì lấy lại tệp 1 từ git như ghi ở dòng tệp 1 rồi chạy trước tệp 2.
 3. **Bước 2 (tùy chọn, chỉ DB local) — chạy G1 → G2** theo bảng mục 3B.
 
 > 📌 *Lưu ý môi trường Local:* `.vscode/launch.json` ghim các cờ CodeFirst của ConfigId 0 (`DEV_ITS10`) về `false` bằng biến môi trường để bảo vệ CSDL. Khi cần init bảng thì bật tạm thời.
@@ -107,13 +107,12 @@ Lập trình viên chạy theo thứ tự; AI không tự chạy script ghi DB.
 
 1. Tắt Worker.
 2. Chạy tệp 2 với `@GhiDeMauGoiTin = 1`, hoặc `@GhiDeMaGoi` theo từng gói. ⚠️ Cờ này ghi đè câu mẫu chung đã sửa trên màn hình, xem lại trước khi chạy.
-3. Chạy tệp 11, rồi tệp 12 nếu chưa chạy.
-4. Khởi động lại WebAPI, Worker. Câu mẫu mới đổi công thức cột mốc thì Worker bỏ mốc cũ của đối tác dùng câu mẫu chung, ghi ESH-1308 và gửi lại từ mốc bắt đầu.
-5. Câu SQL riêng của đối tác chưa theo quy chuẩn mốc (Worker dừng gói, ESH-1306): mở trang Trường gói tin, tab đối tác, bấm **Sửa câu** rồi lưu.
+3. Khởi động lại WebAPI, Worker. Câu mẫu mới đổi công thức cột mốc thì Worker bỏ mốc cũ của đối tác dùng câu mẫu chung, ghi ESH-1308 và gửi lại từ Mốc bắt đầu.
+4. Câu SQL riêng của đối tác chưa theo quy chuẩn mốc (Worker dừng gói, ESH-1306): mở tab Cấu hình gói tin, tab đối tác, bấm **Sửa câu** rồi lưu.
 
 ### Khởi tạo DB mới bằng cờ CodeFirst (thử nghiệm)
 
-> ⚠️ **KHÔNG** bật `EnableInitSeed` trên CSDL đã có dữ liệu (có thể sinh dòng trùng mã `Code`). Seed class C# đã bỏ hoàn toàn (Rule 19.85); bản ghi 11 gói Catalog nằm ở tệp 1, câu SQL mẫu chỉ nằm ở tệp 2.
+> ⚠️ **KHÔNG** bật `EnableInitSeed` trên CSDL đã có dữ liệu (có thể sinh dòng trùng mã `Code`). Seed class C# đã bỏ hoàn toàn (Rule 19.85); bản ghi 11 gói Catalog nằm ở tệp 1 (đã xóa 06/11/2026, lấy lại từ git như ghi ở dòng tệp 1 trước khi làm checklist dưới), câu SQL mẫu chỉ nằm ở tệp 2.
 
 1. Dùng CSDL thử nghiệm tách biệt (ví dụ `DEV_ITS10_SeedSpike`) bằng biến môi trường ghi đè chuỗi kết nối `ConfigId` `Default` trên cấu hình debug local, ⛔ **KHÔNG sửa trực tiếp `Database.json`**.
 2. Bật tạm `DbSettings.EnableInitDb = true`, `TableSettings.EnableInitTable = true` (`EnableIncreTable = false`), nhớ trả về `false` sau khi chạy.
@@ -141,6 +140,6 @@ ORDER BY p.[OrderNo];
 
 ## ⚠️ 5. Lưu Ý Về CSDL Đích
 
-- Các tệp chạy trên CSDL chính **`[DEV_ITS10]`**. Câu ghi của G3 `MERGE` vào bảng đích `dbo.InboundTrafficFlow` trên `[DEV_ITS10_Inbound]`; thư mục không tạo bảng này, cần thì tạo tay khi kiểm thử chiều nhận.
+- Các tệp chạy trên CSDL chính **`[DEV_ITS10]`**. Câu ghi của G2 `MERGE` vào bảng đích `dbo.InboundTrafficFlow` trên `[DEV_ITS10_Inbound]`; thư mục không tạo bảng này, cần thì tạo tay khi kiểm thử chiều nhận.
 - **P0 Safeguards (Rule 16):** AI không tự thực thi lệnh ghi lên CSDL. Lập trình viên kiểm tra và thực thi script trên DB.
 - **Ghi chú lịch sử:** trước 24/10/2026 thư mục có 4 tệp gộp (`sharedata-seed-goi-tin.sql`, `sharedata-seed-cau-hinh.sql`, `sharedata-dich-thuat.sql`, `sharedata-du-lieu-gia-lap_local.sql`), mỗi tệp ghi nhiều bảng. Nội dung đã tách nguyên vẹn sang bộ tệp trên. Riêng mục 5 cũ của `sharedata-seed-cau-hinh.sql` (ghi chú bộ mã sự cố gói 107 đã gỡ ngày 22/10/2026) chỉ là chú thích, không còn câu lệnh, nên không chép sang.

@@ -772,7 +772,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(mainTable.locator('thead th')).toHaveCount(3);
         await expect(mainTable.locator('.svp-param-code').first()).toHaveText('@lastKey');
         await expect(mainTable.locator('.cvi-picker input')).toHaveValue('27/10/2026 09:00:00');
-        await expect(mainTable.locator('.cvi-from')).toHaveText('Từ');
+        await expect(mainTable.locator('.cvi-from')).toHaveText('Đối tác chưa có mốc: từ');
         await expect(mainTable.locator('.cvi-prefix-label')).toHaveCount(0);
 
         // 2. Chuyển sang tab Đối tác riêng CSGT: bảng tham số thêm cột So mẫu chung (4 cột)
@@ -852,7 +852,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             // Tab Mẫu chung: chỉ đặt mốc bắt đầu, để trống là gửi toàn bộ dữ liệu
             await expect(picker).toBeEnabled({ timeout: 10_000 });
             await expect(picker).toHaveValue('');
-            await expect(picker).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+            await expect(picker).toHaveAttribute('placeholder', 'Đối tác chưa có mốc: gửi toàn bộ');
             await expect(editBtn).toHaveCount(0);
             await expect(mainTable.locator('.cvi-modes')).toHaveCount(0);
             await expect(mainTable.locator('.cvi-info')).toHaveCount(0);
@@ -879,7 +879,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 await expect(picker).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
             } else {
                 await expect(picker).toBeEnabled();
-                await expect(picker).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+                await expect(picker).toHaveAttribute('placeholder', 'Gửi toàn bộ dữ liệu');
             }
             await expect(editBtn).toHaveCount(0);
             await expect(mainTable).not.toContainText('Z02');
@@ -961,7 +961,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const expectNoCursorTab = async () => {
             await expect(paramCodes).toHaveText(['@lastKey'], { timeout: 10_000 });
             await expect(picker).toBeEnabled();
-            await expect(picker).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+            await expect(picker).toHaveAttribute('placeholder', 'Gửi toàn bộ dữ liệu');
             expect(variablePartners.at(-1)).toBe('p_b');
         };
 
@@ -2526,7 +2526,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const lastTimeRow = table.locator('tbody tr', { hasText: '@lastTime' });
         const lastKeyRow = table.locator('tbody tr', { hasText: '@lastKey' });
         await expect(lastTimeRow).toContainText('tự bỏ khi sửa câu');
-        await expect(lastKeyRow).toContainText('Nối tiếp lần trước theo key');
+        await expect(lastKeyRow).toContainText('Theo Mốc đang chạy');
         await expect(lastKeyRow.locator('.svp-source-col-tag')).toHaveCount(0);
         // Kiểm tra ô chọn Nguồn giá trị (.svp-source-select) của @lastKey hiển thị trên đúng 1 dòng, không bị rớt dòng
         const isSourceSingleLine = await lastKeyRow.locator('.svp-source-select .el-select__placeholder').evaluate((el) => {
@@ -2550,7 +2550,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(lastKeyRow.locator('.cvi-prefix-label')).toHaveCount(0);
         await expect(lastKeyRow.locator('.cvi-picker')).not.toHaveClass(/is-all-data/);
         await expect(lastKeyRow.locator('.cvi-picker input')).toBeEnabled();
-        await expect(lastKeyRow.locator('.cvi-picker input')).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+        await expect(lastKeyRow.locator('.cvi-picker input')).toHaveAttribute('placeholder', 'Đối tác chưa có mốc: gửi toàn bộ');
         const isValueSingleLine = await lastKeyRow.locator('.cvi-wrap').evaluate((el) => {
             const style = window.getComputedStyle(el);
             return style.flexWrap === 'nowrap' && el.getBoundingClientRect().height <= 32;
@@ -2638,16 +2638,18 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     /**
-     * Description: Tab cấu hình riêng của đối tác, đổi nguồn @lastKey sang Giá trị nhập thì Quy chuẩn mốc còn 2/3;
-     *              bấm Sửa câu trong popup thì @lastKey trở lại Nối tiếp lần trước theo key và đạt đủ 3/3.
+     * Description: Tab cấu hình riêng của đối tác: dữ liệu cũ để @lastKey là Giá trị nhập thì Quy chuẩn mốc còn 2/3 và cột Nguồn còn chọn được;
+     *              bấm Sửa câu trong popup thì @lastKey trở lại Theo Mốc đang chạy, đạt đủ 3/3 và cột Nguồn khóa
+     *              (đổi @lastKey sang Giá trị nhập làm câu nối đuôi gửi lại cùng dữ liệu mỗi lượt).
      * Created date: 06/11/2026
+     * Modified date: 08/11/2026
      */
-    test('63c. Cấu hình riêng: đổi @lastKey sang Giá trị nhập rồi bấm Sửa câu thì @lastKey trở lại nối tiếp theo key, đạt 3/3', async ({ page }) => {
+    test('63c. Cấu hình riêng: @lastKey là Giá trị nhập thì Sửa câu đưa về Theo Mốc đang chạy, đạt 3/3 và khóa cột Nguồn', async ({ page }) => {
         const key = "CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID";
         const sql = `SELECT TOP (@pageSize) ${key} AS __lastKey, zs.ID AS zoneStatusId FROM TmsZoneStatus zs WHERE ${key} > @lastKey ORDER BY __lastKey ASC`;
         const items = [
             { code: 'pageSize', dataType: 'Int', valueKind: 'Const', value: '100', defaultValue: null, savedValue: null },
-            { code: 'lastKey', dataType: 'String', valueKind: 'Builtin', value: 'lastKey', defaultValue: null, savedValue: null },
+            { code: 'lastKey', dataType: 'String', valueKind: 'Const', value: '', defaultValue: null, savedValue: null },
         ];
         const fields = [{ key: 'zoneStatusId', type: 'string', label: 'Mã trạng thái', required: true }];
         const fulfill = (route: any, result: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
@@ -2680,23 +2682,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const panel = page.locator('.sql-variable-panel');
         const lead = panel.locator('.svp-check-lead');
         const lastKeyRow = panel.locator('.svp-table').first().locator('tbody tr', { hasText: '@lastKey' });
-        await expect(lead).toContainText('(3/3)', { timeout: 10_000 });
-
-        // Màu icon trong danh sách chọn trùng với icon ở ô đã chọn (key cam, giá trị nhập xanh)
-        const colorOf = (el: Element) => getComputedStyle(el).color;
-        const selectedKeyColor = await lastKeyRow.locator('.svp-source-prefix').evaluate(colorOf);
-        const pageSizeConstColor = await panel.locator('.svp-table').first().locator('tbody tr', { hasText: '@pageSize' }).locator('.svp-source-prefix').evaluate(colorOf);
-        expect(selectedKeyColor).not.toBe(pageSizeConstColor);
-        await lastKeyRow.locator('.svp-source-select').click();
-        const optionIcons = page.locator('.svp-source-popper:visible .svp-source-opt-icon');
-        await expect(optionIcons).toHaveCount(2);
-        expect(await optionIcons.locator('xpath=self::*[contains(@class,"is-key")]').evaluate(colorOf)).toBe(selectedKeyColor);
-        expect(await optionIcons.locator('xpath=self::*[contains(@class,"is-const")]').evaluate(colorOf)).toBe(pageSizeConstColor);
-
-        // Đổi nguồn @lastKey sang Giá trị nhập như thao tác của người dùng
-        await page.locator('.el-select-dropdown__item:visible', { hasText: 'Giá trị nhập' }).click();
+        const pageSizeRow = panel.locator('.svp-table').first().locator('tbody tr', { hasText: '@pageSize' });
+        const lastKeySource = lastKeyRow.locator('.svp-source-select .el-select__wrapper');
+        await expect(lead).toContainText('(2/3)', { timeout: 10_000 });
         await expect(lastKeyRow).toContainText('Giá trị nhập');
-        await expect(lead).toContainText('(2/3)');
+        await expect(lastKeySource).not.toHaveClass(/is-disabled/);
 
         // Bấm Sửa câu trong popup Quy chuẩn mốc
         await lead.hover();
@@ -2705,7 +2695,14 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await popover.locator('.svp-fix-all').click();
 
         await expect(lead).toContainText('(3/3)', { timeout: 10_000 });
-        await expect(lastKeyRow).toContainText('Nối tiếp lần trước theo key');
+        await expect(lastKeyRow).toContainText('Theo Mốc đang chạy');
+        await expect(lastKeySource).toHaveClass(/is-disabled/);
+
+        // Icon nguồn: mốc (cam) khác giá trị nhập (xanh)
+        const colorOf = (el: Element) => getComputedStyle(el).color;
+        const keyColor = await lastKeyRow.locator('.svp-source-prefix').evaluate(colorOf);
+        const constColor = await pageSizeRow.locator('.svp-source-prefix').evaluate(colorOf);
+        expect(keyColor).not.toBe(constColor);
         expect(pageErrors).toEqual([]);
     });
 

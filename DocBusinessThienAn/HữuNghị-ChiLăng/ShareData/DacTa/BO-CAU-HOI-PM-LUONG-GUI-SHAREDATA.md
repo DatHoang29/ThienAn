@@ -138,23 +138,21 @@
 ### Q9. Khác biệt giữa Gói gửi toàn bộ (Snapshot) và Gói gửi nối đuôi (Biến động)?
 * **Trả lời trọng tâm:**  
   - **Khi setting là Snapshot:** mỗi lần đến lịch gửi lấy toàn bộ theo SQL cấu hình, không ép TOP cứng và không dùng LastSend để lọc dữ liệu. Mặc định 101, 102, **105**, 108 là Snapshot; **105 theo mapping `All/update`, đã chốt**. Người dùng được chọn Incremental và Worker phải dùng setting/cursor tương ứng. **110 được tạo/cấu hình bình thường**, bổ sung bảng/dữ liệu mô phỏng và test thông luồng; trạng thái triển khai được ghi riêng trong MasterPlan.
-  - **Gói Biến động / Nối đuôi (103, 104, 106, 107, 109):** Dữ liệu phát sinh liên tục theo dòng sự kiện (xe chạy qua cảm biến, thời tiết từng phút, sự cố). Hệ thống quét dữ liệu tăng dần qua con trỏ kép `(LastTime, LastKey)` lưu trong bảng `ShareDataLastSend`. Phân trang tối đa **100 bản ghi/trang**.
+  - **Gói Biến động / Nối đuôi (103, 104, 106, 107, 109):** Dữ liệu phát sinh liên tục theo dòng sự kiện (xe chạy qua cảm biến, thời tiết từng phút, sự cố). Hệ thống quét dữ liệu tăng dần theo mốc một chuỗi `thời gian_khóa` (cột `__lastKey`, PA1) lưu ở cột `LastKey` của bảng `ShareDataLastSend`. Phân trang tối đa **100 bản ghi/trang**.
 
 ---
 
 ### Q10. Cơ chế nối đuôi (LastSend) hoạt động ra sao? Làm sao chống trùng dữ liệu?
 * **Trả lời trọng tâm:**  
-  - Bảng `ShareDataLastSend` lưu giữ mốc con trỏ kép `(LastTime, LastKey)` độc lập cho từng cặp `(PartnerCode, PacketCode)`.
-  - **Mốc thời gian (`LastTime`):** `Watermark = COALESCE(UpdateTime, CreateTime, [EventTime])`.
-  - **Mốc khóa (`LastKey`):** Khóa định danh `ID` (`__lastKey`) của bản ghi cuối cùng trong trang (dùng để phân định rạch ròi khi nhiều bản ghi có cùng một tích tắc thời gian).
+  - Bảng `ShareDataLastSend` lưu Mốc đang chạy (cột `LastKey`) độc lập cho từng bộ `(PartnerCode, PacketCode, CursorKey)`: các đối tác dùng chung câu SQL mẫu vẫn mỗi đối tác một mốc.
+  - **Cột mốc (`__lastKey`, PA1 sếp chốt 02/11/2026):** `CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID`, ví dụ `2026-10-27 10:05:00.000_<ID>`. Phần `ID` phân định các bản ghi cùng một thời điểm.
   - **Câu lệnh SQL lọc:**
     ```sql
-    WHERE @lastTime IS NULL
-       OR Watermark > @lastTime
-       OR (Watermark = @lastTime AND ID > @lastKey)
-    ORDER BY Watermark ASC, ID ASC
+    WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey
+    ORDER BY __lastKey ASC
     ```
-  - **Chỉ khi đối tác phản hồi HTTP 200..299 thành công**, hệ thống mới commit cập nhật mốc `LastTime` và `LastKey` mới vào bảng `ShareDataLastSend`. Nhờ cơ chế con trỏ đơn điệu này, hệ thống đảm bảo **không bao giờ gửi trùng bản ghi cũ**.
+  - Đối tác chưa có Mốc đang chạy thì `@lastKey` lấy Mốc bắt đầu của câu SQL; Mốc bắt đầu trống thì gửi từ bản ghi cũ nhất.
+  - **Chỉ khi đối tác phản hồi HTTP 200..299 thành công**, hệ thống mới commit cập nhật mốc `LastKey` mới vào bảng `ShareDataLastSend`. Nhờ cơ chế con trỏ đơn điệu này, hệ thống đảm bảo **không bao giờ gửi trùng bản ghi cũ**.
 
 ---
 

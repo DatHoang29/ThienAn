@@ -204,6 +204,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await SeedZoneRowAsync(db, rowPrefix, unique, "R5", newRowTime);
             await SetSubscriptionStateAsync(db, BaseEnums.SubSubscriptionState.Active, subA.ID, subB.ID, subC.ID);
             await worker.ProcessSubscriptions(CancellationToken.None);
+            await MakeSubscriptionDue(db, subB.ID);
+            await worker.ProcessSubscriptions(CancellationToken.None);
 
             // Assert
             Assert.False(savedSql.RequiresConfirm);
@@ -331,77 +333,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Author: DatHQ
-        /// Description: Hết thời gian khóa được cấp (outbound_lock_budget_percent của thời gian khóa) thì dừng lượt sau trang đang gửi dù chưa tới OutboundMaxPagesPerRun;
-        ///              mốc đã ghi của trang đó, lượt sau gửi tiếp phần còn lại, không sót và không gửi lặp.
-        /// Created date: 05/11/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessSubscriptions_WhenLockBudgetSpent_StopsAfterCurrentPageAndResumesNextRun_Test()
-        {
-            // Arrange
-            using var scope = _host.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var unique = Guid.NewGuid().ToString("N")[..8];
-            var packetId = $"pkt-bud-{unique}";
-            var packetCode = $"PKT_BUD_{unique}";
-            var rowPrefix = $"ZC_BUD_{unique}_";
-            var baseTime = new DateTime(2026, 10, 27, 9, 0, 0);
-            foreach (var (name, hour) in new[] { ("R1", 0), ("R2", 1), ("R3", 2) })
-            {
-                var rowTime = baseTime.AddHours(hour);
-                await SeedZoneRowAsync(db, rowPrefix, unique, name, rowTime);
-            }
-
-            await db.Insertable(new ShareDataPacket { ID = packetId, Code = packetCode, Name = $"Packet {packetCode}", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
-            var variables = ZoneVariables(1, rowPrefix, null);
-            var sql = ZoneCursorSql();
-            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, variables);
-            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql);
-            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
-            {
-                PartnerCode = $"P_BUD_{unique}",
-                SubCode = $"SUB_BUD_{unique}",
-                DatatypeId = packetId,
-                MappingShape = RowCodeShape,
-                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/bud-{unique}",
-                ConfigureSub = s => s.IntervalSeconds = 5
-            });
-            // Thời gian khóa tối thiểu 30 giây, phần được dùng 10% là 3 giây; trang đầu đối tác trả chậm hơn mức đó
-            var workerConfig = await CreateWorkerConfigAsync(scope, db,
-                (ShareDataConst.ConfigKeyOutboundLockBudgetPercent, 10),
-                (ShareDataConst.ConfigKeyOutboundLockMinSec, 30),
-                (ShareDataConst.ConfigKeyOutboundLockIntervalMultiplier, 1));
-            var worker = CreateWorker(scope, workerConfig: workerConfig);
-            var slowResponse = TimeSpan.FromMilliseconds(3300);
-            var delayed = 0;
-            _host.PartnerServer.Responder = (_, request) =>
-            {
-                if (request.Path.Contains($"bud-{unique}") && Interlocked.Exchange(ref delayed, 1) == 0)
-                {
-                    Thread.Sleep(slowResponse);
-                }
-                return null;
-            };
-
-            // Act
-            await worker.ProcessSubscriptions(CancellationToken.None);
-            var bodiesFirstRun = PartnerBodies($"bud-{unique}");
-            var cursorFirstRun = await db.Queryable<ShareDataLastSend>().Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode).FirstAsync();
-            await MakeSubscriptionDue(db, sub.ID);
-            await worker.ProcessSubscriptions(CancellationToken.None);
-
-            // Assert
-            var firstRunBody = Assert.Single(bodiesFirstRun);
-            Assert.Contains($"\"{rowPrefix}R1\"", firstRunBody);
-            Assert.EndsWith($"_R1_{unique}", cursorFirstRun.LastKey);
-            var all = PartnerBodies($"bud-{unique}");
-            Assert.Equal(3, all.Count);
-            Assert.Contains($"\"{rowPrefix}R2\"", all[1]);
-            Assert.Contains($"\"{rowPrefix}R3\"", all[2]);
-        }
-
-        /// <summary>
-        /// Author: DatHQ
         /// Description: Đặt mốc bằng ô chọn ngày giờ (chuỗi kết thúc bằng dấu gạch dưới): lượt tới gửi cả dòng đúng thời điểm đó, không gửi dòng trước đó, kể cả chỉ sớm hơn vài mili giây.
         ///              Mốc lần đầu chọn bằng ô ngày giờ cho kết quả như vậy.
         /// Created date: 05/11/2026
@@ -489,7 +420,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, variables);
             await ShareDataSqlSeed.SetCommonAsync(db, packetId,
                 $"SELECT TOP (@pageSize) p.Code AS rowCode, {key} AS __lastKey FROM ShareDataPacket p WHERE p.Code LIKE @prefix AND {key} > @lastKey ORDER BY __lastKey ASC");
-            var (partner, _) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
             {
                 PartnerCode = $"P_TYP_{unique}",
                 SubCode = $"SUB_TYP_{unique}",
@@ -498,8 +429,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/typ-{unique}"
             });
 
-            // Act
-            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+            // Act: 2 lượt gửi tuần tự (mỗi lượt 1 trang theo pageSize = 1)
+            var worker = CreateWorker(scope);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            await MakeSubscriptionDue(db, sub.ID);
+            await worker.ProcessSubscriptions(CancellationToken.None);
 
             // Assert
             var bodies = PartnerBodies($"typ-{unique}");

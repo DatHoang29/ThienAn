@@ -400,4 +400,64 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
             });
         expect(colors).toHaveLength(1);
     });
+
+    /**
+     * Author: DatHQ
+     * Description: Tab đối tác: Đặt lại ở khối 4 thì ô Mốc bắt đầu ở khối 3 mở ngay (đối tác không còn mốc), Đặt mốc thì khóa lại ngay,
+     *              không cần tải lại trang; phần đang sửa chưa lưu ở khối 3 vẫn giữ.
+     * Created date: 08/11/2026
+     */
+    test('9. Tab đối tác: Đặt lại, Đặt mốc ở khối 4 thì ô Mốc bắt đầu ở khối 3 mở hoặc khóa ngay, giữ phần đang sửa', async ({ page }) => {
+        const saved: Record<string, string | null> = { p_a: '2026-10-27 10:05:00.000_Z02' };
+        await mockExtractSql(page, CURSOR_SQL);
+        await mockPartners(page, [{ partnerId: 'p_a', partnerCode: 'CSGT', partnerName: 'Cục CSGT', isCustom: true }]);
+        await mockVariables(page, (partnerId) => [pageSizeItem, keyItem(partnerId ? saved[partnerId] ?? null : null)]);
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (route) =>
+            fulfillJson(route, { partnerId: partnerIdOf(route), packetCode: PACKET_CODE, standardSql: CURSOR_SQL, customSql: CURSOR_SQL, isCustom: true, fields: [] })
+        );
+        await page.route('**/api/sharedata/sharedatapacket/resetlastsend*', (route) => {
+            saved[route.request().postDataJSON().partnerId] = null;
+            return fulfillJson(route, true);
+        });
+        await page.route('**/api/sharedata/sharedatapacket/setlastsend*', (route) => {
+            const body = route.request().postDataJSON();
+            saved[body.partnerId] = body.lastKey;
+            return fulfillJson(route, null);
+        });
+
+        await openSqlCenter(page);
+        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'CSGT' }).click();
+        const variables = page.locator('.sql-variable-panel .svp-table').first();
+        const startInput = variables.locator('tbody tr', { hasText: '@lastKey' }).locator('.cvi-picker input');
+        const pageSizeInput = variables.locator('tbody tr', { hasText: '@pageSize' }).locator('.el-input-number input');
+        const row = blockRow(page, 'CSGT');
+        await expect(row).toContainText('2026-10-27 10:05:00.000_Z02', { timeout: 15_000 });
+        await expect(startInput).toBeDisabled();
+        await expect(startInput).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
+
+        // Sửa khối 3 mà chưa lưu
+        await pageSizeInput.fill('50');
+        await pageSizeInput.press('Tab');
+        await expect(pageSizeInput).toHaveValue('50');
+
+        // Đặt lại: đối tác không còn mốc nên ô Mốc bắt đầu mở ngay
+        await row.locator('.sd-cursor-reset-btn').click();
+        await page.locator('.el-message-box__btns .el-button--primary').click();
+        await expect(row.locator('.sd-cursor-line')).toHaveText('Chưa có, lượt gửi tới lấy toàn bộ dữ liệu');
+        await expect(startInput).toBeEnabled();
+        await expect(startInput).toHaveAttribute('placeholder', 'Gửi toàn bộ dữ liệu');
+        await expect(pageSizeInput).toHaveValue('50');
+
+        // Đặt mốc: đối tác có mốc lại nên ô Mốc bắt đầu khóa ngay
+        await row.locator('.sd-cursor-set-btn').click();
+        const dialog = page.locator('.sd-set-cursor-dialog');
+        await expect(dialog).toBeVisible();
+        await pickTime(page, dialog, '02/11/2026 08:00:00');
+        await dialog.locator('.el-dialog__footer .el-button--primary').click();
+        await expect(dialog).toBeHidden();
+        await expect(row.locator('.sd-cursor-line')).toHaveText('2026-11-02 08:00:00.000_');
+        await expect(startInput).toBeDisabled();
+        await expect(startInput).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
+        await expect(pageSizeInput).toHaveValue('50');
+    });
 });

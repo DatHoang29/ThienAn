@@ -190,8 +190,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             try
             {
-                // Act
-                await Task.WhenAll(clones.Select(clone => RunCloneAsync(clone, packet, byEvent)));
+                // Act: 4 lượt chạy tuần tự (mỗi lượt gửi 1 page theo đúng cơ chế 1 page/lượt)
+                for (var run = 0; run < 4; run++)
+                {
+                    await Task.WhenAll(clones.Select(clone => RunCloneAsync(clone, packet, byEvent)));
+                    foreach (var sub in subs.Values)
+                    {
+                        await MakeSubscriptionDue(db, sub.ID);
+                    }
+                }
 
                 // Assert
                 foreach (var name in names)
@@ -262,11 +269,19 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var cloneA102 = CreateClone(scope, ClonePartnerCode(packet, "A102"));
             var cloneWithoutCode = CreateClone(scope, null);
 
-            // Act
-            await Task.WhenAll(
-                RunCloneAsync(cloneWithoutCode, packet, byEvent),
-                RunCloneAsync(cloneA101, packet, byEvent),
-                RunCloneAsync(cloneA102, packet, byEvent));
+            // Act: 4 lượt chạy tuần tự (mỗi lượt gửi 1 page theo đúng cơ chế 1 page/lượt)
+            for (var run = 0; run < 4; run++)
+            {
+                await Task.WhenAll(
+                    RunCloneAsync(cloneWithoutCode, packet, byEvent),
+                    RunCloneAsync(cloneA101, packet, byEvent),
+                    RunCloneAsync(cloneA102, packet, byEvent));
+                var subList = await db.Queryable<ShareDataSubscription>().Where(s => s.DatatypeId == packet.PacketId).ToListAsync();
+                foreach (var s in subList)
+                {
+                    await MakeSubscriptionDue(db, s.ID);
+                }
+            }
 
             // Assert
             foreach (var name in names)
@@ -297,10 +312,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var first = CreateClone(scope, selfCode);
             var second = sameProcess ? first : CreateClone(scope, selfCode);
 
-            // Act
-            await Task.WhenAll(
-                RunCloneAsync(first, packet, firstByEvent),
-                RunCloneAsync(second, packet, secondByEvent));
+            // Act: 4 lượt chạy tuần tự, mỗi lượt 2 tiến trình quét đồng thời
+            for (var run = 0; run < 4; run++)
+            {
+                await Task.WhenAll(
+                    RunCloneAsync(first, packet, firstByEvent),
+                    RunCloneAsync(second, packet, secondByEvent));
+                await MakeSubscriptionDue(db, sub.ID);
+            }
 
             // Assert
             var cursor = await GetCloneCursorAsync(db, packet, "A101");
@@ -324,7 +343,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var packet = await SeedClonePacketAsync(db, rowCount: 7, pageSize: 2);
+            var packet = await SeedClonePacketAsync(db, rowCount: 7, pageSize: 7);
             await SeedClonePartnerAsync(db, packet, "A101");
             var (failedPartner, failedSub) = await SeedClonePartnerAsync(
                 db,
@@ -391,10 +410,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var packet = await SeedClonePacketAsync(db, rowCount: 7, pageSize: 2);
             var (_, sub) = await SeedClonePartnerAsync(db, packet, "A101");
-            await SeedClonePartnerAsync(db, packet, "A102");
+            var (_, sub2) = await SeedClonePartnerAsync(db, packet, "A102");
             var selfCode = ClonePartnerCode(packet, "A101");
-            var onePagePerRun = await CreateWorkerConfigWithMaxPages(scope, db, 1);
-            await RunCloneAsync(CreateClone(scope, selfCode, onePagePerRun), packet, byEvent: false);
+            await RunCloneAsync(CreateClone(scope, selfCode), packet, byEvent: false);
             var cursorBefore = await GetCloneCursorAsync(db, packet, "A101");
 
             await MakeSubscriptionDue(db, sub.ID);
@@ -407,9 +425,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var otherClone = CreateClone(scope, ClonePartnerCode(packet, "A102"));
 
             // Act
-            await Task.WhenAll(
-                RunCloneAsync(restarted, packet, byEvent),
-                RunCloneAsync(otherClone, packet, byEvent));
+            for (var run = 0; run < 4; run++)
+            {
+                await Task.WhenAll(
+                    RunCloneAsync(restarted, packet, byEvent),
+                    RunCloneAsync(otherClone, packet, byEvent));
+                await MakeSubscriptionDue(db, sub.ID);
+                await MakeSubscriptionDue(db, sub2.ID);
+            }
 
             // Assert
             var firstPage = packet.RowCodes.Take(2).ToList();
@@ -448,13 +471,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var packet = await SeedClonePacketAsync(db, rowCount: 7, pageSize: 2);
             var (_, sub) = await SeedClonePartnerAsync(db, packet, "A101");
             var selfCode = ClonePartnerCode(packet, "A101");
-            var onePagePerRun = await CreateWorkerConfigWithMaxPages(scope, db, 1);
-
             // Act
-            await RunCloneAsync(CreateClone(scope, selfCode, onePagePerRun), packet, byEvent);
-            var rowsBeforeRestart = ReceivedRows(packet, "A101");
-            await MakeSubscriptionDue(db, sub.ID);
             await RunCloneAsync(CreateClone(scope, selfCode), packet, byEvent);
+            var rowsBeforeRestart = ReceivedRows(packet, "A101");
+            for (var i = 0; i < 3; i++)
+            {
+                await MakeSubscriptionDue(db, sub.ID);
+                await RunCloneAsync(CreateClone(scope, selfCode), packet, byEvent);
+            }
 
             // Assert
             var firstPage = packet.RowCodes.Take(2).ToList();
@@ -495,8 +519,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var subAfterStop = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
 
             _host.PartnerServer.Responder = null;
-            await MakeSubscriptionDue(db, sub.ID);
-            await RunCloneAsync(CreateClone(scope, selfCode), packet, byEvent: false);
+            var restartClone = CreateClone(scope, selfCode);
+            for (var run = 0; run < 4; run++)
+            {
+                await MakeSubscriptionDue(db, sub.ID);
+                await RunCloneAsync(restartClone, packet, byEvent: false);
+            }
 
             // Assert
             Assert.True(stopError is null or OperationCanceledException, stopError?.ToString());
@@ -623,7 +651,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var packet = await SeedClonePacketAsync(db, rowCount: 5, pageSize: 2);
+            var packet = await SeedClonePacketAsync(db, rowCount: 5, pageSize: 5);
             var (_, oldSub) = await SeedClonePartnerAsync(db, packet, "A101");
             var oldClone = CreateClone(scope, ClonePartnerCode(packet, "A101"));
             await RunCloneAsync(oldClone, packet, byEvent: false);

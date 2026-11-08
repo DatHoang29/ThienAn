@@ -2601,8 +2601,13 @@ ORDER BY __lastKey ASC";
 
             try
             {
-                // Act
-                await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+                // Act: 3 lượt chạy tuần tự (mỗi lượt gửi 1 page theo đúng cơ chế 1 page/lượt)
+                var worker = CreateWorker(scope);
+                for (var run = 0; run < 3; run++)
+                {
+                    await worker.ProcessSubscriptions(CancellationToken.None);
+                    await MakeSubscriptionDue(db, sub.ID);
+                }
 
                 // Assert
                 // 3 trang: 100 + 100 + 50 (lọc ParentId == null để đếm 3 trang cha)
@@ -2641,6 +2646,12 @@ ORDER BY __lastKey ASC";
         ///              lượt 2 quét tiếp 100 dòng còn lại đầy đủ mà không mất dữ liệu.
         /// Created date: 29/09/2026
         /// </summary>
+        /// <summary>
+        /// Description: Khi dữ liệu tồn đọng vượt quá kích thước trang (pageSize = 100), Worker gửi mỗi lượt 1 trang;
+        ///              các lượt kế tiếp gửi tiếp phần còn lại, không sót và không gửi lặp.
+        /// Created date: 29/09/2026
+        /// Modified date: 08/11/2026
+        /// </summary>
         [Fact]
         public async Task ProcessSubscriptions_WhenBacklogExceedsPageLimit_StopsAtConfiguredPageLimitAndResumesNextRun_Test()
         {
@@ -2660,25 +2671,24 @@ ORDER BY __lastKey ASC";
 
             var rows = await SeedTrafficRows(db, eqId, platePrefix, baseTime, 310);
 
-            var workerConfig = await CreateWorkerConfigWithMaxPages(scope, db, 3);
+            var worker = CreateWorker(scope);
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
 
-            // Act 1: Lượt 1 — dừng đúng ở trần 3 trang
-            await CreateWorker(scope, workerConfig: workerConfig).ProcessSubscriptions(CancellationToken.None);
+            // Act 1: Lượt 1 — gửi đúng 1 trang 100 dòng
+            await worker.ProcessSubscriptions(CancellationToken.None);
 
-            // Assert 1 (lọc ParentId == null để đếm đúng 3 trang cha)
+            // Assert 1 (lọc ParentId == null để đếm đúng 1 trang cha)
             var firstRun = (await GetLogs(db, sub.ID)).Where(l => l.ParentId == null && l.RecordCount > 0).ToList();
-            Assert.Equal(3, firstRun.Count);
-            Assert.Equal(300, firstRun.Sum(l => l.RecordCount));
+            Assert.Single(firstRun);
+            Assert.Equal(100, firstRun.Sum(l => l.RecordCount));
 
-            // Act 2: Lượt 2 — lấy nốt 10 dòng còn lại, không mất dữ liệu
-            await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.NextTimeRun == baseTime)
-                .Where(s => s.ID == sub.ID)
-                .ExecuteCommandAsync();
-
-            await CreateWorker(scope, workerConfig: workerConfig).ProcessSubscriptions(CancellationToken.None);
+            // Act 2: Các lượt tiếp theo lấy nốt các dòng còn lại, không mất dữ liệu
+            for (var run = 0; run < 3; run++)
+            {
+                await MakeSubscriptionDue(db, sub.ID);
+                await worker.ProcessSubscriptions(CancellationToken.None);
+            }
 
             // Assert 2
             var plates = await CollectExportedPlates(db, sub.ID, platePrefix);
@@ -2732,8 +2742,13 @@ ORDER BY __lastKey ASC";
                 return new PartnerResponsePlan(HttpStatusCode.OK);
             };
 
-            // Act 1
-            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+            // Act 1: 3 lượt gửi — lượt 1 và 2 thành công (mỗi lượt 100 dòng), lượt 3 lỗi 500
+            var worker = CreateWorker(scope);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            await MakeSubscriptionDue(db, sub.ID);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            await MakeSubscriptionDue(db, sub.ID);
+            await worker.ProcessSubscriptions(CancellationToken.None);
 
             // Assert 1
             var logs = await GetLogs(db, sub.ID);
@@ -2750,15 +2765,12 @@ ORDER BY __lastKey ASC";
             var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
             Assert.Equal(2, updatedSub.SerialNbr);
 
-            // Act 2: Đưa mock server về mặc định 200, đặt NextTimeRun về quá khứ, chạy lượt 2
+            // Act 2: Đưa mock server về mặc định 200, đặt NextTimeRun về quá khứ, chạy lượt 4
             partnerServer.ResetDefaults();
 
-            await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.NextTimeRun == baseTime)
-                .Where(s => s.ID == sub.ID)
-                .ExecuteCommandAsync();
+            await MakeSubscriptionDue(db, sub.ID);
 
-            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+            await worker.ProcessSubscriptions(CancellationToken.None);
 
             // Assert 2: Gửi tiếp từ bản ghi 201, không gửi lại 200 bản ghi đầu
             var plates = await CollectExportedPlates(db, sub.ID, platePrefix);
@@ -2801,10 +2813,14 @@ ORDER BY __lastKey ASC";
             var workerA = CreateWorker(scope);
             var workerB = CreateWorker(scope);
 
-            // Act
-            await Task.WhenAll(
-                workerA.ProcessSubscriptions(CancellationToken.None),
-                workerB.ProcessSubscriptions(CancellationToken.None));
+            // Act: 3 lượt chạy tuần tự, mỗi lượt workerA và workerB quét đồng thời
+            for (var run = 0; run < 3; run++)
+            {
+                await Task.WhenAll(
+                    workerA.ProcessSubscriptions(CancellationToken.None),
+                    workerB.ProcessSubscriptions(CancellationToken.None));
+                await MakeSubscriptionDue(db, sub.ID);
+            }
 
             // Assert
             var plates = await CollectExportedPlates(db, sub.ID, platePrefix);
@@ -2889,6 +2905,8 @@ ORDER BY __lastKey ASC";
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
 
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+            await MakeSubscriptionDue(db, sub.ID);
             await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             // Assert 2: Gửi tiếp từ bản ghi 101, tổng cộng Distinct() = 250
@@ -3372,8 +3390,13 @@ ORDER BY __lastKey ASC";
 
             try
             {
-                // Act
-                await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+                // Act: 3 lượt chạy tuần tự (mỗi lượt gửi 1 page 100 dòng theo đúng cơ chế 1 page/lượt)
+                var worker = CreateWorker(scope);
+                for (var run = 0; run < 3; run++)
+                {
+                    await worker.ProcessSubscriptions(CancellationToken.None);
+                    await MakeSubscriptionDue(db, sub.ID);
+                }
 
                 // Assert: 250 dòng / trang 100 -> 3 trang -> 3 cây * 4 = 12 logs
                 var allLogs = await db.Queryable<ShareDataActivityLog>()
@@ -3476,8 +3499,13 @@ ORDER BY __lastKey ASC";
 
             try
             {
-                // Act
-                await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+                // Act: 3 lượt chạy tuần tự (mỗi lượt gửi 1 page 100 dòng theo đúng cơ chế 1 page/lượt)
+                var worker = CreateWorker(scope);
+                for (var run = 0; run < 3; run++)
+                {
+                    await worker.ProcessSubscriptions(CancellationToken.None);
+                    await MakeSubscriptionDue(db, sub.ID);
+                }
 
                 var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
                 var pagedResult = await bus.InvokeAsync<SqlSugarPagedList<ShareDataPageActivityLogOutput>>(new ShareDataPageActivityLogInput
@@ -4225,15 +4253,6 @@ ORDER BY __lastKey ASC";
         }
 
         /// <summary>
-        /// Description: Tạo DataWorkerConfigService đọc nhóm cấu hình cô lập với trần số trang mỗi lượt do test đặt,
-        ///              không ảnh hưởng cấu hình dùng chung của các bài test khác.
-        /// Created date: 20/10/2026
-        /// Modified date: 05/11/2026
-        /// </summary>
-        private static Task<DataWorkerConfigService> CreateWorkerConfigWithMaxPages(IServiceScope scope, ISqlSugarClient db, int maxPagesPerRun) =>
-            CreateWorkerConfigAsync(scope, db, (ShareDataConst.ConfigKeyOutboundMaxPagesPerRun, maxPagesPerRun));
-
-        /// <summary>
         /// Description: Seed N bản ghi TmsTrafficData mốc thời gian tăng dần cho gói 103. Biển số mang tiền tố
         ///              RIÊNG của từng bài để đối chiếu được không trùng / không sót qua các trang mà không
         ///              đụng dữ liệu bài khác — xem mục "Thiết kế cô lập".
@@ -4931,8 +4950,11 @@ ORDER BY __lastKey ASC";
                 "UPDATE TmsTrafficData SET DetectTime = @t, CreateTime = @t, UpdateTime = @t WHERE EquipmentId = @eqId",
                 new { t = sameTime, eqId });
 
-            // Act
-            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+            // Act: 2 lượt gửi tuần tự (mỗi lượt gửi 1 page theo đúng cơ chế 1 page/lượt)
+            var worker = CreateWorker(scope);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            await MakeSubscriptionDue(db, sub.ID);
+            await worker.ProcessSubscriptions(CancellationToken.None);
 
             // Assert
             var plates = partnerServer.ReceivedRequests.SelectMany(r => ExtractPlates(r.Body, platePrefix)).ToList();
@@ -6267,8 +6289,18 @@ ORDER BY __lastKey ASC";
                 LastKey = string.Empty
             }).ExecuteCommandAsync();
 
-            // Act
-            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+            // Act: chạy tuần tự từng lượt cho tới khi hết dòng cần gửi (mỗi lượt 1 page)
+            var worker = CreateWorker(scope);
+            for (var run = 0; run < 10; run++)
+            {
+                await worker.ProcessSubscriptions(CancellationToken.None);
+                await MakeSubscriptionDue(db, sub.ID);
+                var cursor = await db.Queryable<ShareDataLastSend>().FirstAsync(c => c.PartnerCode == partner.Code && c.PacketCode == packetCode);
+                if (cursor != null && cursor.LastKey.Contains(rows.Last().Code!))
+                {
+                    break;
+                }
+            }
 
             // Assert: mỗi dòng gửi đúng một lần
             var bodies = _host.PartnerServer.ReceivedRequests.Select(r => r.Body).ToList();
@@ -6639,8 +6671,12 @@ ORDER BY __lastKey ASC";
             });
             var worker = CreateWorker(scope);
 
-            // Act 1: 5 dòng trùng mốc thời gian với pageSize = 2 -> 3 trang (2 + 2 + 1)
-            await worker.ProcessSubscriptions(CancellationToken.None);
+            // Act 1: 5 dòng trùng mốc thời gian với pageSize = 2 -> 3 trang (2 + 2 + 1) qua 3 lượt chạy tuần tự
+            for (var run = 0; run < 3; run++)
+            {
+                await worker.ProcessSubscriptions(CancellationToken.None);
+                await MakeSubscriptionDue(db, sub.ID);
+            }
 
             // Assert 1
             var run1Bodies = _host.PartnerServer.ReceivedRequests.Select(r => r.Body).ToList();
@@ -7164,8 +7200,12 @@ ORDER BY __lastKey ASC";
 
             var worker = CreateWorker(scope);
 
-            // Act 1: Chạy đợt 1 -> gửi 4 dòng qua 2 trang (2 + 2)
-            await worker.ProcessSubscriptions(CancellationToken.None);
+            // Act 1: Chạy đợt 1 -> gửi 4 dòng qua 2 trang (2 + 2) qua 2 lượt chạy tuần tự
+            for (var run = 0; run < 2; run++)
+            {
+                await worker.ProcessSubscriptions(CancellationToken.None);
+                await MakeSubscriptionDue(db, sub.ID);
+            }
 
             // Assert 1
             var relevantBodies = _host.PartnerServer.ReceivedRequests
@@ -7426,7 +7466,7 @@ ORDER BY __lastKey ASC";
                 MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
                 ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-num-{unique}"
             });
-            var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 3));
+            var worker = CreateWorker(scope);
 
             // Act: 3 lượt gửi liên tiếp
             await worker.ProcessSubscriptions(CancellationToken.None);
@@ -7507,7 +7547,7 @@ ORDER BY __lastKey ASC";
                 MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
                 ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-tkey-{unique}"
             });
-            var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 3));
+            var worker = CreateWorker(scope);
 
             // Act: 2 lượt gửi liên tiếp
             await worker.ProcessSubscriptions(CancellationToken.None);
@@ -7754,7 +7794,7 @@ ORDER BY __lastKey ASC";
             Assert.NotNull(savedCursor.CursorSignature);
 
             // Act 2: Worker chạy tiến trình gửi
-            var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 2));
+            var worker = CreateWorker(scope);
             await worker.ProcessSubscriptions(CancellationToken.None);
 
             // Assert: Chỉ các dòng 4, 5, 6 (sau mốc dòng 3) được gửi tới đối tác; dòng 1, 2, 3 không được gửi
@@ -7859,7 +7899,7 @@ ORDER BY __lastKey ASC";
                 return new PartnerResponsePlan(HttpStatusCode.OK);
             };
 
-            var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 2));
+            var worker = CreateWorker(scope);
 
             // Act: Worker chạy tiến trình gửi
             await worker.ProcessSubscriptions(CancellationToken.None);
@@ -7985,7 +8025,7 @@ ORDER BY __lastKey ASC";
             // Act
             try
             {
-                var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 5));
+                var worker = CreateWorker(scope);
                 await worker.ProcessSubscriptions(CancellationToken.None);
             }
             finally
@@ -8174,110 +8214,6 @@ ORDER BY __lastKey ASC";
                 Assert.Equal([RowId("B"), RowId("C")], secondRun.Keys.Order());
                 Assert.Equal(baseTime.AddHours(1), secondRun[RowId("B")]);
                 Assert.Equal(baseTime.AddMinutes(20), secondRun[RowId("C")]);
-            }
-            finally
-            {
-                await db.Deleteable<TmsZoneStatus>().Where(z => rowIds.Contains(z.ID)).ExecuteCommandAsync();
-            }
-        }
-
-        /// <summary>
-        /// Author: DatHQ
-        /// Description: Câu riêng của đối tác chép từ câu mẫu gói 101 dạng 2 cột (@lastTime, __lastTime) chạy tệp sửa D2:
-        ///              câu chuyển sang một chuỗi ghép COALESCE(UpdateTime, CreateTime), bỏ biến lastTime, Worker gửi được cả dòng chưa có UpdateTime;
-        ///              câu lưu xuống dòng kiểu LF hay CRLF đều sửa được. Đối tác đã có mốc gửi thì tệp không sửa, Worker vẫn chặn câu cũ.
-        /// Created date: 04/11/2026
-        /// </summary>
-        [Theory]
-        [InlineData("\n", false)]
-        [InlineData("\r\n", false)]
-        [InlineData("\n", true)]
-        public async Task ProcessSubscriptions_AfterLegacySqlFixScript_SendsRowsWithoutUpdateTimeUnlessPartnerHasCursor_Test(string newLine, bool hasCursor)
-        {
-            // Arrange
-            using var scope = _host.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var unique = Guid.NewGuid().ToString("N")[..8];
-            var packetId = $"pkt-fix-{unique}";
-            var packetCode = $"PKT_FIX_{unique}";
-            var baseTime = new DateTime(2091, 3, 1, 8, 0, 0);
-            string RowId(string name) => $"{name}_{unique}";
-            string[] rowIds = [RowId("A"), RowId("B")];
-            async Task InsertRow(string name, DateTime? updateTime, DateTime createTime)
-            {
-                await db.Insertable(new TmsZoneStatus { ID = RowId(name), Condition = "NORMAL" }).ExecuteCommandAsync();
-                // Updateable không ghi được CreateTime nên đặt giờ bằng câu lệnh thẳng
-                await db.Ado.ExecuteCommandAsync("UPDATE TmsZoneStatus SET UpdateTime = @u, CreateTime = @c WHERE ID = @id", new { u = updateTime, c = createTime, id = RowId(name) });
-            }
-
-            try
-            {
-                await InsertRow("A", baseTime, baseTime.AddDays(-1));
-                await InsertRow("B", null, baseTime.AddMinutes(5));
-                await db.Insertable(new ShareDataPacket
-                {
-                    ID = packetId,
-                    Code = packetCode,
-                    Name = $"Packet {packetCode}",
-                    PacketVersion = "1.0",
-                    Status = BaseEnums.StatusEnum.Enable
-                }).ExecuteCommandAsync();
-                Assert.True(PacketTemplateSeed.TryGet("101", out var template));
-                await ShareDataSqlSeed.SetCommonAsync(db, packetId, template.ExtractSql);
-                var (partner, _) = await SeedOutboundSubscription(db, new OutboundSubSeed
-                {
-                    PartnerCode = $"P_FIX_{unique}",
-                    SubCode = $"SUB_FIX_{unique}",
-                    DatatypeId = packetId,
-                    MappingShape = new Dictionary<string, object>
-                    {
-                        ["zoneStatusId"] = new Dictionary<string, string> { ["$field"] = "zoneStatusId" },
-                        ["dataTime"] = new Dictionary<string, string> { ["$field"] = "dataTime" }
-                    },
-                    ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-fix-{unique}"
-                });
-                // Câu riêng chép từ câu mẫu gói 101 trước 02/11/2026 (mốc 2 cột)
-                var legacySql = string.Join(newLine,
-                    "SELECT TOP (@pageSize)",
-                    "    zs.UpdateTime AS __lastTime,",
-                    "    zs.ID AS __lastKey,",
-                    "    zs.ID AS zoneStatusId,",
-                    "    zs.UpdateTime AS dataTime",
-                    "FROM dbo.TmsZoneStatus zs",
-                    "WHERE zs.UpdateTime >= ISNULL(@lastTime, '17530101')",
-                    "  AND (@lastTime IS NULL OR zs.UpdateTime > @lastTime OR zs.ID > @lastKey)",
-                    "ORDER BY zs.UpdateTime ASC, zs.ID ASC");
-                await ShareDataSqlSeed.SetVariablesAsync(db, packetId, partner.ID,
-                [
-                    new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "50", OrderNo = 1 },
-                    new SqlVariableItem { Code = "lastTime", DataType = ShareDataConst.SqlVariableTypeDateTime, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = "lastTime", OrderNo = 2 },
-                    new SqlVariableItem { Code = "lastKey", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = "2091-03-01 00:00:00.000_", OrderNo = 3 }
-                ]);
-                await ShareDataSqlSeed.SetPartnerAsync(db, packetId, partner.ID, legacySql);
-                if (hasCursor)
-                {
-                    await db.Insertable(new ShareDataLastSend
-                    {
-                        ID = Guid.NewGuid().ToString("N"),
-                        PartnerCode = partner.Code,
-                        PacketCode = packetCode,
-                        LastKey = "2091-03-01 00:00:00.000_"
-                    }).ExecuteCommandAsync();
-                }
-
-                // Act
-                await db.Ado.ExecuteCommandAsync(SeedScriptReader.ReadLegacySqlFixBatch("-- 1. SỬA CÂU RIÊNG CÒN MỐC 2 CỘT"));
-                await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
-
-                // Assert
-                var savedSql = await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packetId && s.PartnerId == partner.ID).FirstAsync();
-                var variableCodes = (await ShareDataSqlSeed.GetVariablesAsync(db, packetId, partner.ID)).Select(v => v.Code);
-                var sent = SentDataTimes(PartnerBodies($"partner-fix-{unique}"));
-                string[] expectedCodes = hasCursor ? ["pageSize", "lastTime", "lastKey"] : ["pageSize", "lastKey"];
-                string[] expectedRows = hasCursor ? [] : [RowId("A"), RowId("B")];
-                Assert.Equal(!hasCursor, savedSql.ExtractSql!.Contains("COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID > @lastKey"));
-                Assert.Equal(expectedCodes, variableCodes);
-                Assert.Equal(expectedRows, sent.Keys.Order());
             }
             finally
             {

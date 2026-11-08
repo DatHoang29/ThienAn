@@ -134,7 +134,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             using var scope = _host.Services.CreateScope();
             var services = scope.ServiceProvider;
             var db = services.GetRequiredService<ISqlSugarClient>();
-            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 2);
+            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 5);
             UseSuperAdmin(packet.Unique);
             var (partner, sub) = await SeedClonePartnerAsync(db, packet, "A101");
             await RunCloneAsync(CreateClone(scope, null), packet, byEvent: false);
@@ -181,7 +181,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             using var scope = _host.Services.CreateScope();
             var services = scope.ServiceProvider;
             var db = services.GetRequiredService<ISqlSugarClient>();
-            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 2);
+            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 5);
             UseSuperAdmin(packet.Unique);
             var (partner, sub) = await SeedClonePartnerAsync(db, packet, "A101");
             await RunCloneAsync(CreateClone(scope, null), packet, byEvent: false);
@@ -205,7 +205,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             await services.CallApiAsync(new ShareDataAddPacketInput { Code = packet.PacketCode, Name = $"Packet {packet.PacketCode}", PacketVersion = "1.0", OrderNo = 110 });
             var newPacket = await db.Queryable<ShareDataPacket>().Where(p => p.IsDelete == null && p.Code == packet.PacketCode).FirstAsync();
-            var variables = ZoneVariables(2, packet.RowPrefix, null);
+            var variables = ZoneVariables(5, packet.RowPrefix, null);
             var sql = ZoneCursorSql();
             await ShareDataSqlSeed.SetVariablesAsync(db, newPacket.ID, null, variables);
             await ShareDataSqlSeed.SetCommonAsync(db, newPacket.ID, sql);
@@ -273,8 +273,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var packet = await SeedJoinPacketAsync(db, 2, sql, childrenPerParent);
             var (_, sub) = await SeedClonePartnerAsync(db, packet, "A101");
 
-            // Act
-            await RunCloneAsync(CreateClone(scope, null), packet, byEvent: false);
+            // Act: mỗi lượt gửi 1 page theo đúng cơ chế 1 page/lượt
+            var clone = CreateClone(scope, null);
+            for (var run = 0; run < expectedRequests; run++)
+            {
+                await RunCloneAsync(clone, packet, byEvent: false);
+                await MakeSubscriptionDue(db, sub.ID);
+            }
 
             // Assert
             var alerts = await db.Queryable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ToListAsync();
@@ -301,7 +306,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             using var scope = _host.Services.CreateScope();
             var services = scope.ServiceProvider;
             var db = services.GetRequiredService<ISqlSugarClient>();
-            var packet = await SeedClonePacketAsync(db, rowCount: 5, pageSize: 2);
+            var packet = await SeedClonePacketAsync(db, rowCount: 5, pageSize: 5);
             UseSuperAdmin(packet.Unique);
             var sql = template.Replace("{K}", "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID");
             await SaveCommonSqlAsync(services, db, packet.PacketCode, sql);

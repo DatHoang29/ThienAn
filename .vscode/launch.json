@@ -8,8 +8,7 @@
       "cwd": "${workspaceFolder}/TA-ITS015-WEBVUE-V1.0/src",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "console": "internalConsole",
       "serverReadyAction": {
         "action": "openExternally",
         "pattern": "\\bLocal:\\s+(http://localhost:\\d+/?)",
@@ -27,8 +26,7 @@
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI",
       "stopAtEntry": false,
       "launchSettingsProfile": "TAC_WebAPI",
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "console": "internalConsole",
       "serverReadyAction": {
         "action": "openExternally",
         "pattern": "\\bNow listening on:\\s+https?://(?:\\S+:)?(\\d+)",
@@ -45,8 +43,7 @@
       "args": [],
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker",
       "stopAtEntry": false,
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "console": "internalConsole",
       "env": {
         "DOTNET_ENVIRONMENT": "Development"
       },
@@ -61,8 +58,7 @@
       "args": [],
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall",
       "stopAtEntry": false,
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "console": "internalConsole",
       "env": {
         "DOTNET_ENVIRONMENT": "Development"
       },
@@ -77,8 +73,7 @@
       "args": [],
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall",
       "stopAtEntry": false,
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "console": "internalConsole",
       "env": {
         "DOTNET_ENVIRONMENT": "Development",
         "VideoWall__Device__IsLocal": "true"
@@ -94,8 +89,7 @@
       "args": [],
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF",
       "stopAtEntry": false,
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "console": "internalConsole",
       "presentation": { "group": "3-videowall", "order": 3 }
     },
     {
@@ -107,8 +101,7 @@
       "args": [],
       "cwd": "${workspaceFolder}/tests/BE/ITS/VideoWall/VwMockServerRunner",
       "stopAtEntry": false,
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "console": "internalConsole",
       "presentation": { "group": "3-videowall", "order": 4 }
     },
     {

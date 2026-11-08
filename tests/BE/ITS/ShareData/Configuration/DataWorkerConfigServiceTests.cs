@@ -47,7 +47,7 @@ public class DataWorkerConfigServiceTests(Host host)
         var isolatedGroup = $"sd_cfg_broken_{Guid.NewGuid():N}";
         using var scope = _host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-        foreach (var (code, value) in new[] { (ShareDataConst.ConfigKeyOutboundMaxPagesPerRun, "7"), (ShareDataConst.ConfigKeyReloadIntervalSec, "5") })
+        foreach (var (code, value) in new[] { (ShareDataConst.ConfigKeyOutboundLockBudgetPercent, "70"), (ShareDataConst.ConfigKeyReloadIntervalSec, "5") })
         {
             await db.Insertable(new SysOpConfig
             {
@@ -82,8 +82,8 @@ public class DataWorkerConfigServiceTests(Host host)
         var afterFailure = await service.Get();
 
         // Assert
-        Assert.Equal(7, loaded.OutboundMaxPagesPerRun);
-        Assert.Equal(7, afterFailure.OutboundMaxPagesPerRun);
+        Assert.Equal(70, loaded.OutboundLockBudgetPercent);
+        Assert.Equal(70, afterFailure.OutboundLockBudgetPercent);
         Assert.Equal(5, afterFailure.ReloadIntervalSec);
     }
 
@@ -102,7 +102,7 @@ public class DataWorkerConfigServiceTests(Host host)
         var pagesRowId = Guid.NewGuid().ToString("N");
         await db.Insertable(new List<SysOpConfig>
         {
-            new() { ID = pagesRowId, GroupCode = isolatedGroup, Code = ShareDataConst.ConfigKeyOutboundMaxPagesPerRun, Value = "7", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = pagesRowId, GroupCode = isolatedGroup, Code = ShareDataConst.ConfigKeyOutboundLockBudgetPercent, Value = "70", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = ShareDataConst.ConfigKeyReloadIntervalSec, Value = "5", Status = BaseEnums.StatusEnum.Enable }
         }).ExecuteCommandAsync();
         var config = new ConfigurationBuilder()
@@ -113,15 +113,15 @@ public class DataWorkerConfigServiceTests(Host host)
 
         // Act
         var first = await service.Get();
-        await db.Updateable<SysOpConfig>().SetColumns(c => c.Value == "9").Where(c => c.ID == pagesRowId).ExecuteCommandAsync();
+        await db.Updateable<SysOpConfig>().SetColumns(c => c.Value == "80").Where(c => c.ID == pagesRowId).ExecuteCommandAsync();
         var withinInterval = await service.Get();
         await Task.Delay(TimeSpan.FromSeconds(5.2));
         var afterInterval = await service.Get();
 
         // Assert
-        Assert.Equal(7, first.OutboundMaxPagesPerRun);
-        Assert.Equal(7, withinInterval.OutboundMaxPagesPerRun);
-        Assert.Equal(9, afterInterval.OutboundMaxPagesPerRun);
+        Assert.Equal(70, first.OutboundLockBudgetPercent);
+        Assert.Equal(70, withinInterval.OutboundLockBudgetPercent);
+        Assert.Equal(80, afterInterval.OutboundLockBudgetPercent);
     }
 
     [Fact]
@@ -142,13 +142,12 @@ public class DataWorkerConfigServiceTests(Host host)
         // Act
         var settings = await service.Get();
 
-        // Assert: 18 tham số đều khớp 100% với giá trị dự phòng chuẩn
+        // Assert: 17 tham số đều khớp 100% với giá trị dự phòng chuẩn
         Assert.NotNull(settings);
         Assert.Equivalent(new DataWorkerConfig(), settings);
         Assert.Equal(5, settings.OutboundCheckIntervalSec);
         Assert.Equal(5, settings.InboundCheckIntervalSec);
         Assert.Equal(1, settings.TrackingPollIntervalSec);
-        Assert.Equal(20, settings.OutboundMaxPagesPerRun);
         Assert.Equal(50, settings.OutboundLockBudgetPercent);
         Assert.Equal(300, settings.OutboundLockMinSec);
         Assert.Equal(3, settings.OutboundLockIntervalMultiplier);
@@ -184,7 +183,7 @@ public class DataWorkerConfigServiceTests(Host host)
         {
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_check_interval_sec", Value = "12", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "inbound_check_interval_sec", Value = "15", Status = BaseEnums.StatusEnum.Enable },
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_max_pages_per_run", Value = "25", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_lock_budget_percent", Value = "75", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "tracking_poll_interval_sec", Value = "3", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "cleanup_interval_min", Value = "720", Status = BaseEnums.StatusEnum.Enable }
         };
@@ -199,7 +198,7 @@ public class DataWorkerConfigServiceTests(Host host)
         // Assert: Các trường có trong DB nhận giá trị cấu hình, các trường khác giữ nguyên dự phòng
         Assert.Equal(12, settings.OutboundCheckIntervalSec);
         Assert.Equal(15, settings.InboundCheckIntervalSec);
-        Assert.Equal(25, settings.OutboundMaxPagesPerRun);
+        Assert.Equal(75, settings.OutboundLockBudgetPercent);
         Assert.Equal(3, settings.TrackingPollIntervalSec);
         Assert.Equal(720, settings.CleanupIntervalMin);
         Assert.Equal(30, settings.OutboundDefaultIntervalSec); // Fallback
@@ -225,7 +224,7 @@ public class DataWorkerConfigServiceTests(Host host)
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_check_interval_sec", Value = "NOT_A_NUMBER", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "inbound_check_interval_sec", Value = "999999", Status = BaseEnums.StatusEnum.Enable }, // Out of max 300
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "tracking_poll_interval_sec", Value = "-5", Status = BaseEnums.StatusEnum.Enable }, // Out of min 1
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_max_pages_per_run", Value = "   ", Status = BaseEnums.StatusEnum.Enable }, // Whitespace
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_lock_budget_percent", Value = "   ", Status = BaseEnums.StatusEnum.Enable }, // Whitespace
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "cleanup_interval_min", Value = "0", Status = BaseEnums.StatusEnum.Enable } // Out of min 1
         };
         await db.Insertable(testRows).ExecuteCommandAsync();
@@ -240,7 +239,7 @@ public class DataWorkerConfigServiceTests(Host host)
         Assert.Equal(5, settings.OutboundCheckIntervalSec);
         Assert.Equal(5, settings.InboundCheckIntervalSec);
         Assert.Equal(1, settings.TrackingPollIntervalSec);
-        Assert.Equal(20, settings.OutboundMaxPagesPerRun);
+        Assert.Equal(50, settings.OutboundLockBudgetPercent);
         Assert.Equal(1440, settings.CleanupIntervalMin);
     }
 

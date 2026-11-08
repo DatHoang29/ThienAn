@@ -31,7 +31,7 @@ participants:
 >
 > **Đánh số phương án giữa hai buổi:** buổi 27/10 nêu 2 cách — (1) nối chuỗi dưới SQL, (2) lưu công thức để C# ghép, kèm ý "truy vấn lại theo ID dòng cuối" [A — Phần 3, 03:01 – 03:28]. Buổi 28/10 Tech Lead nhắc lại "hôm đó anh nói là có 2 cách" [B — 02:04] rồi tách thành 3: **PA1** nối chuỗi trong câu SQL chính, **PA2** lưu công thức SQL và chỉ tính trên dòng cuối, **PA3** ghép trong mã C#. Trong tệp này "PA1/PA2/PA3" luôn theo cách đánh số của buổi 28/10.
 >
-> **Đã chốt khác lời họp (03/11/2026, rà sau không báo lại):** hai ý trong lời thoại không làm đúng nguyên văn, xem mục *Quyết định đã chốt* ở đầu Phần C: mốc đang chạy sửa được nhưng chỉ ở trang **Mốc gửi** (mới làm khung, chưa khai menu, không bàn giao); tham số cố định như `@pageSize` lưu theo câu SQL, không lưu theo từng đối tác.
+> **Đã chốt khác lời họp (03/11/2026, rà sau không báo lại):** hai ý trong lời thoại không làm đúng nguyên văn, xem mục *Quyết định đã chốt* ở đầu Phần C: mốc đang chạy sửa được, ở khối **4. Mốc đang chạy** của màn Cấu hình gói tin (07/11/2026 thay trang **Mốc gửi**; hiện mốc theo từng đối tác ở cấu hình là một trong hai cách Tech Lead nêu [A-4 01:39–02:15]); tham số cố định như `@pageSize` lưu theo câu SQL, không lưu theo từng đối tác.
 >
 > **Đã lược 29/10/2026 — chỉ giữ ý xử lý nối đuôi.** Bỏ phần giao diện và phần không liên quan: buổi 27/10 Phần 1 (rà soát chung, công cụ ghi chú), Phần 2 (tải trang, tên nút, khối so sánh, kiểu dữ liệu); buổi 28/10 mục 1.5 (giao diện bảng tham số). 3 câu ở Phần 4 về chỗ hiện mốc đang chạy [01:39 – 02:15] đã chép lại ngày 07/11/2026 từ bản gốc (git `fd63ee74`).
 
@@ -527,14 +527,14 @@ Ba bản vẽ tay kỹ thuật được Tech Lead phác thảo trực tiếp tro
 
 > **Cập nhật 03/11/2026:** sếp chốt PA1 gốc ngày 02/11/2026; ngày 03/11/2026 bỏ hẳn dạng 2 cột (`__lastTime`, `@lastTime`) ở giao diện, WebAPI, Worker và tệp seed. Chỉ còn một chuỗi `__lastKey`. Cột `ShareDataLastSend.LastTime` giữ lại (không `ALTER TABLE`, Rule 19.85), chỉ là giờ ghi mốc, không dùng để lọc.
 
-> **Cập nhật 04/11/2026:** trang **Mốc gửi** mới làm khung, chưa khai menu và không thuộc phạm vi bàn giao. Các chỗ trong Phần C nhắc xem mốc đang chạy, Đặt mốc, Đặt lại ở trang này giữ để tham khảo, chưa làm được trên giao diện.
+> **Cập nhật 07/11/2026:** bỏ trang **Mốc gửi**; xem mốc đang chạy, Đặt mốc, Đặt lại làm ở khối **4. Mốc đang chạy** của màn Cấu hình gói tin (`dataSource/component/cursorBlock.vue`). Tab Mẫu chung liệt kê đối tác dùng mẫu chung, tab đối tác chỉ có đối tác đó; mốc hiện nguyên chuỗi như trong CSDL.
 
 ### Quyết định đã chốt (03/11/2026, người phụ trách xác nhận; rà sau không báo lại là lệch)
 
 | Việc | Lời họp | Cách làm đã chốt |
 | :--- | :--- | :--- |
-| **Sửa mốc đang chạy** | Dev hỏi "Cái value này là người dùng tự set vô hả anh?", Tech Lead trả lời "Không! Value này là hệ thống detect chứ!" [A 05:49–06:15]. Về hiện mốc: "chắc thực ra không cần hiện đâu", nếu hiện thì phải theo đối tác [A-4 00:31–00:55]; sau đó cột "Giá trị lần trước" "bỏ cũng được nhưng mà sẽ hiện ở chỗ khác", "một là gom chung để ở từng đối tác này cũng được, hai là một cái trang màn hình riêng để quản lý cho nó dễ" [A-4 01:39–02:15]. | Mốc do hệ thống tự ghi, **vẫn sửa được nhưng chỉ ở trang Mốc gửi** (`views/sharedata/cursor`): xem mốc theo từng đối tác, Đặt mốc, Đặt lại. |
-| **Phạm vi trang Trường gói tin** (`sharedata/dataSource`) | | Câu SQL (mẫu chung hoặc riêng đối tác), trường, tham số, Mốc bắt đầu (`DefaultValue`), Quy chuẩn mốc. **Không hiện và không sửa mốc đang chạy**, kể cả tab đối tác đã có mốc. |
+| **Sửa mốc đang chạy** | Dev hỏi "Cái value này là người dùng tự set vô hả anh?", Tech Lead trả lời "Không! Value này là hệ thống detect chứ!" [A 05:49–06:15]. Về hiện mốc: "chắc thực ra không cần hiện đâu", nếu hiện thì phải theo đối tác [A-4 00:31–00:55]; sau đó cột "Giá trị lần trước" "bỏ cũng được nhưng mà sẽ hiện ở chỗ khác", "một là gom chung để ở từng đối tác này cũng được, hai là một cái trang màn hình riêng để quản lý cho nó dễ" [A-4 01:39–02:15]. | Mốc do hệ thống tự ghi, **vẫn sửa được, ở khối 4. Mốc đang chạy** của màn Cấu hình gói tin (`dataSource/component/cursorBlock.vue`, 07/11/2026, thay trang Mốc gửi): xem mốc theo từng đối tác, Đặt mốc, Đặt lại. |
+| **Phạm vi màn Cấu hình gói tin** (`sharedata/dataSource`) | | Khối 1–3: câu SQL (mẫu chung hoặc riêng đối tác), trường, tham số, Mốc bắt đầu (`DefaultValue`), Quy chuẩn mốc; bảng tham số không hiện mốc đang chạy. Khối 4 (07/11/2026): mốc đang chạy theo phạm vi tab (tab Mẫu chung: đối tác dùng mẫu chung; tab đối tác: đúng đối tác đó), Đặt mốc, Đặt lại. 08/11/2026: bảng tham số khóa nguồn của biến mốc; tab Mẫu chung ghi rõ Mốc bắt đầu chỉ áp cho "Đối tác chưa có mốc". |
 | **Chỗ lưu tham số cố định** (`@pageSize` và biến Giá trị nhập) | Bảng lưu trên bản vẽ có cả hai dòng cho đối tác A gói 101: "`PageSize`, `DetectKey` cho đối tác A gói 101… chỉ update thằng này (`DetectKey`), thằng này là fixed rồi (`PageSize`)" [A-4 03:16–03:35, bản vẽ `b7af82ba`]. | Lưu ở **`ShareDataSql.VariablesJson`, đi theo câu SQL** (mẫu chung hoặc riêng đối tác). `ShareDataLastSend` chỉ lưu mốc. Ý của lời họp vẫn giữ: giá trị cố định không đổi lúc chạy, chỉ mốc được cập nhật. Hệ quả: đối tác dùng mẫu chung dùng chung `@pageSize` của mẫu chung, muốn khác thì tạo cấu hình riêng. |
 | **So cột mốc bằng `>=`** (05/11/2026) | "Cái key này có thể là lớn hơn (`>`), hoặc là lớn hơn hoặc bằng (`>=`). Mặc định là lớn hơn. Lớn hơn hay lớn hơn bằng... thì cũng xem xét." [A-3 05:36–05:48] | Chỉ cho `>`: lưu câu so đúng biểu thức cột mốc bằng `>=` bị từ chối vì dòng cuối bị gửi lặp mỗi lượt, `@pageSize` = 1 thì kẹt. Câu đã lưu từ trước vẫn chạy. |
 | **Ghép ngày giờ sai định dạng; cột mốc không dùng biến mốc** (05/11/2026) | Phần phân tích PA1 lấy ví dụ `FORMAT(Time, 'HHmm')` và ghi nhược điểm "khó debug khi có sai lệch định dạng". | Từ chối khi lưu: phần ngày giờ không đi từ năm đến giây thì `sqlIncrementalKeyDateUnsortable` (`'HHmm'` qua ngày sắp sai, `'dd/MM/yyyy'` sắp theo ngày trước tháng); có cột `__lastKey` mà không dùng biến mốc thì `sqlIncrementalCursorVariableMissing` vì lượt nào cũng gửi lại cùng dữ liệu. Câu đã lưu từ trước vẫn chạy. |
@@ -833,7 +833,7 @@ sequenceDiagram
 1. **Tự động phân tích biến khi bấm *"Lưu & phân tích"* (`analyzeFromSql`):**
    * Bộ quét biểu thức chính quy `SQL_TOKEN_RE` loại bỏ toàn bộ comment (`-- ...`, `/* ... */`), chuỗi ký tự `N'...'`, tên cột bọc `[...]` và biến hệ thống SQL `@@ROWCOUNT`, chỉ trích xuất đúng danh sách tham số `@tên` người dùng viết trong câu SQL.
    * Cơ chế nhận diện thông minh (`buildDetectedRow`):
-     * Biến trùng tên `@lastKey` → tự động gán nguồn **`Nối tiếp lần trước theo key`** (`ValueKind = "Builtin"`). Biến nhóm mốc `@lastKey_<nhóm>` tự gán nguồn theo tiền tố tên (sửa 31/10/2026; trước đó phải chọn tay).
+     * Biến trùng tên `@lastKey` → tự động gán nguồn **`Theo Mốc đang chạy`** (`ValueKind = "Builtin"`). Biến nhóm mốc `@lastKey_<nhóm>` tự gán nguồn theo tiền tố tên (sửa 31/10/2026; trước đó phải chọn tay).
      * Biến trùng tên `@pageSize` → tự động gán nguồn **`Giá trị nhập`** (`ValueKind = "Const"`, `Value = "100"`, kiểu `int`).
      * Các biến `@khác` → thêm dòng mới, nguồn mặc định *Giá trị nhập* (đổi được ở ô chọn), phải nhập giá trị trước khi lưu.
    * **Lưu câu SQL và bảng biến trong một lần (sửa 31/10/2026):** Khi bấm *"Lưu & phân tích"*, trang `dataSource/index.vue` (`handleSaveSql` / `handleSavePartnerSql`, qua `collectSqlVariables`) lấy bộ biến đã đổi (`sqlVariablePanel.buildSaveItems`) và gửi kèm câu SQL ở trường `Variables` của `UpdateExtractSql` / `UpdatePartnerExtractSql`. BE kiểm câu theo đúng bộ biến này (nên không báo *"biến chưa khai"* với câu mới) và ghi `ExtractSql`, `FieldsJson`, `VariablesJson` cùng một dòng `ShareDataSql`; câu bị từ chối thì bộ biến cũ còn nguyên. Trước đó bảng biến được lưu riêng trước câu SQL, câu bị từ chối vẫn để lại bộ biến mới lệch với câu cũ. Chỉ đổi bảng biến (câu không đổi) thì nút Lưu vẫn gọi riêng `UpdateSqlVariables`; BE kiểm lại câu đang lưu của đúng phạm vi đó theo bộ biến mới (`EnsureSqlFitsVariables`), câu không còn hợp lệ thì từ chối và giữ bộ biến cũ (vd. đổi tên biến mốc làm câu đang lưu dùng biến chưa khai → `SqlUnsupportedParameter`).
@@ -844,17 +844,17 @@ sequenceDiagram
      * **Lọc theo biến (`checkCursorFilter`):** Mọi biến nguồn `lastKey` có mặt trong câu SQL (`@tên`).
      * **Sắp xếp (`checkOrderAsc`):** Có `ORDER BY` ngoài cùng và phần sau nó không chứa `DESC`.
    * **Giới hạn của dải kiểm nhanh:** chỉ dò có cột mốc, có biến mốc trong câu, không `DESC`. Luật đầy đủ (biểu thức so trong `WHERE`, thứ tự `ORDER BY`, hằng số thay biến) chỉ chạy khi bấm *Lưu & phân tích*, nên dải xanh vẫn có thể bị từ chối khi lưu. Bóng đèn đầu dải sáng vàng khi đạt đủ, xám khi còn thiếu (30/10/2026).
-   * **Cấu hình giá trị mốc (`defaultValue`):** dòng `@lastKey` chỉ có ô ngày giờ **Mốc lần đầu** để chọn mốc bắt đầu, ở cả tab Mẫu chung và tab đối tác; ô không có nhãn riêng, để trống ghi "Gửi toàn bộ dữ liệu", đã chọn thì có chữ "Từ" đứng trước ngày giờ (04/11/2026). Không hiện mốc đang chạy, không có nút sửa (03/11/2026). Ở tab đối tác đã có mốc, ô bị khóa, có biểu tượng khóa và chữ "Đã có mốc, gửi tiếp" (04/11/2026), vì Mốc lần đầu chỉ dùng khi chưa có mốc; ô không nêu mốc đang chạy và Mốc lần đầu đã đặt. Mốc bị xóa (đổi công thức cột mốc rồi Xác nhận) thì ô chọn lại được. Câu chưa đúng quy chuẩn thì ô ngày khóa, sửa bằng nút **Sửa câu** ở popup Quy chuẩn mốc.
+   * **Cấu hình giá trị mốc (`defaultValue`):** dòng `@lastKey` chỉ có ô ngày giờ **Mốc bắt đầu**, ở cả tab Mẫu chung và tab đối tác; ô không có nhãn riêng, để trống ghi "Gửi toàn bộ dữ liệu", đã chọn thì có chữ "Từ" đứng trước ngày giờ (04/11/2026). Không hiện mốc đang chạy, không có nút sửa (03/11/2026). Ở tab đối tác đã có mốc, ô bị khóa, có biểu tượng khóa và chữ "Đã có mốc, gửi tiếp" (04/11/2026), vì Mốc bắt đầu chỉ dùng khi chưa có mốc; ô không nêu mốc đang chạy và Mốc bắt đầu đã đặt. Mốc bị xóa (đổi công thức cột mốc rồi Xác nhận) thì ô chọn lại được. Câu chưa đúng quy chuẩn thì ô ngày khóa, sửa bằng nút **Sửa câu** ở popup Quy chuẩn mốc.
 
 3. **Phân tách rạch ròi giao diện Mẫu chung và Đối tác (Bảng 3 cột gọn):**
    * Tab Mẫu chung chuẩn hóa **3 cột** (`Tham số` · `Nguồn giá trị` · `Giá trị cấu hình`); tab đối tác thêm cột đầu **`So mẫu chung`**. Không dùng wizard hay bảng nhiều cột rườm rà.
 
    | Ngữ cảnh đang mở | Bảng tham số | Mốc đang chạy và đối chiếu |
    | :--- | :--- | :--- |
-   | **Tab Mẫu chung** (`partnerId == null`) | Bảng giữ đúng 3 cột. Mốc của các đối tác dùng gói xem ở trang riêng **Mốc gửi** (`views/sharedata/cursor`, từ 02/11/2026). | Trang **Mốc gửi** liệt kê từng đối tác đăng ký gói, nhãn nguồn (`Mẫu chung` hay `Cấu hình riêng`), mốc đang chạy, nút **`✎ Đặt mốc`** (ô nhập theo bộ biến của chính đối tác) và **`↺ Đặt lại`** cho từng dòng đối tác. |
-   | **Tab Đối tác** (`partnerId != null`) | Bảng thêm cột `So mẫu chung`. Ô ngày của `@lastKey` chỉ đặt Mốc bắt đầu; mốc đang chạy xem và sửa ở trang **Mốc gửi**. | Cột `So mẫu chung` hiện ký hiệu so biến với mẫu chung (`=` giống, `+` mới, `-` thiếu, `≠` khác nguồn/giá trị) kèm tooltip chi tiết. Khung soạn thảo khóa chỉ đọc nếu đối tác đang kế thừa mẫu chung cho đến khi bấm "Tạo cấu hình mới". |
+   | **Tab Mẫu chung** (`partnerId == null`) | Bảng giữ đúng 3 cột. Mốc đang chạy của các đối tác dùng mẫu chung xem ở khối **4. Mốc đang chạy** ngay dưới bảng (từ 07/11/2026). | Khối **4** ở tab đối tác có một dòng của đối tác đó: mốc đang chạy (nguyên chuỗi như trong CSDL), nút **`✎ Đặt mốc`** (ô nhập theo bộ biến của chính đối tác) và **`↺ Đặt lại`** cho từng dòng đối tác. |
+   | **Tab Đối tác** (`partnerId != null`) | Bảng thêm cột `So mẫu chung`. Ô ngày của `@lastKey` chỉ đặt Mốc bắt đầu; mốc đang chạy xem và sửa ở khối **4. Mốc đang chạy** ngay dưới bảng. | Cột `So mẫu chung` hiện ký hiệu so biến với mẫu chung (`=` giống, `+` mới, `-` thiếu, `≠` khác nguồn/giá trị) kèm tooltip chi tiết. Khung soạn thảo khóa chỉ đọc nếu đối tác đang kế thừa mẫu chung cho đến khi bấm "Tạo cấu hình mới". |
 
-4. **Khóa sửa khi đăng ký gửi đang bật (30/10/2026):** tab *Mẫu chung* khóa khi gói còn bất kỳ đăng ký chiều gửi nào bật, tab đối tác chỉ khóa theo đúng đối tác đó. Khi khóa: nút *Lưu & phân tích* mờ kèm biểu tượng khóa nêu tên đối tác (`sqlLockedBySubscription`), trên trang **Mốc gửi**, nút **`✎ Đặt mốc`** và **`↺ Đặt lại`** mờ kèm chú thích (`cursorLockedBySubscription`; Đặt mốc khóa thêm từ 01/11/2026). Trạng thái khóa nạp lúc chọn gói, đổi đăng ký ở màn khác thì chọn lại gói. BE chặn lần nữa (Luật 0, Tầng 2).
+4. **Khóa sửa khi đăng ký gửi đang bật (30/10/2026):** tab *Mẫu chung* khóa khi gói còn bất kỳ đăng ký chiều gửi nào bật, tab đối tác chỉ khóa theo đúng đối tác đó. Khi khóa: nút *Lưu & phân tích* mờ kèm biểu tượng khóa nêu tên đối tác (`sqlLockedBySubscription`), ở khối **4. Mốc đang chạy**, nút **`✎ Đặt mốc`** và **`↺ Đặt lại`** mờ kèm chú thích (`cursorLockedBySubscription`; Đặt mốc khóa thêm từ 01/11/2026). Trạng thái khóa nạp lúc chọn gói, đổi đăng ký ở màn khác thì chọn lại gói. BE chặn lần nữa (Luật 0, Tầng 2).
 
 ---
 
@@ -882,10 +882,10 @@ sequenceDiagram
    * Hệ quả thiết kế rất sạch: Người làm cấu hình Ánh xạ gói tin (`ShareDataMapping`) chỉ nhìn thấy các trường dữ liệu nghiệp vụ thuần túy, không bao giờ nhìn thấy hay vô tình ánh xạ nhầm cột `__lastKey` ra bản tin gửi đối tác.
 
 4. **Các API phục vụ vòng đời cấu hình và quản trị con trỏ (`ShareDataPacketController`):**
-   * `GET GetSqlVariables(packetCode, partnerId?)`: Gọi `PacketSqlService.LoadItems` — nếu truyền `partnerId`, BE tra thêm bảng `ShareDataLastSend` theo `(partner.Code, packet.Code)` để đính kèm `SavedValue` cho dòng `lastKey` (`CursorKey == null`). Biến nhóm mốc `@lastKey_<nhóm>` lấy mốc ở dòng có `CursorKey = <nhóm>` (30/10/2026, gộp về một bảng 02/11/2026). Chỉ trang **Mốc gửi** dùng `SavedValue`; trang Trường gói tin bỏ qua (03/11/2026).
+   * `GET GetSqlVariables(packetCode, partnerId?)`: Gọi `PacketSqlService.LoadItems` — nếu truyền `partnerId`, BE tra thêm bảng `ShareDataLastSend` theo `(partner.Code, packet.Code)` để đính kèm `SavedValue` cho dòng `lastKey` (`CursorKey == null`). Biến nhóm mốc `@lastKey_<nhóm>` lấy mốc ở dòng có `CursorKey = <nhóm>` (30/10/2026, gộp về một bảng 02/11/2026). Khối **4. Mốc đang chạy** gọi API này cho từng đối tác để hiện `SavedValue` (07/11/2026); bảng tham số chỉ dùng `SavedValue` để biết đối tác đã có mốc thì khóa ô Mốc bắt đầu, không hiện giá trị mốc.
    * `POST ExecuteExtractSqlSample`: Chạy thử câu SQL đang soạn với giới hạn dòng an toàn `SafeTop`. BE chủ động gọi `SqlParameterHelper.ResolveCursor(isSnapshot, null)` để mô phỏng lượt chạy đầu tiên (`@lastKey = DefaultValue ?? ""`), tuyệt đối **không đọc hay ghi đè** mốc đang chạy thật của đối tác.
-   * `POST SetLastSend(packetCode, partnerId, lastKey, cursorKey?)` (*Đặt mốc*, 29–30/10/2026; gọi từ trang **Mốc gửi**): chỉ `SuperAdmin` và chỉ khi đăng ký chiều gửi của đối tác đã tắt (ESH-2306, khóa thêm 01/11/2026); ghi mốc vào `ShareDataLastSend` (`CursorKey = null` cho nhóm mặc định, `CursorKey = <nhóm>` khi có `cursorKey` của nhóm mốc) kèm chữ ký công thức của câu đối tác đang chạy, xóa `LastTimeRun`, ghi nhật ký. Lượt Worker còn gửi dở lúc vừa tắt đăng ký thấy mốc đổi thì không ghi đè (Tầng 3).
-   * `POST ResetLastSend(packetCode, partnerId)` (*Đặt lại*): chỉ `SuperAdmin` và chỉ khi đăng ký chiều gửi của đối tác đã tắt (ESH-2306); xóa mọi dòng `ShareDataLastSend` (cả nhóm mặc định lẫn các nhóm có tên) của (đối tác, gói), ghi nhật ký, xóa `LastTimeRun` của các đăng ký cùng (đối tác, gói). Lượt quét kế tiếp quay về mốc khởi tạo (`DefaultValue`).
+   * `POST SetLastSend(packetCode, partnerId, lastKey, cursorKey?)` (*Đặt mốc*, 29–30/10/2026; gọi từ khối **4. Mốc đang chạy** của Cấu hình gói tin): chỉ `SuperAdmin` và chỉ khi đăng ký chiều gửi của đối tác đã tắt (ESH-2306, khóa thêm 01/11/2026); ghi mốc vào `ShareDataLastSend` (`CursorKey = null` cho nhóm mặc định, `CursorKey = <nhóm>` khi có `cursorKey` của nhóm mốc) kèm chữ ký công thức của câu đối tác đang chạy, xóa `LastTimeRun`, ghi nhật ký. Lượt Worker còn gửi dở lúc vừa tắt đăng ký thấy mốc đổi thì không ghi đè (Tầng 3).
+   * `POST ResetLastSend(packetCode, partnerId)` (*Đặt lại*): chỉ `SuperAdmin` và chỉ khi đăng ký chiều gửi của đối tác đã tắt (ESH-2306); xóa mọi dòng `ShareDataLastSend` (cả nhóm mặc định lẫn các nhóm có tên) của (đối tác, gói), ghi nhật ký, xóa `LastTimeRun` của các đăng ký cùng (đối tác, gói). Lượt quét kế tiếp quay về Mốc bắt đầu (`DefaultValue`).
 
 ---
 
@@ -898,9 +898,9 @@ Toàn bộ luồng gửi nền tại [`DataOutboundService.cs`](../../../../../T
    * `SqlTextHelper.ResolveSqlConfig` và `ResolveVariables` lấy câu SQL + bộ biến hiệu lực: nếu đối tác có cấu hình riêng (`IsCustom == true`) thì dùng bản riêng; nếu không thì dùng bản mẫu chung.
    * Ngược lại, `GetLastSend(...)` **luôn truy vấn `ShareDataLastSend` theo mã đối tác đang chạy**, giữ vững tính cô lập con trỏ.
    * Lần đọc đầu (chưa có dòng), `GetLastSend` **tạo ngay một dòng** với `LastKey` và `LastTime` trống (`LastTime` là giờ ghi mốc, chỉ có khi gửi thành công). Vì vậy "chưa có mốc" trong tài liệu này nghĩa là `LastKey` rỗng, không phải chưa có dòng.
-   * Dòng mốc đã có `LastKey` mà `CursorSignature` khác chữ ký công thức cột mốc của câu SQL hiện tại (`SqlValidatorHelper.GetCursorSignature`: băm biểu thức `__lastKey`, bỏ khoảng trắng, hoa thường và tiền tố bí danh) thì `GetLastSend` trả mốc trống: lượt đó gửi lại từ mốc khởi tạo thay vì bỏ sót hoặc đứng im, kèm log cảnh báo máy chủ (29/10/2026). Dòng ghi trước ngày này chưa có chữ ký thì dùng như cũ.
+   * Dòng mốc đã có `LastKey` mà `CursorSignature` khác chữ ký công thức cột mốc của câu SQL hiện tại (`SqlValidatorHelper.GetCursorSignature`: băm biểu thức `__lastKey`, bỏ khoảng trắng, hoa thường và tiền tố bí danh) thì `GetLastSend` trả mốc trống: lượt đó gửi lại từ Mốc bắt đầu thay vì bỏ sót hoặc đứng im, kèm log cảnh báo máy chủ (29/10/2026). Dòng ghi trước ngày này chưa có chữ ký thì dùng như cũ.
    * Câu nạp thẳng vào CSDL (seed, sửa tay) được kiểm lại cấu trúc nối đuôi trước khi đọc mốc (`ValidateIncrementalSqlAsync`, cùng luật lúc lưu): sai thì không gửi, không tạo dòng mốc, giữ mốc, ghi cảnh báo `CursorOrderInvalid` (ESH-1306) và không ghi ESH-1308 (29/10/2026).
-   * Câu gộp nhiều nguồn: mốc từng nhóm đọc ở `ShareDataLastSend` theo `CursorKey != null` (`GetGroupCursors`); nhóm chưa có mốc hoặc chữ ký khác thì dùng mốc khởi tạo của biến (30/10/2026, gộp về một bảng 02/11/2026).
+   * Câu gộp nhiều nguồn: mốc từng nhóm đọc ở `ShareDataLastSend` theo `CursorKey != null` (`GetGroupCursors`); nhóm chưa có mốc hoặc chữ ký khác thì dùng Mốc bắt đầu của biến (30/10/2026, gộp về một bảng 02/11/2026).
    * Đầu lượt chụp dòng mốc (ID, `UpdateTime`) của nhóm mặc định và mọi nhóm có tên (`ReadCursorSnapshot`) để phát hiện *Đặt lại* / *Đặt mốc* từ màn hình trong lúc lượt đang chạy (30/10/2026).
 
 2. **Phân giải giá trị tham số con trỏ lúc chạy (`SqlParameterHelper`):**
@@ -956,8 +956,8 @@ Vì SQL Server so sánh `WHERE CompositeKey > @lastKey` theo **thứ tự từ �
 | **1** | **Đối tác mới đăng ký gói nối đuôi lần đầu tiên** | Chưa có dòng trong `ShareDataLastSend`: Worker nạp `@lastKey = DefaultValue ?? ""`. Nếu quản trị viên đã nhập `Mốc bắt đầu = '2026-10-28 00:00:00.000_'`, Worker chỉ lấy dữ liệu từ đầu ngày 28/10 trở đi; nếu để trống `Mốc bắt đầu`, Worker quét tuần tự từ bản ghi cũ nhất theo từng trang `@pageSize`. |
 | **2** | **Tại cùng 1 mili-giây có 250 bản ghi trùng thời gian, trong khi `@pageSize = 100`** | Trang 1 lấy 100 bản ghi đầu tiên của mili-giây đó, dừng ở khóa `'2026-10-28 09:00:00.123_ID100'`. Trang 2 lọc `> '2026-10-28 09:00:00.123_ID100'` lấy tiếp 100 bản ghi kế tiếp (`ID101..ID200`), Trang 3 lấy nốt 50 bản ghi còn lại (`ID201..ID250`). Không sót và không kẹt vòng lặp. |
 | **3** | **Worker gửi xong HTTP sang đối tác nhưng sập nguồn đúng tích tắc trước khi commit DB** | Mốc `ShareDataLastSend` chưa cập nhật nên khi khởi động lại, Worker gửi lại đúng trang đó (đảm bảo **At-Least-Once / Zero Data Loss**). Phía nhận xử lý lũy đẳng (Idempotent) theo khóa định danh bản ghi. |
-| **4** | **Đối tác đang chạy Mẫu chung chuyển sang bấm *"Tạo cấu hình riêng"* (SQL riêng)** | Phải tắt đăng ký gửi của đối tác trước (ESH-2306). UI sao chép câu SQL và bộ biến mẫu chung sang bản riêng của đối tác. Bảng `ShareDataLastSend` khóa theo `(PartnerCode, PacketCode)` nên đối tác **tiếp tục nối đuôi mượt từ mốc cũ** nếu giữ nguyên công thức cột mốc; nếu đổi công thức, lúc lưu màn hình hỏi xác nhận rồi đặt lại mốc của đối tác; câu nạp thẳng bằng tệp `.sql` thì Worker nhận ra qua chữ ký công thức (`CursorSignature`) và tự gửi lại từ mốc khởi tạo (29/10/2026). |
-| **5** | **SuperAdmin bấm `↺ Đặt lại` hoặc `✎ Đặt mốc` đúng lúc Worker đang gửi dở một trang** | Cả hai chỉ làm được khi đăng ký đã tắt (ESH-2306; *Đặt mốc* khóa thêm từ 01/11/2026), nhưng lượt đang chạy vẫn gửi nốt trang dở. Cả hai trường hợp, lúc ghi mốc Worker thấy dòng mốc khác ảnh chụp đầu lượt nên **không ghi đè**, không ghi `LastTimeRun` và dừng lượt; lượt sau chạy theo mốc người dùng vừa đặt (hoặc mốc khởi tạo sau *Đặt lại*). Đăng ký vừa tắt vẫn tắt (sửa 30/10/2026; trước đó Worker ghi đè mốc của trang vừa gửi). |
+| **4** | **Đối tác đang chạy Mẫu chung chuyển sang bấm *"Tạo cấu hình riêng"* (SQL riêng)** | Phải tắt đăng ký gửi của đối tác trước (ESH-2306). UI sao chép câu SQL và bộ biến mẫu chung sang bản riêng của đối tác. Bảng `ShareDataLastSend` khóa theo `(PartnerCode, PacketCode)` nên đối tác **tiếp tục nối đuôi mượt từ mốc cũ** nếu giữ nguyên công thức cột mốc; nếu đổi công thức, lúc lưu màn hình hỏi xác nhận rồi đặt lại mốc của đối tác; câu nạp thẳng bằng tệp `.sql` thì Worker nhận ra qua chữ ký công thức (`CursorSignature`) và tự gửi lại từ Mốc bắt đầu (29/10/2026). |
+| **5** | **SuperAdmin bấm `↺ Đặt lại` hoặc `✎ Đặt mốc` đúng lúc Worker đang gửi dở một trang** | Cả hai chỉ làm được khi đăng ký đã tắt (ESH-2306; *Đặt mốc* khóa thêm từ 01/11/2026), nhưng lượt đang chạy vẫn gửi nốt trang dở. Cả hai trường hợp, lúc ghi mốc Worker thấy dòng mốc khác ảnh chụp đầu lượt nên **không ghi đè**, không ghi `LastTimeRun` và dừng lượt; lượt sau chạy theo mốc người dùng vừa đặt (hoặc Mốc bắt đầu sau *Đặt lại*). Đăng ký vừa tắt vẫn tắt (sửa 30/10/2026; trước đó Worker ghi đè mốc của trang vừa gửi). |
 | **6** | **Bảng nguồn có hàng chục triệu dòng, biểu thức ghép `> @lastKey` không dùng được Index (Non-SARGable)** | Câu mẫu giữ dạng ghép chuỗi, quét cả bảng mỗi lượt (chốt 02/11/2026, tối ưu tính sau, xem C.4.3). |
 | **7** | **Ranh giới với Chiều Nhận Dữ liệu (Inbound)** | **Chiều Nhận KHÔNG sử dụng `@lastKey` hay `ShareDataLastSend`**. Bên đối tác chủ động đẩy bản tin sang hệ thống; tầng Inbound kiểm tra chống trùng lặp (`Check Duplicate` / `MERGE` / `WHERE NOT EXISTS` theo khóa chính/mã bản tin) trong khối câu lệnh ghi `WriteSql`. |
 
@@ -1041,7 +1041,7 @@ Giả định **Đối tác A (`CSGT_LS`)** và **Đối tác B (`VEC_ETC`)** c�
 | **Chặng 1 — Đối tác A chạy lần đầu (Trang 1)** | Quét được 100 dòng đầu ngày 28/10, dòng thứ 100 là `UpdateTime = 08:10:05.250`, `ID = 'f9a1'`. Gửi HTTP `200 OK`. | `'2026-10-28 00:00:00.000_'` *(lấy từ `DefaultValue`)* | `(CSGT_LS, 101_trafficFlow)` → `LastKey = '2026-10-28 08:10:05.250_f9a1'`. |
 | **Chặng 2 — Đối tác A quét tiếp Trang 2 nhưng mạng đứt** | Quét 40 dòng tiếp theo, nhưng gọi HTTP sang `CSGT_LS` bị `Timeout`. | `'2026-10-28 08:10:05.250_f9a1'` | **Giữ nguyên** `LastKey = '2026-10-28 08:10:05.250_f9a1'` *(không mất 40 dòng đang dở)*. |
 | **Chặng 3 — Chu kỳ sau mạng thông & Đối tác B bắt đầu chạy** | Đối tác A gửi lại thành công 40 dòng (dòng cuối `08:15:00.000`, `ID = 'b209'`). Cùng lúc Đối tác B chạy lượt đầu tiên được 100 dòng (dòng cuối `08:10:05.250`, `ID = 'f9a1'`). | A: `'2026-10-28 08:10:05.250_f9a1'`<br/>B: `'2026-10-28 00:00:00.000_'` | • `(CSGT_LS, 101_trafficFlow)` → `LastKey = '2026-10-28 08:15:00.000_b209'`<br/>• `(VEC_ETC, 101_trafficFlow)` → `LastKey = '2026-10-28 08:10:05.250_f9a1'` |
-| **Chặng 4 — SuperAdmin đặt lại mốc của riêng Đối tác A** | Ở màn *Cấu hình* tắt đăng ký gửi của `CSGT_LS`; ở trang *Mốc gửi*, chọn gói → bấm **`↺ Đặt lại`** ở dòng `CSGT_LS` (nút mờ khi đăng ký còn bật). | `POST ResetLastSend` | • Dòng `(CSGT_LS, 101_trafficFlow)` bị xóa (sau khi bật lại đăng ký, lượt tới của A quay lại `'2026-10-28 00:00:00.000_'`).<br/>• Dòng `(VEC_ETC, 101_trafficFlow)` **không bị ảnh hưởng**. |
+| **Chặng 4 — SuperAdmin đặt lại mốc của riêng Đối tác A** | Ở màn *Cấu hình* tắt đăng ký gửi của `CSGT_LS`; ở màn *Cấu hình gói tin*, gói 101, khối **4. Mốc đang chạy** → bấm **`↺ Đặt lại`** ở dòng `CSGT_LS` (nút mờ khi đăng ký còn bật). | `POST ResetLastSend` | • Dòng `(CSGT_LS, 101_trafficFlow)` bị xóa (sau khi bật lại đăng ký, lượt tới của A quay lại `'2026-10-28 00:00:00.000_'`).<br/>• Dòng `(VEC_ETC, 101_trafficFlow)` **không bị ảnh hưởng**. |
 
 ---
 
@@ -1066,19 +1066,19 @@ Giả định **Đối tác A (`CSGT_LS`)** và **Đối tác B (`VEC_ETC`)** c�
 | Xóa rồi tạo lại đối tác, gói tin cùng mã | Mốc gắn theo mã nên còn nguyên: đối tác mới đi tiếp từ mốc cũ, mất dữ liệu trước mốc đó | Xóa đối tác, gói tin thì xóa luôn mốc; tạo mới cũng xóa mốc còn sót từ trước (05/11/2026) |
 | Đổi mã đối tác qua API | Giao diện đã khóa nhưng API vẫn nhận: mốc theo mã cũ nên đối tác bị gửi lại từ đầu | API từ chối (`partnerCodeLocked`, 05/11/2026) |
 | Câu con có `TOP` sắp theo cột khác cột mốc (dạng mẫu của sếp) | Lưu được; câu con chọn dòng theo thứ tự khác nên dòng có mốc nhỏ hơn bị bỏ sót | Lưu bị từ chối (`sqlIncrementalInnerTopOrderInvalid`, 06/11/2026), kể cả câu con không có `ORDER BY` hoặc sắp `DESC`; `TOP 1` ở cột `SELECT`, `OUTER APPLY` lấy giá trị phụ thì lưu được; câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
-| Dòng được ghi vào bảng nguồn với thời gian cũ hơn mốc (ví dụ mốc 10:00, lúc 10:05 ghi dòng có `UpdateTime` 09:30) | Không được gửi, vì câu chỉ lấy dòng lớn hơn mốc | Giữ nguyên (người dùng chốt 06/11/2026). Muốn gửi lại thì tắt đăng ký, vào trang **Mốc gửi** đặt mốc về trước thời gian của dòng đó; đối tác nhận lại từ đó trở đi. Câu ghi gói 101 chiều nhận ghi vào CSDL nhận riêng nên không gây ra ca này |
+| Dòng được ghi vào bảng nguồn với thời gian cũ hơn mốc (ví dụ mốc 10:00, lúc 10:05 ghi dòng có `UpdateTime` 09:30) | Không được gửi, vì câu chỉ lấy dòng lớn hơn mốc | Giữ nguyên (người dùng chốt 06/11/2026). Muốn gửi lại thì tắt đăng ký, vào khối **4. Mốc đang chạy** đặt mốc về trước thời gian của dòng đó; đối tác nhận lại từ đó trở đi. Câu ghi gói 101 chiều nhận ghi vào CSDL nhận riêng nên không gây ra ca này |
 | Phần thời gian không có `CreateTime` (`CONVERT(varchar(23), DetectTime, 121) + '_' + ID`) | Lưu được; dòng có cột đó trống ghép ra `NULL`, không được gửi | Lưu bị từ chối (`sqlIncrementalKeyFormulaInvalid`, 05/11/2026), viết `COALESCE(DetectTime, CreateTime)`; câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
 | Cột mốc ghép từ `UpdateTime` trơn | Lưu được; dòng mới thêm có `UpdateTime` trống nên chuỗi mốc `NULL`, không được gửi | Lưu bị từ chối (`sqlIncrementalUpdateTimeEmpty`, 04/11/2026), trừ câu có nhánh `UpdateTime IS NULL`; câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
 | Cột mốc chỉ có ngày giờ (`UpdateTime AS __lastKey`) | Lưu được; Worker lưu mốc bằng `ToString()` nên mất mili giây, sau trang đầu không gửi tiếp; dòng trùng giờ ở ranh giới trang bị sót | Lưu bị từ chối (`sqlIncrementalKeyTimeOnly`, 04/11/2026); câu đã lưu từ trước giữ hành vi cũ, Worker ghi rủi ro vào nhật ký cấu hình |
 | Cột thời gian `datetime2` bị làm tròn | — | Không tái hiện: dữ liệu do ITS ghi qua SqlSugar đã làm tròn về `datetime` lúc ghi |
-| Lưu câu SQL làm đổi công thức cột mốc khi đối tác đang có mốc | Lưu xong không báo; tới lượt chạy sau Worker thấy chữ ký lệch mới tự gửi lại từ mốc khởi tạo | Lưu trả `RequiresConfirm` kèm `CursorResetPartners` (các đối tác đang có mốc); màn hình hỏi xác nhận kèm tên đối tác, đồng ý thì gửi lại với `Force` và xóa mốc cùng `LastTimeRun` của các đối tác đó ngay lúc lưu |
-| Đối tác chỉ muốn nhận dữ liệu từ một thời điểm | Phải tách cấu hình riêng chỉ để đổi mốc khởi tạo | Nút "Đặt mốc" theo từng đối tác ở trang **Mốc gửi** gọi API `SetLastSend`, chỉ SuperAdmin: ghi `ShareDataLastSend` kèm chữ ký công thức của câu đối tác đang chạy, xóa `LastTimeRun`, ghi nhật ký. Câu ghép theo kiểu 121 thì chọn ngày giờ |
+| Lưu câu SQL làm đổi công thức cột mốc khi đối tác đang có mốc | Lưu xong không báo; tới lượt chạy sau Worker thấy chữ ký lệch mới tự gửi lại từ Mốc bắt đầu | Lưu trả `RequiresConfirm` kèm `CursorResetPartners` (các đối tác đang có mốc); màn hình hỏi xác nhận kèm tên đối tác, đồng ý thì gửi lại với `Force` và xóa mốc cùng `LastTimeRun` của các đối tác đó ngay lúc lưu |
+| Đối tác chỉ muốn nhận dữ liệu từ một thời điểm | Phải tách cấu hình riêng chỉ để đổi Mốc bắt đầu | Nút "Đặt mốc" theo từng đối tác ở khối **4. Mốc đang chạy** gọi API `SetLastSend`, chỉ SuperAdmin: ghi `ShareDataLastSend` kèm chữ ký công thức của câu đối tác đang chạy, xóa `LastTimeRun`, ghi nhật ký. Câu ghép theo kiểu 121 thì chọn ngày giờ |
 
 #### Quy ước câu gộp nhiều nguồn (nhóm mốc, 30/10/2026)
 
-* Mỗi nguồn một nhóm `<nhóm>` (chữ, số, gạch dưới): biến `@lastKey_<nhóm>` chọn nguồn *Nối tiếp lần trước theo key*; câu trả cột `__lastKey_<nhóm>`. Biến và cột không hậu tố vẫn là nhóm mặc định.
+* Mỗi nguồn một nhóm `<nhóm>` (chữ, số, gạch dưới): biến `@lastKey_<nhóm>` chọn nguồn *Theo Mốc đang chạy*; câu trả cột `__lastKey_<nhóm>`. Biến và cột không hậu tố vẫn là nhóm mặc định.
 * Nhánh `UNION` của nguồn nào lọc theo biến của nhóm đó bằng đúng biểu thức cột mốc của nhóm; cột của nhóm khác để `NULL`. `UNION` nằm trong bảng dẫn xuất, `TOP (@pageSize)` và `ORDER BY` ở câu ngoài; `ORDER BY` ngoài cùng sắp theo cột có cùng công thức cột mốc ở nhánh của từng nhóm (`sortKey`); sắp theo cột khác thì bị từ chối khi lưu (`sqlIncrementalGroupOrderInvalid`).
-* Worker lấy mốc mỗi nhóm ở dòng cuối có `__lastKey_<nhóm>` trong trang, ghi trong cùng giao dịch với chốt chặn chỉ tiến và chữ ký công thức riêng từng nhóm. Đặt mốc (`SetLastSend` kèm `CursorKey`) ghi mốc một nhóm; Đặt lại xóa mốc mọi nhóm. Trang **Mốc gửi** hiện mốc và ô Đặt mốc theo từng nhóm.
+* Worker lấy mốc mỗi nhóm ở dòng cuối có `__lastKey_<nhóm>` trong trang, ghi trong cùng giao dịch với chốt chặn chỉ tiến và chữ ký công thức riêng từng nhóm. Đặt mốc (`SetLastSend` kèm `CursorKey`) ghi mốc một nhóm; Đặt lại xóa mốc mọi nhóm. Khối **4. Mốc đang chạy** hiện mốc từng nhóm; hộp Đặt mốc có ô chọn theo từng nhóm.
 
 ```sql
 SELECT TOP (@pageSize) u.rowCode, u.__lastKey_inc, u.__lastKey_wea
@@ -1124,9 +1124,9 @@ ORDER BY u.sortKey ASC
 **Đã làm 02/11/2026:** 7 câu mẫu (101, 103, 104, 106, 107, 109, 111) đổi sang một chuỗi ghép; mẫu gợi ý *select-incremental* sinh dạng một chuỗi ghép. Mục "Đã làm 31/10/2026" và "DB dev 01/11/2026" ở trên là lịch sử, chưa nói về đợt này (test `SeedSqlScript_*`, `SeedExtractSql_*`).
 
 **Đã làm 03/11/2026:**
-- Bỏ hẳn dạng 2 cột ở WebAPI, Worker và tệp seed: không còn nguồn `lastTime`, cột `__lastTime`, mã lỗi `SqlIncrementalMissingLastTime`, `SqlIncrementalOrderByMismatch`, `SqlIncrementalCursorFilterInvalid`, `SqlIncrementalGroupSourceMismatch`. Tệp `sharedata-chuyen-doi-moc-ShareDataLastSend.sql` chỉ còn gỡ unique index cũ và chép nhóm mốc từ `ShareDataLastSendKey`; tệp seed `ShareDataSql` bỏ bước 1c.
-- Câu SQL riêng còn `@lastTime` là dữ liệu chưa hợp lệ: Worker dừng gói đó với ESH-1306, giữ nguyên mốc. Người cấu hình mở tab đối tác, bấm **Sửa câu** (giao diện giữ chức năng này để đổi sang một chuỗi ghép) rồi lưu. Câu chép từ câu mẫu gói 101 cũ sửa hàng loạt bằng tệp D2 `sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql` (04/11/2026; đối tác đã có mốc thì tệp bỏ qua).
-- Trang Trường gói tin không còn hiện và sửa mốc đang chạy; xem mục *Quyết định đã chốt* đầu Phần C.
+- Bỏ hẳn dạng 2 cột ở WebAPI, Worker và tệp seed: không còn nguồn `lastTime`, cột `__lastTime`, mã lỗi `SqlIncrementalMissingLastTime`, `SqlIncrementalOrderByMismatch`, `SqlIncrementalCursorFilterInvalid`, `SqlIncrementalGroupSourceMismatch`. Tệp `sharedata-chuyen-doi-moc-ShareDataLastSend.sql` chỉ còn gỡ unique index cũ và chép nhóm mốc từ `ShareDataLastSendKey` (tệp đã xóa ngày 06/11/2026, DB mới không cần); tệp seed `ShareDataSql` bỏ bước 1c.
+- Câu SQL riêng còn `@lastTime` là dữ liệu chưa hợp lệ: Worker dừng gói đó với ESH-1306, giữ nguyên mốc. Người cấu hình mở tab đối tác, bấm **Sửa câu** (giao diện giữ chức năng này để đổi sang một chuỗi ghép) rồi lưu. Tệp D2 `sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql` sửa hàng loạt các câu này (04/11/2026) đã xóa ngày 06/11/2026.
+- Bảng tham số không hiện mốc đang chạy; mốc đang chạy xem và sửa ở khối 4, xem mục *Quyết định đã chốt* đầu Phần C.
 
 **Giới hạn giữ nguyên:** 7 câu mẫu ghép chuỗi nên quét cả bảng mỗi lượt, gói 101 tăng từ 421 lên khoảng 31.588 trang (chốt 02/11/2026, tối ưu tính sau, xem C.4.3).
 
@@ -1136,9 +1136,9 @@ ORDER BY u.sortKey ASC
 
 ## C.7. Kịch Bản Kiểm Thử Nối Đuôi Trên Giao Diện (30/10/2026, cập nhật 03/11/2026)
 
-> **Cập nhật 03/11/2026:** xem và đặt mốc làm ở trang riêng **Mốc gửi** (`views/sharedata/cursor`), mỗi đối tác một dòng; màn **Cấu hình gói tin** chỉ còn dải Quy chuẩn mốc và ô Mốc bắt đầu, không hiện mốc đang chạy. Hộp **✎ Đặt mốc** chỉ chọn ngày giờ, không gõ tay: chọn giờ `H` thì mốc là `H.000_`. Vì vậy trên giao diện không đặt được mốc giữa hai dòng cùng giờ như `T_ID3`; API `SetLastSend` vẫn nhận chuỗi mốc đầy đủ và đã có test tự động.
+> **Cập nhật 03/11/2026:** xem và đặt mốc làm ở khối **4. Mốc đang chạy** của màn **Cấu hình gói tin**, mỗi đối tác một dòng (trang riêng Mốc gửi dùng từ 03/11 tới 07/11/2026 đã bỏ); bảng tham số chỉ có dải Quy chuẩn mốc và ô Mốc bắt đầu. Hộp **✎ Đặt mốc** chỉ chọn ngày giờ, không gõ tay: chọn giờ `H` thì mốc là `H.000_`. Vì vậy trên giao diện không đặt được mốc giữa hai dòng cùng giờ như `T_ID3`; API `SetLastSend` vẫn nhận chuỗi mốc đầy đủ và đã có test tự động.
 
-> **Cập nhật 04/11/2026:** trang **Mốc gửi** mới làm khung, chưa khai menu, không thuộc phạm vi bàn giao và không test tay. Các bước dưới đây dùng trang này giữ để tham khảo, chưa làm được trên giao diện; bản gọn đã bỏ các bước đó.
+> **Cập nhật 07/11/2026:** các bước dưới đây làm ở khối **4. Mốc đang chạy** (Cấu hình gói tin → gói 101 → tab `TEST_ND`); tải lại trang để thấy mốc mới.
 
 > **Bản gọn để chạy test (01/11/2026):** [`../03-kich-ban-test-noi-duoi.md`](../03-kich-ban-test-noi-duoi.md) — chỉ có bước làm và kết quả phải thấy; khi test thì theo tệp đó. Mục C.7 dưới đây giữ làm bản chi tiết, đã đổi theo một chuỗi ghép và hộp Đặt mốc chọn ngày giờ (03/11/2026).
 
@@ -1147,7 +1147,7 @@ ORDER BY u.sortKey ASC
 ### C.7.1. Chuẩn bị (một lần)
 
 1. Chạy WebAPI và ShareDataWorker từ mã mới nhất (thư mục `TA-ITS015-WEBAPI-V1.0`): `dotnet run --project src/TAC_WebAPI` và `dotnet run --project src/Services/ShareData/ShareDataWorker`. Đang chạy bản trước 31/10 chiều thì dừng rồi chạy lại (mã lưu câu + bảng tham số một lần, kiểm lại câu khi chỉ đổi bảng tham số, cảnh báo ESH-1308 đều cần bản mới). FE: `pnpm dev` trong `TA-ITS015-WEBVUE-V1.0/src` tự nạp mã, tải lại hẳn trang (Cmd+Shift+R).
-2. Trên DB dev đã chạy (đọc lại ngày 01/11/2026): `sql/sharedata-dich-thuat-SysTerminology.sql` (câu dịch thông báo lỗi), `sql/sharedata-seed-cau-hinh-SysConfigData.sql` (mã ESH-1308). Môi trường khác thì chạy hai tệp này trước. Câu mẫu một chuỗi ghép (02/11/2026) do lập trình viên chạy: tắt Worker, chạy `sql/sharedata-seed-goi-tin-ShareDataSql.sql` với `@GhiDeMaGoi = N'101'` (hoặc `@GhiDeMauGoiTin = 1` cho mọi gói, ghi đè câu mẫu chung đã sửa trên màn hình), rồi `sql/sharedata-chuyen-doi-moc-ShareDataLastSend.sql`.
+2. Trên DB dev đã chạy (đọc lại ngày 01/11/2026): `sql/sharedata-dich-thuat-SysTerminology.sql` (câu dịch thông báo lỗi), `sql/sharedata-seed-cau-hinh-SysConfigData.sql` (mã ESH-1308). Môi trường khác thì chạy hai tệp này trước. Câu mẫu một chuỗi ghép (02/11/2026) do lập trình viên chạy: tắt Worker, chạy `sql/sharedata-seed-goi-tin-ShareDataSql.sql` với `@GhiDeMaGoi = N'101'` (hoặc `@GhiDeMauGoiTin = 1` cho mọi gói, ghi đè câu mẫu chung đã sửa trên màn hình).
 3. Mở máy nhận giả lập ở cổng 9999: in giờ, đường dẫn, nội dung từng lần nhận rồi trả HTTP 200. `DELAY` là số giây chờ trước khi trả lời (dùng ở ca E; Worker chờ tối đa 30 giây mỗi lần gửi).
    ```bash
    DELAY=0 python3 - <<'EOF'
@@ -1179,31 +1179,31 @@ ORDER BY u.sortKey ASC
    UPDATE TOP (5) dbo.TmsZoneStatus SET UpdateTime = @T WHERE UpdateTime IS NOT NULL;
    SELECT ID, UpdateTime FROM dbo.TmsZoneStatus WHERE UpdateTime = @T ORDER BY ID;
    ```
-9. Tab `TEST_ND`, bảng *3. Tham số điều kiện*: `@pageSize` = 2; dòng `@lastKey`, ô ngày giờ **Mốc lần đầu** chọn T − 1 phút → **Lưu & phân tích**. Không có cảnh báo. Dưới đây `T_ID5` là chuỗi mốc `yyyy-MM-dd HH:mm:ss.fff_ID5` của giờ T.
+9. Tab `TEST_ND`, bảng *3. Tham số điều kiện*: `@pageSize` = 2; dòng `@lastKey`, ô ngày giờ **Mốc bắt đầu** chọn T − 1 phút → **Lưu & phân tích**. Không có cảnh báo. Dưới đây `T_ID5` là chuỗi mốc `yyyy-MM-dd HH:mm:ss.fff_ID5` của giờ T.
 
 ### C.7.2. Các ca kiểm
 
 **A. Gửi nối đuôi, dòng trùng giờ ở ranh giới trang**
 1. Màn *Cấu hình*: bật đăng ký `TEST_ND` (**Bật/Tắt**), chờ 10–20 giây.
-2. Đúng: máy nhận in 3 lần nhận với 2, 2, 1 dòng, đủ ID1–ID5, không ID nào lặp; *Lịch sử chia sẻ* → *Nhật ký truyền nhận* có 3 dòng gửi thành công, *Số bản ghi* 2, 2, 1; trang **Mốc gửi**, gói 101, dòng `TEST_ND`: *Mốc đang chạy* = `T_ID5`.
+2. Đúng: máy nhận in 3 lần nhận với 2, 2, 1 dòng, đủ ID1–ID5, không ID nào lặp; *Lịch sử chia sẻ* → *Nhật ký truyền nhận* có 3 dòng gửi thành công, *Số bản ghi* 2, 2, 1; tải lại trang, khối **4. Mốc đang chạy** ở tab `TEST_ND`: *Mốc đang chạy* = `T_ID5`.
 3. Chờ thêm một chu kỳ. Đúng: máy nhận không nhận thêm dòng nào.
 
 **B. Khóa sửa khi đăng ký đang bật** (đăng ký vẫn bật từ ca A)
 1. *Cấu hình gói tin*: chọn lại gói 101, mở tab `TEST_ND`. Đúng: **Lưu & phân tích** mờ, biểu tượng khóa ghi "Đang có đăng ký gửi bật sử dụng (TEST_ND)…". Tab *Mẫu chung* cũng khóa.
-2. Trang **Mốc gửi** → gói 101 → **Làm mới**. Đúng: dòng `TEST_ND` có **✎ Đặt mốc** và **↺ Đặt lại** mờ, rê chuột thấy "Đối tác đang có đăng ký gửi bật sử dụng. Tắt đăng ký trước khi đặt mốc hoặc đặt lại mốc gửi.".
+2. Tải lại trang, tab `TEST_ND` → khối **4**. Đúng: dòng `TEST_ND` có **✎ Đặt mốc** và **↺ Đặt lại** mờ, rê chuột thấy "Đối tác đang có đăng ký gửi bật sử dụng. Tắt đăng ký trước khi đặt mốc hoặc đặt lại mốc gửi.".
 
 **C. Đặt mốc (tắt đăng ký trước)**
-1. Tắt đăng ký; trang **Mốc gửi** → gói 101 → **Làm mới** → dòng `TEST_ND` → **✎ Đặt mốc**: chọn giờ T + 1 phút → **Xác nhận**. Đúng: thông báo "Đã cập nhật mốc gửi dữ liệu cho đối tác."; *Mốc đang chạy* = `<T + 1 phút>.000_`. Bật đăng ký: lượt sau máy nhận không nhận dòng nào vì ID1–ID5 đều trước mốc; mốc giữ nguyên.
-2. Tắt đăng ký; **Làm mới** → **✎ Đặt mốc** chọn giờ T − 1 phút → **Xác nhận**. Bật đăng ký. Đúng: lượt sau gửi lại đủ ID1–ID5; mốc về `T_ID5`.
+1. Tắt đăng ký; tải lại trang → tab `TEST_ND` → khối **4** → dòng `TEST_ND` → **✎ Đặt mốc**: chọn giờ T + 1 phút → **Xác nhận**. Đúng: thông báo "Đã cập nhật mốc gửi dữ liệu cho đối tác."; *Mốc đang chạy* = `<T + 1 phút>.000_`. Bật đăng ký: lượt sau máy nhận không nhận dòng nào vì ID1–ID5 đều trước mốc; mốc giữ nguyên.
+2. Tắt đăng ký; tải lại trang → **✎ Đặt mốc** chọn giờ T − 1 phút → **Xác nhận**. Bật đăng ký. Đúng: lượt sau gửi lại đủ ID1–ID5; mốc về `T_ID5`.
 
 **D. Đặt lại**
-1. Tắt đăng ký; trang **Mốc gửi** → **Làm mới** → dòng `TEST_ND` → **↺ Đặt lại** → xác nhận. Đúng: thông báo "Đã đặt lại mốc đã lưu."; dòng `TEST_ND` hiện chưa có mốc.
-2. Bật đăng ký. Đúng: lượt sau gửi lại ID1–ID5 từ mốc khởi tạo (T − 1 phút).
+1. Tắt đăng ký; tải lại trang → khối **4** → dòng `TEST_ND` → **↺ Đặt lại** → xác nhận. Đúng: thông báo "Đã bỏ Mốc đang chạy."; dòng `TEST_ND` ghi "Chưa có, lượt gửi tới lấy từ Mốc bắt đầu …".
+2. Bật đăng ký. Đúng: lượt sau gửi lại ID1–ID5 từ Mốc bắt đầu (T − 1 phút).
 
 **E. Đặt mốc / Đặt lại trong lúc Worker đang gửi**
-1. Chạy lại máy nhận với `DELAY=20`. Tắt đăng ký, trang **Mốc gửi** → **Làm mới** → **✎ Đặt mốc** chọn giờ T − 1 phút rồi bật đăng ký để lượt sau gửi lại 3 trang (khoảng 1 phút).
-2. Khi máy nhận vừa in trang 1: tắt đăng ký, trang **Mốc gửi** → **Làm mới** → **✎ Đặt mốc** chọn giờ T − 2 phút (trong 20 giây). Đúng: lượt đó dừng sau trang 1 (không có trang 2); mốc giữ `<T − 2 phút>.000_`, không bị Worker ghi đè thành `T_ID2`; đăng ký vẫn **tắt**. Bật lại thì lượt sau gửi lại đủ ID1–ID5.
-3. Lặp bước 1. Khi máy nhận vừa in trang 1: tắt đăng ký, trang **Mốc gửi** → **Làm mới** → **↺ Đặt lại** (trong 20 giây). Đúng: lượt đó dừng; dòng `TEST_ND` hiện chưa có mốc; đăng ký vẫn **tắt** (Worker không tự bật lại). Bật lại thì gửi lại ID1–ID5.
+1. Chạy lại máy nhận với `DELAY=20`. Tắt đăng ký, tải lại trang → khối **4** → **✎ Đặt mốc** chọn giờ T − 1 phút rồi bật đăng ký để lượt sau gửi lại 3 trang (khoảng 1 phút).
+2. Khi máy nhận vừa in trang 1: tắt đăng ký, tải lại trang → khối **4** → **✎ Đặt mốc** chọn giờ T − 2 phút (trong 20 giây). Đúng: lượt đó dừng sau trang 1 (không có trang 2); mốc giữ `<T − 2 phút>.000_`, không bị Worker ghi đè thành `T_ID2`; đăng ký vẫn **tắt**. Bật lại thì lượt sau gửi lại đủ ID1–ID5.
+3. Lặp bước 1. Khi máy nhận vừa in trang 1: tắt đăng ký, tải lại trang → khối **4** → **↺ Đặt lại** (trong 20 giây). Đúng: lượt đó dừng; dòng `TEST_ND` hiện chưa có mốc; đăng ký vẫn **tắt** (Worker không tự bật lại). Bật lại thì gửi lại ID1–ID5.
 4. Chạy lại máy nhận với `DELAY=0`.
 
 **E2. Câu bị đổi công thức cột mốc ngoài màn hình (ESH-1308)** (làm ngay sau ca E, trước ca G: câu `TEST_ND` còn một nhóm mốc; đăng ký bật, mốc đang là `T_ID5`)
@@ -1213,9 +1213,9 @@ ORDER BY u.sortKey ASC
    FROM ShareDataSql s JOIN ShareDataPartner p ON p.ID = s.PartnerId JOIN ShareDataPacket k ON k.ID = s.PacketId
    WHERE p.Code = 'TEST_ND' AND k.Code LIKE '101[_]%' AND s.IsDelete IS NULL;
    ```
-2. Chờ một lượt. Đúng: máy nhận nhận lại ID1–ID5 (Worker bỏ mốc cũ, gửi từ mốc khởi tạo T − 1 phút); *Cảnh báo & lỗi* có một dòng ESH-1308 "Công thức cột mốc của gói [101_commonData] đã đổi ngoài màn hình cấu hình…"; mốc về lại `T_ID5`.
+2. Chờ một lượt. Đúng: máy nhận nhận lại ID1–ID5 (Worker bỏ mốc cũ, gửi từ Mốc bắt đầu T − 1 phút); *Cảnh báo & lỗi* có một dòng ESH-1308 "Công thức cột mốc của gói [101_commonData] đã đổi ngoài màn hình cấu hình…"; mốc về lại `T_ID5`.
 3. Chờ thêm một lượt. Đúng: không gửi lại, không có thêm ESH-1308.
-4. Khôi phục: tắt đăng ký; SSMS chạy lại câu ở bước 1 với hai chuỗi đổi chỗ (`REPLACE(s.ExtractSql, 'zs.CreateTime', 'COALESCE(zs.UpdateTime, zs.CreateTime)')`); trang **Mốc gửi** → **Làm mới** → dòng `TEST_ND` → **✎ Đặt mốc** chọn giờ T + 1 phút (đặt mốc ghi kèm chữ ký của câu hiện tại, mốc lại nằm sau ID1–ID5 nên bật lại không gửi lại).
+4. Khôi phục: tắt đăng ký; SSMS chạy lại câu ở bước 1 với hai chuỗi đổi chỗ (`REPLACE(s.ExtractSql, 'zs.CreateTime', 'COALESCE(zs.UpdateTime, zs.CreateTime)')`); tải lại trang → khối **4** → dòng `TEST_ND` → **✎ Đặt mốc** chọn giờ T + 1 phút (đặt mốc ghi kèm chữ ký của câu hiện tại, mốc lại nằm sau ID1–ID5 nên bật lại không gửi lại).
 
 **F. Câu SQL sai bị chặn khi lưu** (đăng ký tắt; sửa ở tab `TEST_ND`; sau mỗi lần thử, chọn lại gói 101 để bỏ phần đã sửa — câu bị từ chối thì cả câu lẫn bảng tham số đều không được lưu)
 
@@ -1238,8 +1238,8 @@ ORDER BY u.sortKey ASC
 2. SSMS: `UPDATE dbo.TmsZoneStatus SET UpdateTime = DATEADD(SECOND, 100, '2026-11-02 08:00:00') WHERE ID = '<S>';`. Đúng: lượt sau gửi lại S (bản cập nhật).
 
 **G2. Cách viết khác: câu hai nhóm mốc** (thay ngày giờ bằng T đã chọn)
-1. Tắt đăng ký. Tab `TEST_ND`: dán câu dưới đây → **Lưu & phân tích** → hộp xác nhận đổi công thức cột mốc nêu `TEST_ND` → **Xác nhận**. Đúng: bảng tham số có 2 dòng mới đã tự chọn nguồn (`@lastKey_upd`, `@lastKey_new` → *Nối tiếp lần trước theo key*), bỏ dòng `@lastKey` cũ; lưu thành công ngay lần đầu; dải *Quy chuẩn mốc* sáng đủ; trang **Mốc gửi**, hộp **✎ Đặt mốc** có hai khối *Nhóm mốc upd* và *Nhóm mốc new*. Sau đó `@pageSize` = 50, `@lastKey_upd` **Mốc lần đầu** = T − 1 phút → **Lưu**.
-2. Bật đăng ký, chờ một lượt. Đúng: máy nhận nhận các dòng chưa có `UpdateTime`, ID1–ID5 và S; trang **Mốc gửi** hiện mốc của cả hai nhóm `upd`, `new`.
+1. Tắt đăng ký. Tab `TEST_ND`: dán câu dưới đây → **Lưu & phân tích** → hộp xác nhận đổi công thức cột mốc nêu `TEST_ND` → **Xác nhận**. Đúng: bảng tham số có 2 dòng mới đã tự chọn nguồn (`@lastKey_upd`, `@lastKey_new` → *Theo Mốc đang chạy*), bỏ dòng `@lastKey` cũ; lưu thành công ngay lần đầu; dải *Quy chuẩn mốc* sáng đủ; tải lại trang, khối **4**, hộp **✎ Đặt mốc** có hai khối *Nhóm mốc upd* và *Nhóm mốc new*. Sau đó `@pageSize` = 50, `@lastKey_upd` **Mốc bắt đầu** = T − 1 phút → **Lưu**.
+2. Bật đăng ký, chờ một lượt. Đúng: máy nhận nhận các dòng chưa có `UpdateTime`, ID1–ID5 và S; khối **4** hiện mốc của cả hai nhóm `upd`, `new`.
 3. SSMS: chọn một dòng R đang trống `UpdateTime`, `UPDATE dbo.TmsZoneStatus SET UpdateTime = DATEADD(SECOND, 110, '2026-11-02 08:00:00') WHERE ID = '<R>';`. Đúng: lượt sau gửi lại R (bản cập nhật, nhóm `upd`).
 4. SSMS: chọn dòng V, `UPDATE dbo.TmsZoneStatus SET UpdateTime = NULL, CreateTime = GETDATE() WHERE ID = '<V>';`. Đúng: lượt sau gửi V (dòng mới, nhóm `new`).
 
@@ -1277,7 +1277,7 @@ ORDER BY u.sortKey ASC
    ```
 
 **H. Gửi lỗi thì giữ mốc**
-1. Tắt máy nhận (Ctrl+C). SSMS: đổi `UpdateTime` một dòng thành T + 2 phút. Đúng: lượt sau *Cảnh báo & lỗi* có lỗi không kết nối được tới `http://localhost:9999/noi-duoi`; trang **Mốc gửi**: mốc giữ nguyên.
+1. Tắt máy nhận (Ctrl+C). SSMS: đổi `UpdateTime` một dòng thành T + 2 phút. Đúng: lượt sau *Cảnh báo & lỗi* có lỗi không kết nối được tới `http://localhost:9999/noi-duoi`; khối **4** (tải lại trang): mốc giữ nguyên.
 2. Mở lại máy nhận. Đúng: lượt sau gửi đúng dòng đó, mốc tiến.
 
 **I. (Tùy chọn) Câu sửa thẳng trong CSDL**
@@ -1291,7 +1291,7 @@ ORDER BY u.sortKey ASC
 
 **K. Câu mẫu gói có sẵn bộ biến (gói 103–111)** (làm sau khi chạy tệp seed, lúc nào cũng được, không lưu)
 1. *Cấu hình gói tin* → gói `103_vdsData` (lặp lại với 104, 106, 107, 109, 111) → tab *Mẫu chung*.
-2. Đúng: khung soạn là câu một chuỗi ghép; bảng *3. Tham số điều kiện* có `@lastKey` (*Nối tiếp lần trước theo key*). DB đã có bộ biến cũ thì còn dòng `@pageSize` như đang lưu, nhưng câu mẫu dùng `TOP 100` nên dòng này không tác dụng.
+2. Đúng: khung soạn là câu một chuỗi ghép; bảng *3. Tham số điều kiện* có `@lastKey` (*Theo Mốc đang chạy*). DB đã có bộ biến cũ thì còn dòng `@pageSize` như đang lưu, nhưng câu mẫu dùng `TOP 100` nên dòng này không tác dụng.
 
 ### C.7.3. Kiểm dữ liệu ghi xuống CSDL (31/10/2026)
 
