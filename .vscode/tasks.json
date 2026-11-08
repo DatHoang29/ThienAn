@@ -202,6 +202,30 @@
       }
     },
     {
+      "label": "build-suite-sharedata",
+      "dependsOrder": "sequence",
+      "dependsOn": ["build-webapi-v1", "build-sharedata-worker"],
+      "problemMatcher": []
+    },
+    {
+      "label": "build-suite-videowall-mock",
+      "dependsOrder": "sequence",
+      "dependsOn": ["build-webapi-v1", "build-videowall-worker", "build-mockserver-runner"],
+      "problemMatcher": []
+    },
+    {
+      "label": "build-suite-videowall",
+      "dependsOrder": "sequence",
+      "dependsOn": ["build-webapi-v1", "build-videowall-worker", "build-videowall-wpf"],
+      "problemMatcher": []
+    },
+    {
+      "label": "build-suite-videowall-mock-wpf",
+      "dependsOrder": "sequence",
+      "dependsOn": ["build-webapi-v1", "build-videowall-worker", "build-mockserver-runner", "build-videowall-wpf"],
+      "problemMatcher": []
+    },
+    {
       "label": "docker:up",
       "type": "shell",
       "command": "docker compose -f ${workspaceFolder}/Docker/Compose/docker-compose.yml up -d",

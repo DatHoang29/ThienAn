@@ -33,7 +33,7 @@ participants:
 >
 > **Đã chốt khác lời họp (03/11/2026, rà sau không báo lại):** hai ý trong lời thoại không làm đúng nguyên văn, xem mục *Quyết định đã chốt* ở đầu Phần C: mốc đang chạy sửa được nhưng chỉ ở trang **Mốc gửi** (mới làm khung, chưa khai menu, không bàn giao); tham số cố định như `@pageSize` lưu theo câu SQL, không lưu theo từng đối tác.
 >
-> **Đã lược 29/10/2026 — chỉ giữ ý xử lý nối đuôi.** Bỏ phần giao diện và phần không liên quan: buổi 27/10 Phần 1 (rà soát chung, công cụ ghi chú), Phần 2 (tải trang, tên nút, khối so sánh, kiểu dữ liệu) và 3 câu ở Phần 4 về chỗ hiển thị mốc trên màn hình; buổi 28/10 mục 1.5 (giao diện bảng tham số).
+> **Đã lược 29/10/2026 — chỉ giữ ý xử lý nối đuôi.** Bỏ phần giao diện và phần không liên quan: buổi 27/10 Phần 1 (rà soát chung, công cụ ghi chú), Phần 2 (tải trang, tên nút, khối so sánh, kiểu dữ liệu); buổi 28/10 mục 1.5 (giao diện bảng tham số). 3 câu ở Phần 4 về chỗ hiện mốc đang chạy [01:39 – 02:15] đã chép lại ngày 07/11/2026 từ bản gốc (git `fd63ee74`).
 
 - **Người tham gia:** Tech Lead, Dev
 - **Tài liệu trực quan đính kèm:**
@@ -158,6 +158,7 @@ Hai bản vẽ tay tại [50d2fc5f676ae734be7b.jpg](file:///Users/hoangquydat/Th
     - Đối tác B có thể vừa mới khởi động hoặc đang quét ở mốc `08:00`.
   - **Quy tắc bất biến:** Bảng lưu trữ trạng thái offset bắt buộc phải quản lý theo cặp khóa `(Mã gói, Đối tác, Key)`.
   - **Cấm kỵ:** Không bao giờ được phép lưu giá trị offset chạy thật vào cấu hình mẫu chung. Nếu lưu chung, khi Đối tác A vừa ghi mốc 10:10, Đối tác B chạy sau sẽ đọc đè mốc này, làm nhảy cóc dữ liệu của Đối tác B hoặc gây xung đột dữ liệu nghiêm trọng.
+- **Chỗ hiện mốc đang chạy:** mẫu chung không hiện mốc vì mẫu không lưu gì [A-4 00:31–00:55, 02:31–02:40]. Cột "Giá trị lần trước" "bỏ cũng được nhưng mà sẽ hiện ở chỗ khác", vì đang thiếu chức năng quản lý cho biết key của từng gói, từng đối tác đang chạy đến đâu. Tech Lead nêu hai cách: "một là gom chung để ở từng đối tác này cũng được, hai là một cái trang màn hình riêng để quản lý cho nó dễ" [A-4 01:39–02:15].
 - **Phân loại 2 nhóm tham số trong bảng lưu trữ:**
   - **Tham số cố định (Static Parameter):** Ví dụ `PageSize = 100`. Giá trị này do hệ thống hoặc người quản trị thiết lập cố định, không thay đổi qua các lần quét.
   - **Tham số biến đổi theo lần chạy (Stateful / Dynamic Parameter):** Ví dụ `DetectKey` / `@LastKey`. Giá trị này được cập nhật liên tục sau mỗi mẻ quét dữ liệu thành công (lần 1: `1000_A`, lần 2: `1010_C`, lần 3: `1100_E`...).
@@ -232,6 +233,9 @@ Hai bản vẽ tay tại [50d2fc5f676ae734be7b.jpg](file:///Users/hoangquydat/Th
 - `[00:56 - 01:10]` **Tech Lead:** Cho nên không... chỗ này không bao giờ lưu trống được, lưu trống là không chạy được. Nếu mà lưu trống là đối tác A cũng chạy cái mã này, cũng chạy gói 101 này, cũng cái key A đó... thì lúc đó là nhiều đối tác cùng đè lên cái key này là nó sẽ sai!
 - `[01:11 - 01:25]` **Dev:** Em ví dụ xong cái luồng này, giờ ví dụ đang phát triển đi, giả sử em muốn test á... kiểu kiểm tra... có cách nào kiểu mình tự self-test lại không?
 - `[01:26 - 01:38]` **Tech Lead:** Thì mình tạo một cái mã mới, tạo một cái đối tác mới thôi. Tự test case đó coi sao. Tạo một cái đối tác mới, thế thôi.
+- `[01:39 - 01:46]` **Dev:** Vậy cái cột này bỏ luôn ha anh, "Giá trị lần trước" nè?
+- `[01:47 - 02:00]` **Tech Lead:** Bỏ cũng được nhưng mà sẽ hiện ở chỗ khác. Tại vì về cơ bản là mình đang thiếu một cái bảng là cái bảng quản lý nè, cái chức năng quản lý nè: Là cái key này nó đang chạy đến chỗ nào rồi. Hiện trên giao diện mình là mình không có.
+- `[02:01 - 02:15]` **Tech Lead:** Ví dụ như gói 101, đối tác A nè, nó đang chạy đến cái dữ liệu nào. Chỗ này không có, hiện tại là không có. Thì có thể một là gom chung để ở từng đối tác này cũng được, hai là một cái trang màn hình riêng để quản lý cho nó dễ.
 - `[02:16 - 02:30]` **Dev:** Vậy nếu như cái "Giá trị đã lưu" này nó đi theo đối tác, vậy mẫu chung nó không có đúng không anh?
 - `[02:31 - 02:40]` **Tech Lead:** Đúng rồi! Mẫu chung sao hiện được? Nó đâu có lưu gì đâu mà nó hiện!
 - `[02:41 - 02:55]` **Tech Lead:** Giờ không... không chia đối tác, không lưu đối tác rồi sao mà nó đúng? Giờ thằng A cũng xài mẫu chung, giờ nó lưu ở đây là số 10. Thằng B cũng xài mẫu chung, nó ghi vô đây là số 20 là nó ghi đè vô đây rồi! Nó ghi đè vô rồi hai thằng conflict với nhau rồi sao chạy được nữa?
@@ -529,7 +533,7 @@ Ba bản vẽ tay kỹ thuật được Tech Lead phác thảo trực tiếp tro
 
 | Việc | Lời họp | Cách làm đã chốt |
 | :--- | :--- | :--- |
-| **Sửa mốc đang chạy** | Dev hỏi "Cái value này là người dùng tự set vô hả anh?", Tech Lead trả lời "Không! Value này là hệ thống detect chứ!" [A 05:49–06:15]. Về hiện mốc: "chắc thực ra không cần hiện đâu", nếu hiện thì phải theo đối tác [A-4 00:31–00:55]. | Mốc do hệ thống tự ghi, **vẫn sửa được nhưng chỉ ở trang Mốc gửi** (`views/sharedata/cursor`): xem mốc theo từng đối tác, Đặt mốc, Đặt lại. |
+| **Sửa mốc đang chạy** | Dev hỏi "Cái value này là người dùng tự set vô hả anh?", Tech Lead trả lời "Không! Value này là hệ thống detect chứ!" [A 05:49–06:15]. Về hiện mốc: "chắc thực ra không cần hiện đâu", nếu hiện thì phải theo đối tác [A-4 00:31–00:55]; sau đó cột "Giá trị lần trước" "bỏ cũng được nhưng mà sẽ hiện ở chỗ khác", "một là gom chung để ở từng đối tác này cũng được, hai là một cái trang màn hình riêng để quản lý cho nó dễ" [A-4 01:39–02:15]. | Mốc do hệ thống tự ghi, **vẫn sửa được nhưng chỉ ở trang Mốc gửi** (`views/sharedata/cursor`): xem mốc theo từng đối tác, Đặt mốc, Đặt lại. |
 | **Phạm vi trang Trường gói tin** (`sharedata/dataSource`) | | Câu SQL (mẫu chung hoặc riêng đối tác), trường, tham số, Mốc bắt đầu (`DefaultValue`), Quy chuẩn mốc. **Không hiện và không sửa mốc đang chạy**, kể cả tab đối tác đã có mốc. |
 | **Chỗ lưu tham số cố định** (`@pageSize` và biến Giá trị nhập) | Bảng lưu trên bản vẽ có cả hai dòng cho đối tác A gói 101: "`PageSize`, `DetectKey` cho đối tác A gói 101… chỉ update thằng này (`DetectKey`), thằng này là fixed rồi (`PageSize`)" [A-4 03:16–03:35, bản vẽ `b7af82ba`]. | Lưu ở **`ShareDataSql.VariablesJson`, đi theo câu SQL** (mẫu chung hoặc riêng đối tác). `ShareDataLastSend` chỉ lưu mốc. Ý của lời họp vẫn giữ: giá trị cố định không đổi lúc chạy, chỉ mốc được cập nhật. Hệ quả: đối tác dùng mẫu chung dùng chung `@pageSize` của mẫu chung, muốn khác thì tạo cấu hình riêng. |
 | **So cột mốc bằng `>=`** (05/11/2026) | "Cái key này có thể là lớn hơn (`>`), hoặc là lớn hơn hoặc bằng (`>=`). Mặc định là lớn hơn. Lớn hơn hay lớn hơn bằng... thì cũng xem xét." [A-3 05:36–05:48] | Chỉ cho `>`: lưu câu so đúng biểu thức cột mốc bằng `>=` bị từ chối vì dòng cuối bị gửi lặp mỗi lượt, `@pageSize` = 1 thì kẹt. Câu đã lưu từ trước vẫn chạy. |

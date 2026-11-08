@@ -273,8 +273,8 @@
   - `PartnerCode` (`string?`, `IsNullable = true`): Mã đối tác nhận.
   - `PacketCode` (`string?`, `IsNullable = true`): Mã gói tin chia sẻ.
   - `CursorKey` (`string?`, `IsNullable = true`): Tên nhóm mốc cho câu SQL gộp nhiều nguồn (`null` với nhóm mốc mặc định).
-  - `LastTime` (`DateTime?`, `IsNullable = true`): Mốc thời gian dữ liệu trích xuất thành công gần nhất.
-  - `LastKey` (`string?`, `IsNullable = true`): Khóa dòng cuối của trang gần nhất (chống kẹt khi trùng mốc thời gian).
+  - `LastTime` (`DateTime?`, `IsNullable = true`): Giờ ghi mốc, không dùng để lọc hay so mốc (từ PA1, 03/11/2026). Nhóm mốc có tên không ghi cột này.
+  - `LastKey` (`string?`, `IsNullable = true`): Mốc đang chạy: giá trị `__lastKey` của dòng cuối đã gửi (PA1 là chuỗi `thời gian_khóa`), hoặc giá trị người dùng Đặt mốc.
   - `CursorSignature` (`string?`, `IsNullable = true`): Chữ ký công thức cột mốc của câu SQL đã ghi ra mốc.
   - *(Đã loại bỏ `LastVersion` ngày 26/09/2026: Change Tracking được theo dõi tập trung ở cấp worker, không lưu trên từng gói tin/đối tác nữa — xem mục 6 và 6b về nơi lưu mốc đó).*
   - `CreateTime`, `UpdateTime`: Dấu vết thời gian hệ thống.
@@ -284,28 +284,16 @@
 
 #### 2. Cập nhật LastSend đơn điệu qua SqlSugar ORM
 - Tuyệt đối không dùng raw SQL chuỗi cho update LastSend.
-- Sử dụng method `UpdateLastSend` thông qua `db.Updateable<ShareDataLastSend>()`:
-  - Điều kiện cập nhật: `LastTime < newTime OR (LastTime = newTime AND (LastKey IS NULL OR LastKey < newKey))`.
-  - Đảm bảo cursor luôn tiến lên (đơn điệu), tuyệt đối không bị tụt lùi hay ghi đè mốc cũ.
+- Hàm `UpdateLastSend` trong `CommitSuccess` (nhóm mốc có tên dùng `CommitGroupCursor`, cùng điều kiện) cập nhật qua `db.Updateable<ShareDataLastSend>()`, đối chiếu mã 07/11/2026:
+  - Điều kiện cập nhật chỉ so `LastKey`: `LastKey IS NULL OR LastKey < newKey` (so chuỗi mốc). Khóa kiểu số nguyên hoặc GUID thì so theo đúng kiểu (`IsKeyAfter`), vì so chuỗi coi `'18'` nhỏ hơn `'9'`. `LastTime` chỉ là giờ ghi mốc, không nằm trong điều kiện.
+  - Mốc chỉ tiến, không lùi: worker chạy trễ cố ghi mốc cũ hơn thì ảnh hưởng 0 dòng. Ngoại lệ duy nhất: mốc đang lưu ghi theo công thức cột mốc khác (khác chữ ký) thì ghi đè, vì lượt này đã gửi lại từ Mốc bắt đầu.
 
-#### 2b. Khởi tạo LastSend lần đầu cho Đăng ký mới (`GetLastSend`)
-- Khi đăng ký chưa từng chạy (chưa có `lastTimeRun`), worker cắm mốc lùi đúng một chu kỳ an toàn để gửi ngay dữ liệu phát sinh gần nhất mà không nạp toàn bộ lịch sử CSDL gây nghẽn:
-```csharp
-if (lastTimeRun.HasValue)
-{
-    initialTime = lastTimeRun.Value;
-}
-else
-{
-    var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
-    var safeInterval = intervalSeconds > 0 ? intervalSeconds : DataOutboundScheduler.DefaultIntervalSeconds;
-    initialTime = dbNow.AddSeconds(-safeInterval);
-}
-```
-- **Bắt buộc dùng `var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");`**: Bảo đảm 100% đồng nhất hệ quy chiếu thời gian với SQL Server. Tránh lỗi clock skew giữa máy chủ ứng dụng và CSDL khiến mốc `initialTime` vượt trước thời gian bản ghi trong CSDL, gây rớt bản ghi ở lượt quét đầu tiên.
-- **Thống nhất `CreateTime`/`UpdateTime` trong `GetLastSend` (28/09/2026):** Chuyển từ `DateTime.Now` sang đồng hồ CSDL qua helper `GetDbNow(db)` — lấp chỗ sót cuối cùng của đợt chuẩn hoá 27/09, bảo đảm toàn bộ mốc thời gian và dấu vết của `ShareDataLastSend` đều lấy từ đồng hồ CSDL.
-- **Mở rộng ra cả luồng lock (27/09/2026):** nguyên tắc trên nay áp cho **toàn bộ** mốc thời gian quyết định lock, không riêng `GetLastSend`. `DataOutboundService.GetDbNow(db)` là nơi duy nhất đọc đồng hồ CSDL, được gọi ở 3 điểm: 2 overload `ProcessSubscriptions` (mốc `now` để xét `NextTimeRun <= now` và `DebounceSec`) và `ReleaseLock` (tính `NextTimeRun` kế tiếp). Lý do: 3 mốc này đều **so sánh hoặc ghi vào cột CSDL**, nên nếu lấy từ đồng hồ máy ứng dụng thì khi chạy nhiều instance worker trên nhiều máy, mỗi máy lệch đồng hồ một chút là cửa sổ debounce và cửa sổ lock lệch theo đúng mức lệch đó. ⛔ Không dùng `DateTime.Now` cho các mốc này nữa.
-- **Phòng vệ `safeInterval`**: `var safeInterval = intervalSeconds > 0 ? intervalSeconds : DataOutboundScheduler.DefaultIntervalSeconds;` bảo đảm luôn có chu kỳ hợp lệ kể cả khi `IntervalSeconds` cấu hình <= 0.
+#### 2b. Khởi tạo LastSend lần đầu cho đối tác mới (`GetLastSend`)
+- **Đối chiếu mã 07/11/2026.** Đối tác chưa có dòng mốc (lần gửi đầu, hoặc vừa Đặt lại) thì `GetLastSend` tạo dòng mới với `LastKey` trống, ghi kèm chữ ký công thức cột mốc của câu đang chạy. `LastTime` cũng để trống: cột này chỉ là giờ ghi mốc, có khi gửi thành công. Hai worker cùng tạo thì bên thua ràng buộc unique đọc lại dòng của bên kia, không ghi đè.
+- Mốc trống thì Worker nạp `@lastKey` bằng **Mốc bắt đầu**, tức `DefaultValue` của biến `@lastKey` trong câu SQL đối tác đang dùng (mẫu chung hoặc cấu hình riêng). Mốc bắt đầu cũng trống thì `@lastKey = ''`: câu lấy từ bản ghi cũ nhất, chia trang theo `@pageSize`, các lượt sau gửi nối tiếp (`SqlParameterHelper.BuildVariableParameter`). Nhóm mốc có tên (`@lastKey_<nhóm>`) dùng Mốc bắt đầu của biến nhóm đó.
+- Mốc ghi theo công thức cột mốc khác câu hiện tại (khác chữ ký) cũng coi như chưa có mốc: gửi lại từ Mốc bắt đầu và ghi cảnh báo `ESH-1308`.
+- Cách cũ (23/09/2026) cắm mốc lùi đúng một chu kỳ `GETDATE() - IntervalSeconds`, kèm phòng vệ `safeInterval`, đã bỏ: cách này chỉ dùng được với mốc thời gian, còn mốc nay là một chuỗi `thời gian_khóa` (PA1). Điểm bắt đầu do người dùng đặt bằng Mốc bắt đầu, theo lời họp "nếu mà không có giá trị thì set cái default value" để không gửi dữ liệu chạy thử [biên bản 28/10, B 06:46–07:10].
+- **Đồng hồ CSDL:** mốc thời gian quyết định lock và dấu vết `CreateTime`/`UpdateTime` đều lấy giờ máy chủ CSDL qua `db.GetDate()` (SqlSugar), ở 2 overload `ProcessSubscriptions` (mốc `now` để xét `NextTimeRun <= now` và `DebounceSec`), `GetLastSend`, `CommitSuccess` và `ReleaseLock` (tính `NextTimeRun` kế tiếp). Lý do: các mốc này đều so sánh hoặc ghi vào cột CSDL; lấy giờ máy ứng dụng thì khi chạy nhiều worker trên nhiều máy, đồng hồ lệch bao nhiêu thì cửa sổ debounce và cửa sổ lock lệch bấy nhiêu. ⛔ Không dùng `DateTime.Now` cho các mốc này.
 
 #### 3. Vòng lặp phân trang an toàn (Paging có phanh)
 - Hằng số mặc định cấu hình trực tiếp trong `DataOutboundService`:
@@ -602,20 +590,21 @@ Hai điều chốt: (1) đúng 2 chế độ, không có chế độ thứ ba ki
 ##### 9.8. Cơ chế tương tranh khi nhiều worker chạy song song (OCC 3 lớp)
 
 - **`GetLastSend`** — 2 worker cùng tạo bản ghi LastSend 1 lúc: bên thua ràng buộc unique tự nạp lại dòng đã có (`catch { reload; if found return reloaded; throw; }`), không ghi đè.
-- **`UpdateLastSend`** — chốt chặn chỉ tiến không lùi: `WHERE LastTime < @newTime OR (LastTime = @newTime AND LastKey < @newKey)` — worker chạy trễ cố ghi mốc cũ hơn thì ảnh hưởng 0 dòng.
+- **`UpdateLastSend`** — chốt chặn chỉ tiến không lùi: `WHERE LastKey IS NULL OR LastKey < @newKey` (khóa số nguyên hoặc GUID so theo kiểu, xem §2) — worker chạy trễ cố ghi mốc cũ hơn thì ảnh hưởng 0 dòng.
 - **`CommitSuccess`** — điều kiện OCC `WHERE ID = @subId AND ProcessingUntil = @processingUntil` (chuẩn hóa ngày 28/09/2026, tách khỏi `NextTimeRun`); nếu quyền xử lý bị worker khác giành mất giữa chừng do quá hạn timeout thì rollback, dừng vòng lặp, không ghi đè kết quả worker kia.
 
 Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang trước đã gửi thành công vẫn giữ nguyên — không phải làm lại từ đầu.
 
-##### 9.9. Vì sao lần chạy đầu tiên lùi đúng 1 chu kỳ (không lấy hết lịch sử, không lấy đúng hiện tại)
+##### 9.9. Lần gửi đầu của đối tác mới bắt đầu từ đâu
 
-| Phương án | Hậu quả |
+Đối chiếu mã 07/11/2026: đối tác chưa có mốc đang chạy (mới đăng ký, hoặc vừa Đặt lại) thì Worker gửi từ **Mốc bắt đầu** của câu SQL đối tác đang dùng. Mã ở §2b.
+
+| Mốc bắt đầu | Lần gửi đầu |
 |---|---|
-| ❌ Lấy toàn bộ lịch sử từ trước đến nay | Bảng dò xe/thu phí khổng lồ — kéo hàng triệu bản ghi, treo DB, ngập máy đối tác |
-| ❌ Lấy mốc đúng thời điểm hiện tại (`GETDATE()`) | `WHERE UpdateTime >= now` không có dòng nào thoả — lần chạy đầu chạy không công |
-| ✅ Lùi mốc về đúng 1 chu kỳ (`GETDATE() - IntervalSeconds`) | Quét được lượng nhỏ dữ liệu vừa sinh ra — đủ chứng minh kết nối hoạt động, không nặng hệ thống |
+| Để trống | Gửi toàn bộ dữ liệu đang có trong bảng nguồn, từ bản ghi cũ nhất, chia trang theo `@pageSize`, các lượt sau nối tiếp tới hết. Bảng dò xe, thu phí lớn thì đối tác nhận rất nhiều dữ liệu cũ |
+| Đặt một thời điểm, ví dụ `2026-10-28 00:00:00.000_` | Chỉ gửi dữ liệu từ thời điểm đó trở đi. Dùng để bỏ dữ liệu chạy thử hoặc lịch sử không cần gửi |
 
-⚠️ Hệ quả: đối tác mới **vẫn không nhận được dữ liệu cũ hơn 1 chu kỳ**. Nếu cần nạp lịch sử cho đối tác mới, đó phải là 1 thao tác riêng có chủ đích, không gắn vào việc tạo đăng ký. Code cụ thể (`GetLastSend`, dùng `SELECT GETDATE()` của DB thay vì `DateTime.Now`) đã có ở §2b phía trên.
+⚠️ Mốc bắt đầu đi theo câu SQL, nên mọi đối tác dùng mẫu chung mà chưa có mốc đều bắt đầu từ cùng một điểm. Bảng nguồn lớn thì đặt Mốc bắt đầu trước khi bật đăng ký; muốn riêng một đối tác thì Đặt mốc cho đối tác đó trước khi bật đăng ký. Cách cũ lùi đúng một chu kỳ (`GETDATE() - IntervalSeconds`) đã bỏ vì chỉ dùng được với mốc thời gian.
 
 ##### 9.10. Bảng LastSend có phình to không
 

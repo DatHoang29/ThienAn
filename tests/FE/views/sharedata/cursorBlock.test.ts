@@ -114,11 +114,12 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
 
     /**
      * Author: DatHQ
-     * Description: Tab Mẫu chung: khối 4 liệt kê đúng các đối tác dùng mẫu chung (đối tác có cấu hình riêng nằm ở tab của họ), hiện mốc đang chạy và lượt gửi tới;
-     *              Đặt mốc cho đối tác chưa có mốc thì không báo hệ quả, Đặt lại hỏi rõ sẽ gửi lại từ Mốc bắt đầu, bảng nạp lại đúng sau mỗi thao tác.
+     * Description: Tab Mẫu chung: khối 4 liệt kê đúng các đối tác dùng mẫu chung (đối tác có cấu hình riêng nằm ở tab của họ), hiện mốc đang chạy,
+     *              chưa có mốc thì nói lượt gửi tới lấy từ Mốc bắt đầu; Đặt mốc cho đối tác chưa có mốc thì không báo hệ quả,
+     *              Đặt lại hỏi rõ sẽ gửi lại từ Mốc bắt đầu, bảng nạp lại đúng sau mỗi thao tác.
      * Created date: 07/11/2026
      */
-    test('1. Tab Mẫu chung: khối 4 liệt kê đối tác dùng mẫu chung kèm mốc đang chạy và lượt gửi tới; Đặt mốc, Đặt lại nạp lại đúng', async ({ page }) => {
+    test('1. Tab Mẫu chung: khối 4 liệt kê đối tác dùng mẫu chung kèm mốc đang chạy (chưa có thì nói lượt gửi tới lấy từ đâu); Đặt mốc, Đặt lại nạp lại đúng', async ({ page }) => {
         const saved: Record<string, string | null> = { p_a: '2026-10-27 10:05:00.000_Z02', p_b: null };
         const resetPayloads: any[] = [];
         await mockExtractSql(page, CURSOR_SQL);
@@ -145,12 +146,9 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(block(page)).toContainText('4. Mốc đang chạy của đối tác dùng mẫu chung', { timeout: 15_000 });
         const rowA = blockRow(page, 'CSGT');
         const rowB = blockRow(page, 'VDOT');
-        await expect(rowA).toContainText('27/10/2026 10:05:00.000', { timeout: 10_000 });
-        await expect(rowA).toContainText('Z02');
-        await expect(rowA).toContainText('Các dòng sau mốc đang chạy');
-        await expect(rowB).toContainText('Chưa có mốc');
-        await expect(rowB).toContainText('Từ 22/10/2026 00:00:00');
-        await expect(rowB).toContainText('theo Mốc bắt đầu');
+        // Có mốc thì hiện nguyên chuỗi mốc như trong CSDL (thời gian_khóa); chưa có mốc thì nói lượt gửi tới lấy từ Mốc bắt đầu
+        await expect(rowA.locator('.sd-cursor-line')).toHaveText('2026-10-27 10:05:00.000_Z02', { timeout: 10_000 });
+        await expect(rowB.locator('.sd-cursor-line')).toHaveText('Chưa có, lượt gửi tới lấy từ Mốc bắt đầu 22/10/2026 00:00:00');
         await expect(blockRow(page, 'RIENG')).toHaveCount(0);
 
         // Chưa có mốc thì không đặt lại được, rê chuột thấy lý do
@@ -167,9 +165,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
         await expect(dialog).toBeHidden();
         await expect(page.locator('.el-message--success')).toContainText('Đã cập nhật mốc gửi dữ liệu cho đối tác.');
-        await expect(rowB).toContainText('02/11/2026 08:00:00.000');
-        await expect(rowB).toContainText('đặt tay');
-        await expect(rowB).toContainText('Các dòng sau mốc đang chạy');
+        await expect(rowB.locator('.sd-cursor-line')).toHaveText('2026-11-02 08:00:00.000_');
 
         // Đặt lại CSGT: hỏi rõ gửi lại từ Mốc bắt đầu và bị gửi trùng, gửi đúng gói và đối tác, bảng về trạng thái chưa có mốc
         await rowA.locator('.sd-cursor-reset-btn').click();
@@ -180,8 +176,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect.poll(() => resetPayloads.length).toBe(1);
         expect(resetPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_a' });
         await expect(page.locator('.el-message--success').last()).toContainText('Đã bỏ Mốc đang chạy.');
-        await expect(rowA).toContainText('Chưa có mốc');
-        await expect(rowA).toContainText('Từ 22/10/2026 00:00:00');
+        await expect(rowA.locator('.sd-cursor-line')).toHaveText('Chưa có, lượt gửi tới lấy từ Mốc bắt đầu 22/10/2026 00:00:00');
     });
 
     /**
@@ -210,7 +205,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-DAT' }).click();
         await expect(block(page)).toContainText('4. Mốc đang chạy của Đạt', { timeout: 15_000 });
         await expect(block(page).locator('.el-table__body tr')).toHaveCount(1);
-        await expect(blockRow(page, 'DT-DAT')).toContainText('01/11/2026 09:00:00.000');
+        await expect(blockRow(page, 'DT-DAT')).toContainText('2026-11-01 09:00:00.000_A1');
     });
 
     const directionCases = [
@@ -230,7 +225,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
 
             await openSqlCenter(page);
             const rowA = blockRow(page, 'CSGT');
-            await expect(rowA).toContainText('k100', { timeout: 15_000 });
+            await expect(rowA).toContainText('2026-10-30 07:00:00.000_k100', { timeout: 15_000 });
 
             if (locked) {
                 await expect(rowA.locator('.sd-cursor-set-btn')).toBeDisabled();
@@ -262,14 +257,14 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         const setPayloads = await captureSetLastSend(page);
 
         await openSqlCenter(page);
-        await expect(blockRow(page, 'SHARED1')).toContainText('k_1', { timeout: 15_000 });
+        await expect(blockRow(page, 'SHARED1')).toContainText('2026-10-28 08:00:00.000_k_1', { timeout: 15_000 });
 
         const dialog = page.locator('.sd-set-cursor-dialog');
         const confirmBtn = dialog.locator('.el-dialog__footer .el-button--primary');
         await blockRow(page, 'SHARED1').locator('.sd-cursor-set-btn').click();
         await expect(dialog).toBeVisible();
         await expect(dialog.locator('.el-dialog__header')).toContainText('Đặt Mốc đang chạy — Đối tác dùng mẫu chung');
-        await expect(dialog.locator('.sd-cursor-current')).toContainText('28/10/2026 08:00:00.000 · k_1');
+        await expect(dialog.locator('.sd-cursor-current')).toHaveText('Mốc đang chạy: 2026-10-28 08:00:00.000_k_1');
         await expect(dialog.locator('.sd-cursor-start')).toContainText('để trống, gửi toàn bộ dữ liệu');
         await expect(dialog.locator('.cvi-picker input')).toHaveValue('28/10/2026 08:00:00');
         await expect(confirmBtn).toBeDisabled();
@@ -303,10 +298,8 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         const row = blockRow(page, 'GRP');
         const pktLine = row.locator('.sd-cursor-saved .sd-cursor-line', { hasText: 'pkt:' });
         const tollLine = row.locator('.sd-cursor-saved .sd-cursor-line', { hasText: 'toll:' });
-        await expect(pktLine).toContainText('27/10/2026 09:30:00.000', { timeout: 15_000 });
-        await expect(pktLine).toContainText('a2');
-        await expect(tollLine).toContainText('27/10/2026 09:20:00.000');
-        await expect(tollLine).toContainText('t9');
+        await expect(pktLine).toContainText('2026-10-27 09:30:00.000_a2', { timeout: 15_000 });
+        await expect(tollLine).toContainText('2026-10-27 09:20:00.000_t9');
 
         await row.locator('.sd-cursor-set-btn').click();
         const dialog = page.locator('.sd-set-cursor-dialog');
@@ -384,8 +377,8 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         ]);
 
         await openSqlCenter(page, { width: 1366, height: 768 });
-        await expect(blockRow(page, 'TTDHT')).toContainText('theo Mốc bắt đầu', { timeout: 15_000 });
-        await expect(blockRow(page, 'PC08')).toContainText('0dcdde08-134b-45cb-898b-59fd11a42504');
+        await expect(blockRow(page, 'TTDHT')).toContainText('Chưa có, lượt gửi tới lấy từ Mốc bắt đầu 22/10/2026 00:00:00', { timeout: 15_000 });
+        await expect(blockRow(page, 'PC08')).toContainText('2026-10-27 10:05:00.000_0dcdde08-134b-45cb-898b-59fd11a42504');
         await expect(page.locator('.el-loading-mask:visible')).toHaveCount(0, { timeout: 15_000 });
         await block(page).scrollIntoViewIfNeeded();
         // Ảnh khối 4 ở thư mục kết quả test để so giao diện khi cần

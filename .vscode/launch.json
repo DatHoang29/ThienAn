@@ -6,14 +6,16 @@
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/TA-ITS015-WEBVUE-V1.0/src",
-      "program": "${workspaceFolder}/TA-ITS015-WEBVUE-V1.0/src/node_modules/vite/bin/vite.js",
-      "args": [],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
       "serverReadyAction": {
         "action": "openExternally",
         "pattern": "\\bLocal:\\s+(http://localhost:\\d+/?)",
         "uriFormat": "%s"
       },
-      "console": "internalConsole"
+      "presentation": { "group": "2-app", "order": 1 }
     },
     {
       "name": "🌐 TAC_WebAPI",
@@ -24,14 +26,15 @@
       "args": [],
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI",
       "stopAtEntry": false,
+      "launchSettingsProfile": "TAC_WebAPI",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
       "serverReadyAction": {
         "action": "openExternally",
         "pattern": "\\bNow listening on:\\s+https?://(?:\\S+:)?(\\d+)",
         "uriFormat": "http://localhost:%s/api"
       },
-      "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+      "presentation": { "group": "2-app", "order": 2 }
     },
     {
       "name": "📦 ShareDataWorker",
@@ -42,10 +45,12 @@
       "args": [],
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker",
       "stopAtEntry": false,
-      "console": "internalConsole",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
       "env": {
         "DOTNET_ENVIRONMENT": "Development"
-      }
+      },
+      "presentation": { "group": "2-app", "order": 3 }
     },
     {
       "name": "⚙️ ITS.VideoWall",
@@ -56,10 +61,12 @@
       "args": [],
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall",
       "stopAtEntry": false,
-      "console": "internalConsole",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
       "env": {
         "DOTNET_ENVIRONMENT": "Development"
-      }
+      },
+      "presentation": { "group": "3-videowall", "order": 1 }
     },
     {
       "name": "⚙️ ITS.VideoWall (MockServer 18080)",
@@ -70,14 +77,16 @@
       "args": [],
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall",
       "stopAtEntry": false,
-      "console": "internalConsole",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
       "env": {
         "DOTNET_ENVIRONMENT": "Development",
         "VideoWall__Device__IsLocal": "true"
-      }
+      },
+      "presentation": { "group": "3-videowall", "order": 2 }
     },
     {
-      "name": "🖥️ ITS.VideoWall.WPF",
+      "name": "🖥️ ITS.VideoWall.WPF (Windows)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-videowall-wpf",
@@ -85,7 +94,9 @@
       "args": [],
       "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF",
       "stopAtEntry": false,
-      "console": "internalConsole"
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "presentation": { "group": "3-videowall", "order": 3 }
     },
     {
       "name": "🧪 VideoWall Mock Server (Fake Device)",
@@ -96,45 +107,70 @@
       "args": [],
       "cwd": "${workspaceFolder}/tests/BE/ITS/VideoWall/VwMockServerRunner",
       "stopAtEntry": false,
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "presentation": { "group": "3-videowall", "order": 4 }
     },
     {
       "name": "🧷 Attach to Process (.NET Core)",
       "type": "coreclr",
-      "request": "attach"
+      "request": "attach",
+      "presentation": { "group": "4-other", "order": 1 }
     }
   ],
   "compounds": [
-    {
-      "name": "🚀 ShareData (WebAPI + Worker)",
-      "configurations": [
-        "🌐 TAC_WebAPI",
-        "📦 ShareDataWorker"
-      ]
-    },
     {
       "name": "🚀 Fullstack (WebAPI + WebVue)",
       "configurations": [
         "🌐 TAC_WebAPI",
         "🎨 WebVue (Dev Server)"
-      ]
+      ],
+      "stopAll": true,
+      "presentation": { "group": "1-suite", "order": 1 }
     },
     {
-      "name": "🖥️ VideoWall Suite",
+      "name": "🚀 ShareData (WebAPI + Worker)",
+      "configurations": [
+        "🌐 TAC_WebAPI",
+        "📦 ShareDataWorker"
+      ],
+      "preLaunchTask": "build-suite-sharedata",
+      "stopAll": true,
+      "presentation": { "group": "1-suite", "order": 2 }
+    },
+    {
+      "name": "🖥️ VideoWall (WebAPI + Worker + MockServer)",
+      "configurations": [
+        "🌐 TAC_WebAPI",
+        "⚙️ ITS.VideoWall (MockServer 18080)",
+        "🧪 VideoWall Mock Server (Fake Device)"
+      ],
+      "preLaunchTask": "build-suite-videowall-mock",
+      "stopAll": true,
+      "presentation": { "group": "1-suite", "order": 3 }
+    },
+    {
+      "name": "🖥️ VideoWall Suite (Windows)",
       "configurations": [
         "🌐 TAC_WebAPI",
         "⚙️ ITS.VideoWall",
-        "🖥️ ITS.VideoWall.WPF"
-      ]
+        "🖥️ ITS.VideoWall.WPF (Windows)"
+      ],
+      "preLaunchTask": "build-suite-videowall",
+      "stopAll": true,
+      "presentation": { "group": "1-suite", "order": 4 }
     },
     {
-      "name": "🖥️ VideoWall Suite (+ MockServer)",
+      "name": "🖥️ VideoWall Suite + MockServer (Windows)",
       "configurations": [
         "🌐 TAC_WebAPI",
         "⚙️ ITS.VideoWall (MockServer 18080)",
         "🧪 VideoWall Mock Server (Fake Device)",
-        "🖥️ ITS.VideoWall.WPF"
-      ]
+        "🖥️ ITS.VideoWall.WPF (Windows)"
+      ],
+      "preLaunchTask": "build-suite-videowall-mock-wpf",
+      "stopAll": true,
+      "presentation": { "group": "1-suite", "order": 5 }
     }
   ]
 }
