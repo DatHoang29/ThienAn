@@ -170,11 +170,9 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
   - **Kiểm thử kéo resize cột table**:
     - Khi kiểm tra tính năng kéo co giãn cột (Column Resizing): Kiểm tra các cột nội dung và cột thao tác không bị đứt gãy bố cục hoặc tràn lệch toạ độ.
     - Với các bảng có cột cố định (`fixed: 'right'`), kiểm tra khối fixed luôn bám sát mép container và không bị trôi lệch sau khi kéo.
-* **Ưu tiên sửa code trước — Chỉ viết test khi có yêu cầu (Rule 19.67 - Fix-First & On-Demand Testing)**:
+* **Ưu tiên sửa code trước khi review — Bắt buộc có test trước khi chốt xong (Rule 19.67 & Rule 19.109)**:
   - **Tập trung sửa dứt điểm code trước (Fix-First)**: Khi người dùng báo lỗi/vấn đề (UI/UX, CSS, font chữ, layout shift, logic, tính năng nhỏ...), AI **BẮT BUỘC tập trung xử lý và sửa mã nguồn dứt điểm trước**, báo cáo rõ ràng kết quả để người dùng review trực quan ngay trên môi trường dev.
-  - ⛔ **CẤM** tự ý dừng luồng làm việc để ngồi viết thêm các test case Playwright / unit test mới cho mỗi lần sửa lặt vặt làm chậm tiến độ.
-  - **Chỉ viết test khi người dùng yêu cầu rõ ràng (On-Demand Testing)**: CHỈ viết thêm / cập nhật bài test khi người dùng có chỉ thị rõ ràng (ví dụ: *"hãy viết test"*, *"bổ sung test"*, *"viết kịch bản kiểm thử"*), hoặc khi triển khai các luồng nghiệp vụ lớn có yêu cầu test suite đi kèm.
-  - **Chạy regression test sẵn có**: Được phép chạy nhanh các bài test đã có sẵn theo phạm vi sửa đổi (filter test theo scope) để đảm bảo không làm gãy logic cũ, nhưng tuyệt đối không tự ý viết thêm test mới khi chưa được yêu cầu.
+  - **Trước khi báo cáo hoàn tất / chạy full test chốt việc / xuất nội dung commit (Pre-Finish Test Gate - Rule 19.109)**: BẮT BUỘC rà soát toàn bộ tệp mã nguồn mới sửa ở FE (`TA-ITS015-WEBVUE-V1.0`) và BE (`TA-ITS015-WEBAPI-V1.0`) xem hành vi mới sửa đã có bài test kiểm chứng trong `tests/FE/` hoặc `tests/BE/` chưa. Nếu chưa có thì **BẮT BUỘC viết bổ sung test vào đúng tệp test hiện có** (Rule 19.84) trước khi chạy full test hoặc chốt commit (được cưỡng chế tự động bởi hook `guardrails.mjs` & `prompt-submit.mjs`).
 * **Timeout kịch bản (Rule 19.61)**: Mặc định tối đa 5s cho mỗi hành động (`waitForSelector`, `expect`), trường hợp mạng chậm chỉ tăng gia số +1 đến 2 giây.
 * **Quy chuẩn bộ chọn (Selectors)**: Ưu tiên chọn theo role, aria-label, class định danh ngữ cảnh cụ thể, tránh dùng selector xpath cứng dễ vỡ.
 * **Lệnh thực thi**:
@@ -231,13 +229,14 @@ Bối cảnh: cả bộ test BE ShareData (418 ca) mất khoảng 3,5 phút (3 p
 
 1. **Sau khi sửa mã, kiểm chứng theo phạm vi đã sửa trước**, ⛔ không mặc định chạy cả bộ.
 2. **Xác định phạm vi** (gộp cả hai nguồn, vì đồ thị Gortex có thể thiếu cạnh từ test — đã gặp: báo 0% phủ cho Delivery trong khi có hơn 100 test):
-   - Gortex: `change(operation:"detect")` → dùng symbol ID trả về cho `change(operation:"tests")` (hoặc `get_test_targets`).
-   - `search_text` tên lớp/hàm đã sửa trong `tests/` để lấy các lớp test còn thiếu.
-3. **Lệnh chạy theo lớp test**:
+   - Gortex: `change(operation:"detect")` → dùng symbol ID trả về cho `change(operation:"tests")`.
+   - `search(operation:"text")` tên lớp/hàm đã sửa trong `tests/` để lấy các lớp test còn thiếu.
+3. **Lệnh chạy theo lớp test, output gọn** (log test là phần tốn ngữ cảnh nhất; chỉ cần dòng lỗi và tổng kết):
    ```bash
-   dotnet test tests/BE/test.csproj -f net10.0 --filter "FullyQualifiedName~<LớpTest1>|FullyQualifiedName~<LớpTest2>"
+   dotnet test tests/BE/test.csproj -f net10.0 -v q --logger "console;verbosity=minimal" --filter "FullyQualifiedName~<LớpTest1>|FullyQualifiedName~<LớpTest2>"
    ```
-   FE: chạy đúng tệp spec đã liên quan (`npx playwright test tests/FE/views/<module>/<tệp>.test.ts`).
+   FE: chạy đúng tệp spec đã liên quan, reporter `dot` (`npx playwright test tests/FE/views/<module>/<tệp>.test.ts --reporter=dot`).
+   Ca lỗi cần xem chi tiết thì chạy lại riêng ca đó với verbosity mặc định; ⛔ không chạy cả bộ ở verbosity mặc định chỉ để đọc log.
 4. **Mở rộng sang cả bộ của phân hệ** (`--filter FullyQualifiedName~<PhânHệ>`) khi sửa phần dùng chung rộng: entity/DTO/enum dùng chung, đăng ký DI, cấu hình (`appsettings*`, `SysOpConfig`), project Core của phân hệ, `Shared.*`, script SQL/seed, hoặc test theo phạm vi lộ lỗi lan sang lớp khác.
 5. **Trước commit/push**: chạy cả bộ test của phân hệ **một lần**, phải pass 100% (Pre-Commit Checklist #5 trong git-workflow). Chạy theo phạm vi chỉ dùng trong vòng sửa–kiểm.
 6. **Trước khi chạy** (mọi phạm vi): kiểm không có phiên test khác (`pgrep -fl "dotnet test|testhost"`, cổng mock `lsof -nP -iTCP:18090-18093 -sTCP:LISTEN`); có thì chờ, ⛔ không chạy song song, không kill tiến trình của người dùng.

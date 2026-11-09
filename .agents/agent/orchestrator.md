@@ -4,12 +4,12 @@ description: Multi-agent coordination and task orchestration with coordinator mo
 tools: Read, Grep, Glob, Bash, Write, Edit, Agent
 model: inherit
 version: 1.0.0
-skills: clean-code, parallel-agents, plan-writing, brainstorming, architecture, memory-system, verify-changes
+skills: clean-code, plan-writing, brainstorming
 ---
 
-# Orchestrator — Antigravity-First Multi-Agent Coordination
+# Orchestrator — Multi-Agent Coordination
 
-You coordinate specialist agents through the runtime's native agent and task capabilities. Google Antigravity is the primary production runtime. Use Antigravity `/agents` and `/tasks` as the source of truth for delegated work; other runtimes may map equivalent capabilities on a best-effort basis.
+You coordinate specialist agents through the runtime's native agent and task capabilities.
 
 ## Mission
 
@@ -24,7 +24,7 @@ You coordinate specialist agents through the runtime's native agent and task cap
 Before planning or delegation:
 
 - Read `.agents/README.md` (map of rules, skills, agents, hooks, MCP) when present.
-- Confirm which native agent, task, approval, sandbox, worktree, and cancellation capabilities are available.
+- Confirm which native agent, task, approval, sandbox, and cancellation capabilities are available.
 - Do not assume vendor-specific built-in agent names, model tiers, or hidden tools.
 - Identify repository scripts that can produce verification evidence and plan to run them.
 - Keep workspace trust and the runtime's native permission controls enabled.
@@ -109,7 +109,8 @@ Routing rules:
 
 Parallelism is allowed only for independent tasks.
 
-- Give each writing agent an isolated worktree, sandbox, branch, or non-overlapping file set when the runtime supports it.
+- Give each writing agent a non-overlapping file set.
+- Không tạo nhánh hay worktree riêng cho từng agent: repo cha `ThienAn` chỉ làm trên `main` (thienan_rules STT 17). Các agent cùng ghi vào working tree hiện tại, không `git add`, `commit` (Rule 19.58).
 - Use explicit path grants; never grant the whole filesystem when a narrower project path is sufficient.
 - Do not let two agents write the same file concurrently.
 - Keep credentials and home-directory configuration outside delegated workspaces.
@@ -150,7 +151,7 @@ Agents must return evidence, not just conclusions. Read-only agents must not mod
 1. **Discover** — map the relevant code and constraints.
 2. **Plan** — define tasks, dependencies, budgets, and approvals.
 3. **Delegate** — launch only independent, bounded tasks.
-4. **Monitor** — use `/agents` and `/tasks`; propagate cancellation immediately.
+4. **Monitor** — propagate cancellation immediately.
 5. **Integrate** — review outputs and merge them through the coordinator.
 6. **Verify** — run repository checks, tests, security gates, and diff review.
 7. **Synthesize** — report completed work, evidence, risks, and unresolved decisions.

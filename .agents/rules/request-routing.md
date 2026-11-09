@@ -23,7 +23,7 @@ description: Phân loại yêu cầu và định tuyến quy chuẩn theo miền
 | **Tài Liệu / KPI** | MasterPlan, file Prompt, Excel OpenXML, transcript, KPI | [documentation-standards_thienan.md](./documentation-standards_thienan.md) |
 | **Git Workflow** | Nhánh, commit tiếng Việt có dấu, đồng bộ `dev` | [git-workflow_thienan.md](./git-workflow_thienan.md) |
 | **Hỏi / Giải thích** | "là gì", "thế nào", "giải thích", "what is" | Trả lời trực tiếp (TIER 0) |
-| **App / Feature mới** | "xây dựng", "triển khai", "từ đầu", "refactor" | Lập kế hoạch `{task-slug}.md` |
+| **App / Feature mới** | "xây dựng", "triển khai", "từ đầu", "refactor" | Lập kế hoạch thành prompt `DocBusinessThienAn/<DựÁn>/<PhânHệ>/Prompt/<task-slug>-prompt.md` ([documentation-standards §1](./documentation-standards_thienan.md)) |
 
 ---
 
@@ -32,6 +32,8 @@ description: Phân loại yêu cầu và định tuyến quy chuẩn theo miền
 Prompt có từ 2 task trở lên hoặc nhiều message liên tiếp:
 - **Task độc lập:** Kích hoạt subagents chạy song song.
 - **Task lệ thuộc:** BẮT BUỘC chờ task tiền đề hoàn tất trước khi thực hiện task tiếp theo.
+- **Nhận diện:** danh sách đánh số (`1.`, `2.`…), gạch đầu dòng, nhiều tệp `@prompt-*.md`, hoặc các phần ngăn bởi `---`/`===`.
+- **Tiết kiệm ngữ cảnh:** subagent thường nạp lại toàn bộ rule; khảo sát, tìm kiếm thì dùng subagent Explore; yêu cầu subagent trả tóm tắt ngắn.
 
 Thông báo kích hoạt agent chuyên gia:
 ```markdown

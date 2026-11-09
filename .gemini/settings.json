@@ -19,19 +19,6 @@
         "matcher": "run_shell_command|search_file_content|glob"
       }
     ],
-    "BeforeAgent": [
-      {
-        "hooks": [
-          {
-            "command": "node $GEMINI_PROJECT_DIR/.agents/hooks/prompt-submit.mjs --event BeforeAgent",
-            "description": "Nhắc tra SSOT .agents/ trước khi xử lý",
-            "name": "thienan-prompt-submit",
-            "timeout": 10000,
-            "type": "command"
-          }
-        ]
-      }
-    ],
     "BeforeTool": [
       {
         "hooks": [
@@ -72,11 +59,18 @@
       }
     ]
   },
+  "mcp": {
+    "excluded": [
+      "mssql_staging"
+    ]
+  },
   "mcpServers": {
     "gortex": {
       "command": "gortex",
       "args": [
-        "mcp"
+        "mcp",
+        "--tools",
+        "facade-v1"
       ],
       "env": {
         "GORTEX_INDEX_WORKERS": "8"

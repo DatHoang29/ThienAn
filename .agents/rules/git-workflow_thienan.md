@@ -162,6 +162,7 @@ Khi lập trình viên yêu cầu: *"cho nội dung commit -m theo rule thienan"
 7. **Cấm Tự Ý Discard / Revert Thay Đổi Trên Working Tree (Rule 19.106)**:
    - ⛔ **TUYỆT ĐỐI CẤM** tự ý chạy `git checkout -- <file>`, `git restore <file>`, `git clean`, `git reset --hard` hoặc bất kỳ thao tác nào nhằm discard/hoàn tác các thay đổi trên Working Tree của lập trình viên (bao gồm các file cấu hình, khóa bảo mật, DLL nội bộ, dữ liệu sửa dở).
    - Khi phát hiện file cấu hình local hoặc bí mật bị sửa đổi: giữ nguyên 100% tại Working Tree; nếu gặp lỗi runtime hoặc license thì báo rõ cho người dùng chứ ⛔ **KHÔNG ĐƯỢC TỰ Ý DISCARD**.
+8. **Xem thay đổi gọn trước (tiết kiệm ngữ cảnh)**: dùng `git status --short`, `git diff --stat` (hoặc `--name-only`) trước; chỉ mở `git diff -- <tệp>` cho tệp cần xem; lịch sử dùng `git log --oneline -n 20`.
 
 ---
 

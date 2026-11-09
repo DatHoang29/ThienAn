@@ -1,153 +1,36 @@
 ---
 name: plan-writing
-description: Structured task planning with clear breakdowns, dependencies, and verification criteria. Use when implementing features, refactoring, or any multi-step work.
-when_to_use: "When creating structured task plans, breaking down features into tasks, or defining verification criteria. Use with /plan workflow."
-allowed-tools: Read, Glob, Grep
-version: 1.0.0
+description: Lập kế hoạch nhiều bước thành tệp prompt theo documentation-standards §1. Dùng khi chia việc, sắp thứ tự phụ thuộc, đặt cách kiểm cho từng bước, hoặc ghi chỗ cần sửa sau review.
 ---
 
-# Plan Writing
+# Kế hoạch là tệp prompt
 
-> Source: obra/superpowers
+Luật gốc: [documentation-standards_thienan.md](../../rules/documentation-standards_thienan.md) §1.
 
-## Overview
-This skill provides a framework for breaking down work into clear, actionable tasks with verification criteria.
+- Tệp `DocBusinessThienAn/<DựÁn>/<PhânHệ>/Prompt/<task-slug>-prompt.md`. Có cả BE và FE thì tách `<task-slug>-be-prompt.md`, `<task-slug>-fe-prompt.md` (Rule 19.98).
+- Thêm dòng vào `Prompt/README.md` theo nếp sẵn có, trạng thái ⏳ Chưa thực thi. Không xóa prompt khi xong (Rule 19.34).
+- Không tạo `{task-slug}.md` ở gốc repo, `PLAN.md` hay kế hoạch theo ngày (Rule 19.52).
 
-## Task Breakdown Principles
+## Khung
 
-### 1. Small, Focused Tasks
-- Each task should take 2-5 minutes
-- One clear outcome per task
-- Independently verifiable
+```markdown
+# Prompt — <Tên việc>
 
-### 2. Clear Verification
-- How do you know it's done?
-- What can you check/test?
-- What's the expected output?
+> Tệp: `DocBusinessThienAn/<DựÁn>/<PhânHệ>/Prompt/<task-slug>-prompt.md`
+> Nguồn: <transcript, review hoặc yêu cầu người dùng>
 
-### 3. Logical Ordering
-- Dependencies identified
-- Parallel work where possible
-- Critical path highlighted
-- **Phase X: Verification is always LAST**
+## Mục tiêu
+<Một câu.>
 
-### 4. Dynamic Naming in Project Root
-- Plan files are saved as `{task-slug}.md` in the PROJECT ROOT
-- Name derived from task (e.g., "add auth" → `auth-feature.md`)
-- **NEVER** inside `.agents/`, `docs/`, or temp folders
+## Các bước
+1. <Tệp, vị trí, cũ → mới> → Kiểm: <lệnh test hoặc điều thấy được>
+2. ...
 
-## Planning Principles (NOT Templates!)
-
-> 🔴 **NO fixed templates. Each plan is UNIQUE to the task.**
-
-### Principle 1: Keep It SHORT
-
-| ❌ Wrong | ✅ Right |
-|----------|----------|
-| 50 tasks with sub-sub-tasks | 5-10 clear tasks max |
-| Every micro-step listed | Only actionable items |
-| Verbose descriptions | One-line per task |
-
-> **Rule:** If plan is longer than 1 page, it's too long. Simplify.
-
----
-
-### Principle 2: Be SPECIFIC, Not Generic
-
-| ❌ Wrong | ✅ Right |
-|----------|----------|
-| "Set up project" | "Run `npx create-next-app`" |
-| "Add authentication" | "Install next-auth, create `/api/auth/[...nextauth].ts`" |
-| "Style the UI" | "Add Tailwind classes to `Header.tsx`" |
-
-> **Rule:** Each task should have a clear, verifiable outcome.
-
----
-
-### Principle 3: Dynamic Content Based on Project Type
-
-**For NEW PROJECT:**
-- What tech stack? (decide first)
-- What's the MVP? (minimal features)
-- What's the file structure?
-
-**For FEATURE ADDITION:**
-- Which files are affected?
-- What dependencies needed?
-- How to verify it works?
-
-**For BUG FIX:**
-- What's the root cause?
-- What file/line to change?
-- How to test the fix?
-
----
-
-### Principle 4: Scripts Are Project-Specific
-
-> 🔴 **DO NOT copy-paste script commands. Choose based on project type.**
-
-| Project Type | Relevant Scripts |
-|--------------|------------------|
-| Frontend/React | `ux_audit.py`, `accessibility_checker.py` |
-| Backend/API | `api_validator.py`, `security_scan.py` |
-| Mobile | `mobile_audit.py` |
-| Database | `schema_validator.py` |
-| Full-stack | Mix of above based on what you touched |
-
-**Wrong:** Adding all scripts to every plan
-**Right:** Only scripts relevant to THIS task
-
----
-
-### Principle 5: Verification is Simple
-
-| ❌ Wrong | ✅ Right |
-|----------|----------|
-| "Verify the component works correctly" | "Run `npm run dev`, click button, see toast" |
-| "Test the API" | "curl localhost:3000/api/users returns 200" |
-| "Check styles" | "Open browser, verify dark mode toggle works" |
-
----
-
-## Plan Structure (Flexible, Not Fixed!)
-
-```
-# [Task Name]
-
-## Goal
-One sentence: What are we building/fixing?
-
-## Tasks
-- [ ] Task 1: [Specific action] → Verify: [How to check]
-- [ ] Task 2: [Specific action] → Verify: [How to check]
-- [ ] Task 3: [Specific action] → Verify: [How to check]
-
-## Done When
-- [ ] [Main success criteria]
-
-## Notes
-[Any important considerations]
+## Việc cuối — Cập nhật lại tài liệu gốc
+<MasterPlan và tài liệu liên quan cần cập nhật.>
 ```
 
-> **That's it.** No phases, no sub-sections unless truly needed.
-> Keep it minimal. Add complexity only when required.
-
----
-
-## Best Practices (Quick Reference)
-
-1. **Start with goal** - What are we building/fixing?
-2. **Max 10 tasks** - If more, break into multiple plans
-3. **Each task verifiable** - Clear "done" criteria
-4. **Project-specific** - No copy-paste templates
-5. **Update as you go** - Mark `[x]` when complete
-
----
-
-## When to Use
-
-- New project from scratch
-- Adding a feature
-- Fixing a bug (if complex)
-- Refactoring multiple files
+## Nguyên tắc
+- 5-10 bước, mỗi bước một kết quả kiểm được. Ghi bước nào chờ bước nào; việc độc lập chạy song song được (Rule 19.70).
+- Cách kiểm là lệnh thật: `dotnet test tests/BE/test.csproj -f net10.0 --filter "FullyQualifiedName~<LớpTest>"`, `pnpm test:e2e` trong `tests/FE/`. Không có bước build FE.
+- Căn cứ chỉ lấy mã working tree và DB local.

@@ -15,7 +15,13 @@
       "enabled": false
     },
     "mcp": {
-      "enabled": true
+      "enabled": true,
+      "dml-tools": {
+        "create-record": false,
+        "update-record": false,
+        "delete-record": false,
+        "execute-entity": false
+      }
     },
     "host": {
       "cors": {

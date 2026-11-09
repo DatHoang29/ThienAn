@@ -82,3 +82,15 @@ Khi phát triển tính năng mới cần thêm thông báo lỗi, tên thực t
    - Bấm nút icon **Làm mới 🔄** bên cạnh chữ Ngôn ngữ trên giao diện Web, HOẶC
    - Gọi API `/api/system/sysconfig/loadserverterm?language=vi-VN`.
 3. **TUYỆT ĐỐI KHÔNG** sửa tay vào `src/TAC_WebAPI/Resources/*.json`.
+
+## Câu dịch lỗi hai đường
+
+> Câu dịch lỗi (lz.validation, lz.exception) hiện theo hai đường, máy chủ string.Format và web $t; không dùng {'@'} và chỗ điền cẩu thả
+
+Câu dịch lỗi trong `SysTerminology` đi theo hai đường, tùy máy chủ đã nạp câu dịch chưa (bấm 🔄 ở avatar → Ngôn ngữ gọi `LoadServerTerm`):
+- **Đã nạp:** `Oops.Oh(key, args)` của Furion lấy câu qua `L.Text` rồi `string.Format(câu, args)`. `{'@'}` là cú pháp của vue-i18n nên gây `FormatException` ("Failure to parse near offset N"); nếu không có args thì `{'@'}` hiện nguyên chữ.
+- **Chưa nạp:** API trả mã lỗi, web tự `$t(key)` không có giá trị nên `{0}` hiện trống như `[] > @`. Chữ `@` trần lại làm hỏng cú pháp vue-i18n.
+
+**Why:** 04/11/2026 tôi kết luận sai "API chỉ trả mã lỗi", viết lại câu có `{'@'}`; người dùng bấm 🔄 xong thì lưu câu SQL báo `Input string was not in a correct format. Failure to parse near offset 27`.
+
+**How to apply:** câu lỗi ném qua `Oops.Oh` có args thì không dùng `{'@'}` và không dùng `@`, viết "biến lastKey". Lỗi nối đuôi không dùng `{0}` vì màn hình có thể hiện trống. Đổi câu dịch thì sửa cả tệp seed (kèm UPDATE cho dòng đã nạp) lẫn vi-vn.json, en-us.json. `AssertRejectedWith` trong `ShareDataPacketControllerTests` kiểm hai điều này. Liên quan project_sharedata-verification-status.

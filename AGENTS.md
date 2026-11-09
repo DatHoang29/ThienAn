@@ -21,10 +21,8 @@
 ---
 
 ## 🗺️ Dynamic AG-Kit Registry (`.agents/`)
-- **Quy tắc dự án (P0):** Bắt buộc đọc và tuân thủ [`.agents/rules/thienan_rules.md`](.agents/rules/thienan_rules.md).
 - **Specialist Agents:** Vai trò trong [`.agents/agent/`](.agents/agent/), mục lục và khi nào dùng ở [`.agents/agent/INDEX.md`](.agents/agent/INDEX.md).
 - **Modular Skills:** Nạp `SKILL.md` từ [`.agents/skills/`](.agents/skills/), mục lục và khi nào dùng ở [`.agents/skills/INDEX.md`](.agents/skills/INDEX.md). Thông báo `📚 Using skill: @[skill-name]...` trước khi áp dụng.
-- **Memory (SSOT):** Đọc [`.agents/memory/MEMORY.md`](.agents/memory/MEMORY.md).
 - **Bản đồ `.agents/` (rule, skill, agent, hook, MCP):** Xem [`.agents/README.md`](.agents/README.md).
 
 ---
@@ -35,11 +33,6 @@
 - Run Tests: `dotnet test tests/BE/test.csproj`
 - Frontend: `cd TA-ITS015-WEBVUE-V1.0 && npm run build`
 
----
-
-## 🛑 Critical Mandatory Safeguards
-> 🔴 **SINGLE SOURCE OF TRUTH (SSOT): [`.agents/rules/thienan_rules.md`](.agents/rules/thienan_rules.md)**
-> Toàn bộ quy tắc cốt lõi (P0 Safeguards) và bảng chỉ mục tra cứu theo chủ đề định nghĩa tập trung tại [`.agents/rules/thienan_rules.md`](.agents/rules/thienan_rules.md).
 
 <!-- gortex:communities:start -->
 <!-- gortex:communities:end -->

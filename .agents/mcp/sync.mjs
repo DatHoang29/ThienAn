@@ -13,21 +13,24 @@ const CODEX_BEGIN = '# >>> .agents/mcp/sync.mjs (sinh từ .agents/mcp_config.js
 const CODEX_END = '# <<< .agents/mcp/sync.mjs';
 
 // Tùy chọn riêng của từng công cụ, không đưa vào nguồn chung.
+// mssql_staging tắt mặc định (chỉ dùng khi người dùng yêu cầu); Claude Code, Gemini CLI tắt bằng cài đặt của công cụ.
 const KIRO_EXTRAS = {
   gortex: {
     autoApprove: ['analyze', 'capabilities', 'change', 'explore', 'read', 'recall', 'relations', 'response', 'search', 'trace', 'workspace'],
     disabled: false
-  }
+  },
+  mssql_staging: {disabled: true}
 };
 const CODEX_DEFAULTS = {startup_timeout_sec: 60};
 const CODEX_EXTRAS = {
   gortex: {
-    args: ['mcp', '--tools', 'facade-v1'],
     startup_timeout_sec: 90,
     default_tools_approval_mode: 'approve',
     tools: {tool_profile: {approval_mode: 'approve'}}
-  }
+  },
+  mssql_staging: {enabled: false}
 };
+const CLINE_EXTRAS = {mssql_staging: {disabled: true}};
 
 const TARGETS = {
   claude: {file: root => path.join(root, '.mcp.json'), render: servers => json({mcpServers: servers})},
@@ -37,8 +40,8 @@ const TARGETS = {
   codex: {file: root => path.join(root, '.codex', 'config.toml'), render: renderCodex},
   antigravity: {home: true, file: () => path.join(os.homedir(), '.gemini', 'antigravity', 'mcp_config.json'), render: renderGlobal},
   // Cline không đọc cấu hình MCP trong repo, chỉ đọc tệp global: extension VS Code và CLI mỗi bên một tệp.
-  cline: {home: true, file: () => path.join(vscodeGlobalStorage(), 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'), render: renderGlobal},
-  'cline-cli': {home: true, file: () => path.join(os.homedir(), '.cline', 'data', 'settings', 'cline_mcp_settings.json'), render: renderGlobal}
+  cline: {home: true, file: () => path.join(vscodeGlobalStorage(), 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'), render: renderCline},
+  'cline-cli': {home: true, file: () => path.join(os.homedir(), '.cline', 'data', 'settings', 'cline_mcp_settings.json'), render: renderCline}
 };
 
 function vscodeGlobalStorage() {
@@ -79,6 +82,10 @@ function renderGlobal(servers, current, root) {
     config.mcpServers[name] = {...server, args: server.args.map(arg => (isRepoPath(arg) ? path.join(root, arg) : arg))};
   }
   return json(config);
+}
+
+function renderCline(servers, current, root) {
+  return renderGlobal(withExtras(servers, CLINE_EXTRAS), current, root);
 }
 
 function tomlKey(key) {

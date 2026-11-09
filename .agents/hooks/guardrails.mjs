@@ -1,7 +1,106 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { spawnSync } from 'node:child_process';
+
+const defaultRoot =
+  process.env.CLAUDE_PROJECT_DIR ||
+  process.env.GEMINI_PROJECT_DIR ||
+  path.resolve(import.meta.dirname, '../..');
+
+function newestMtimeInDir(dir, filePattern) {
+  if (!fs.existsSync(dir)) return 0;
+  let maxMtime = 0;
+  const stack = [dir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'bin' || entry.name === 'obj' || entry.name === 'test-results' || entry.name === 'playwright-report') {
+        continue;
+      }
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile() && filePattern.test(entry.name)) {
+        try {
+          const mtime = fs.statSync(fullPath).mtimeMs;
+          if (mtime > maxMtime) maxMtime = mtime;
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+  return maxMtime;
+}
+
+function getUnstagedSourceFiles(repoDir, predicate) {
+  if (!fs.existsSync(path.join(repoDir, '.git'))) return { files: [], maxMtime: 0 };
+  const res = spawnSync('git', ['-C', repoDir, 'diff', '--name-only'], { encoding: 'utf8', timeout: 3000 });
+  if (res.status !== 0 || !res.stdout) return { files: [], maxMtime: 0 };
+  const files = [];
+  let maxMtime = 0;
+  for (const raw of res.stdout.split(/\r?\n/)) {
+    const rel = raw.trim().replace(/\\/g, '/');
+    if (!rel || !predicate(rel)) continue;
+    const fullPath = path.join(repoDir, rel);
+    try {
+      const mtime = fs.statSync(fullPath).mtimeMs;
+      files.push(rel);
+      if (mtime > maxMtime) maxMtime = mtime;
+    } catch {
+      // ignore deleted files
+    }
+  }
+  return { files, maxMtime };
+}
+
+function hasDirtyTestFiles(rootDir, relTestDir, filePattern) {
+  if (!fs.existsSync(path.join(rootDir, '.git'))) return false;
+  const res = spawnSync('git', ['-C', rootDir, 'status', '--porcelain', '--', relTestDir], { encoding: 'utf8', timeout: 3000 });
+  if (res.status !== 0 || !res.stdout) return false;
+  return res.stdout.split(/\r?\n/).some(line => filePattern.test(line.trim()));
+}
+
+/**
+ * Phát hiện các tệp mã nguồn FE/BE mới sửa trên Working Tree (unstaged) nhưng chưa được
+ * bổ sung hoặc cập nhật bài test tương ứng trong tests/FE/ hoặc tests/BE/ (Rule 19.109).
+ */
+export function detectUntestedChanges(rootDir = defaultRoot) {
+  const feRepo = path.join(rootDir, 'TA-ITS015-WEBVUE-V1.0');
+  const feSourceRegex = /^src\/src\/(?:views|components|utils|stores|hooks)\/.*\.(?:vue|ts|tsx)$/i;
+  const feUnstaged = getUnstagedSourceFiles(feRepo, f => feSourceRegex.test(f) && !/\.d\.ts$/i.test(f));
+  let fe = [];
+  if (feUnstaged.files.length > 0) {
+    const dirtyFeTests = hasDirtyTestFiles(rootDir, 'tests/FE', /\.(?:test|spec)\.ts$/i);
+    const maxFeTestMtime = newestMtimeInDir(path.join(rootDir, 'tests/FE'), /\.(?:test|spec)\.ts$/i);
+    if (!dirtyFeTests && feUnstaged.maxMtime > maxFeTestMtime) {
+      fe = feUnstaged.files;
+    }
+  }
+
+  const beRepo = path.join(rootDir, 'TA-ITS015-WEBAPI-V1.0');
+  const beSourceRegex = /^src\/.*\.cs$/i;
+  const beUnstaged = getUnstagedSourceFiles(beRepo, f => beSourceRegex.test(f));
+  let be = [];
+  if (beUnstaged.files.length > 0) {
+    const dirtyBeTests = hasDirtyTestFiles(rootDir, 'tests/BE', /Tests\.cs$/i);
+    const maxBeTestMtime = newestMtimeInDir(path.join(rootDir, 'tests/BE'), /Tests\.cs$/i);
+    if (!dirtyBeTests && beUnstaged.maxMtime > maxBeTestMtime) {
+      be = beUnstaged.files;
+    }
+  }
+
+  return { fe, be };
+}
 
 function readStdin() {
   return new Promise((resolve, reject) => {
@@ -126,6 +225,36 @@ export function evaluateGuardrail(payload) {
         rule: 'rule-19.91-no-force-push-protected',
         reason: `⛔ Tuyệt đối CẤM force-push lên nhánh chính 'dev' hoặc 'main' theo Rule 19.91!`
       };
+    }
+
+    // 9. Guard Rule 19.109: Trước khi chạy full test chốt việc hoặc git commit, bắt buộc kiểm tra code mới sửa (FE/BE) đã có test chưa
+    const skipTestCheck = /\bSKIP_TEST_CHECK=1\b/.test(command) || process.env.SKIP_TEST_CHECK === '1';
+    if (!skipTestCheck) {
+      const isFullFeTest =
+        /\b(?:playwright\s+test|pnpm\s+(?:--\S+\s+)*(?:run\s+)?test:e2e|npm\s+run\s+test:e2e)\b/i.test(command) &&
+        !/\.(?:test|spec)\.[cm]?[jt]s\b/i.test(command);
+      const isFullBeTest =
+        /\bdotnet\s+test\b/i.test(command) &&
+        !/--filter\s+["']?[^"'\s]*Tests\b/i.test(command);
+      const isGitCommit = /\bgit(?:\s+-C\s+\S+)?\s+commit\b/i.test(command);
+
+      if (isFullFeTest || isFullBeTest || isGitCommit) {
+        const untested = payload?.untestedChanges ?? detectUntestedChanges();
+        if ((isFullFeTest || isGitCommit) && untested?.fe?.length > 0) {
+          return {
+            allowed: false,
+            rule: 'rule-19.109-untested-fe-changes',
+            reason: `Phát hiện code FE mới sửa trên Working Tree (${untested.fe.slice(0, 5).join(', ')}) chưa được bổ sung/cập nhật bài test trong 'tests/FE/'! Theo Rule 19.109, trước khi chạy full test chốt việc hoặc commit, BẮT BUỘC kiểm tra và viết/cập nhật test cho code mới sửa (hoặc đặt SKIP_TEST_CHECK=1 nếu thay đổi không ảnh hưởng hành vi).`
+          };
+        }
+        if ((isFullBeTest || isGitCommit) && untested?.be?.length > 0) {
+          return {
+            allowed: false,
+            rule: 'rule-19.109-untested-be-changes',
+            reason: `Phát hiện code BE mới sửa trên Working Tree (${untested.be.slice(0, 5).join(', ')}) chưa được bổ sung/cập nhật bài test trong 'tests/BE/'! Theo Rule 19.109, trước khi chạy full test chốt việc hoặc commit, BẮT BUỘC kiểm tra và viết/cập nhật test cho code mới sửa (hoặc đặt SKIP_TEST_CHECK=1 nếu thay đổi không ảnh hưởng hành vi).`
+          };
+        }
+      }
     }
   }
 

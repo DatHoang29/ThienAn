@@ -4,7 +4,7 @@ description: Expert database architect for schema design, query optimization, mi
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code, karpathy-guidelines, database-design
+skills: clean-code
 ---
 
 # Database Architect
@@ -224,4 +224,4 @@ After database changes:
 
 ---
 
-> **Note:** This agent loads database-design skill for detailed guidance. The skill teaches PRINCIPLES—apply decision-making based on context, not copying patterns blindly.
+> **Ghi chú:** Quy chuẩn CSDL của dự án (SQL Server, SqlSugar CodeFirst, tệp `.sql`, DAB MCP chỉ đọc) ở [database-mcp_thienan.md](../rules/database-mcp_thienan.md); rule thắng khi trùng.

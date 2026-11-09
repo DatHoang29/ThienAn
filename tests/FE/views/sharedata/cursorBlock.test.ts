@@ -460,4 +460,68 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(startInput).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
         await expect(pageSizeInput).toHaveValue('50');
     });
+
+    /**
+     * Author: DatHQ
+     * Description: Khi chọn gói tin hoặc chuyển tab cấu hình SQL, mặt nạ loading chung chờ cả khối 4 (Mốc đang chạy)
+     *              tải xong biến của đối tác rồi mới tắt để toàn bộ thông tin gói và mốc hiển thị đồng loạt.
+     * Created date: 09/11/2026
+     */
+    test('10. Chọn gói tin và chuyển tab: mặt nạ loading chung chờ khối 4 tải xong mốc của đối tác mới hiển thị đồng loạt', async ({ page }) => {
+        let releasePartnerCursor!: () => void;
+        let partnerCursorPending = new Promise<void>((resolve) => {
+            releasePartnerCursor = resolve;
+        });
+        let partnerCursorCalls = 0;
+
+        await mockExtractSql(page, CURSOR_SQL);
+        await mockPartners(page, [
+            { partnerId: 'p_shared', partnerCode: 'PC08', partnerName: 'Phòng Cảnh sát giao thông (PC08)', isCustom: false },
+            { partnerId: 'p_custom', partnerCode: 'VDOT', partnerName: 'Sở GTVT', isCustom: true },
+        ]);
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', async (route) => {
+            const partnerId = partnerIdOf(route);
+            if (partnerId === 'p_shared') {
+                partnerCursorCalls++;
+                await partnerCursorPending;
+                return fulfillJson(route, { items: [pageSizeItem, keyItem('2026-11-02 02:02:00.000_', '2026-10-22 00:00:00.000_')] });
+            }
+            return fulfillJson(route, { items: [pageSizeItem, keyItem(partnerId === 'p_custom' ? '2026-11-03 03:03:00.000_V1' : null, '2026-10-22 00:00:00.000_')] });
+        });
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (route) => {
+            const partnerId = partnerIdOf(route);
+            const isCustom = partnerId === 'p_custom';
+            return fulfillJson(route, { partnerId, packetCode: PACKET_CODE, standardSql: CURSOR_SQL, customSql: isCustom ? CURSOR_SQL : null, isCustom, fields: [] });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 1000 });
+        await page.goto('/#/sharedata/dataSource');
+        await page.locator('.packet-col .vxe-body--row').first().click({ timeout: 60_000 });
+
+        // Khối 1–3 đã tải xong nhưng khối 4 vẫn đang chờ API mốc của đối tác p_shared: mặt nạ loading chung phải giữ nguyên
+        await expect.poll(() => partnerCursorCalls, { timeout: 15_000 }).toBe(1);
+        const packetMask = page.locator('.packet-details-wrapper > .el-loading-mask');
+        await expect(packetMask).toBeVisible();
+
+        // Khi khối 4 nhận được mốc của đối tác thì mặt nạ loading chung tắt và dòng mốc hiển thị ngay
+        releasePartnerCursor();
+        await expect(packetMask).toBeHidden({ timeout: 10_000 });
+        await expect(blockRow(page, 'PC08').locator('.sd-cursor-line')).toHaveText('2026-11-02 02:02:00.000_');
+
+        // Chuyển sang tab đối tác VDOT rồi quay lại tab Mẫu chung khi API mốc của khối 4 phản hồi chậm: mặt nạ chuyển tab giữ cho tới khi khối 4 nạp xong
+        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'VDOT' }).click();
+        await expect(blockRow(page, 'VDOT').locator('.sd-cursor-line')).toHaveText('2026-11-03 03:03:00.000_V1', { timeout: 10_000 });
+
+        partnerCursorPending = new Promise<void>((resolve) => {
+            releasePartnerCursor = resolve;
+        });
+        await page.locator('.sql-partner-tabs .el-tabs__item').first().click();
+        await expect.poll(() => partnerCursorCalls, { timeout: 15_000 }).toBe(2);
+        const scopeMask = page.locator('.send-regions-wrapper > .solid-loading-mask');
+        await expect(scopeMask).toBeVisible();
+
+        releasePartnerCursor();
+        await expect(scopeMask).toBeHidden({ timeout: 10_000 });
+        await expect(blockRow(page, 'PC08').locator('.sd-cursor-line')).toHaveText('2026-11-02 02:02:00.000_');
+    });
 });

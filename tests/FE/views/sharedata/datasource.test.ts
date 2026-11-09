@@ -2901,4 +2901,104 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const speedInPane = page.locator('.saved-fields-pane').filter({ hasText: 'speed' });
         await expect(speedInPane).toHaveCount(0);
     });
+
+    /**
+     * Description: Khi tạo mới gói tin trên màn Cấu hình gói tin: bảng gói tin đồng bộ xong dữ liệu mới trước khi đóng hộp thoại
+     *              và hiện thông báo thành công, đồng thời không quét lại trạng thái sử dụng (checkPacketUsage) của các gói tin cũ
+     *              hay chặn hiển thị dòng mới, giúp gói mới xuất hiện ngay lập tức khi báo thành công.
+     * Created date: 09/11/2026
+     */
+    test('66. Tạo mới gói tin: hiển thị ngay trên bảng cùng lúc báo thành công, không bị trễ 1-2s do quét lại trạng thái gói cũ', async ({ page }) => {
+        const packets = [
+            { id: 'PKT_01', code: '101_commonData', name: 'Gói 101 - Dữ liệu giao thông chung', orderNo: 101, status: 1, createTime: '2026-10-01T00:00:00Z' },
+            { id: 'PKT_02', code: '102_cctvData', name: 'Gói 102 - Dữ liệu camera giám sát', orderNo: 102, status: 1, createTime: '2026-10-01T00:01:00Z' },
+        ];
+        let isAdded = false;
+        let mappingCallsAfterAdd = 0;
+
+        await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: { status_type: [{ code: '1', name: 'Bật' }, { code: '0', name: 'Tắt' }] } }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/page*', async (route) => {
+            if (isAdded) {
+                await new Promise((r) => setTimeout(r, 150));
+            }
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: packets,
+                        total: packets.length,
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatamapping/page*', async (route) => {
+            if (isAdded) {
+                mappingCallsAfterAdd++;
+                await new Promise((r) => setTimeout(r, 1500));
+            }
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: { records: [], total: 0 } }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/add*', async (route) => {
+            const body = route.request().postDataJSON();
+            isAdded = true;
+            packets.push({
+                id: 'PKT_NEW',
+                code: body.code,
+                name: body.name,
+                orderNo: body.orderNo ?? 101,
+                status: body.status ?? 1,
+                createTime: '2026-11-09T04:00:00Z',
+            });
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: 'PKT_NEW' }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const rows = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row');
+        await expect(rows).toHaveCount(2, { timeout: 30_000 });
+
+        // Mở hộp thoại Thêm mới gói tin
+        const btnAddPacket = page.locator('.packet-col .el-button').filter({ hasText: /Thêm|Tạo/i }).first();
+        const dialog = page.locator('.edit-packet-container .el-dialog');
+        await expect(async () => {
+            if (!(await dialog.isVisible())) await btnAddPacket.click();
+            await expect(dialog).toBeVisible({ timeout: 3000 });
+        }).toPass({ timeout: 20_000 });
+
+        // Nhập Mã = test, Tên = test rồi bấm Xác nhận
+        const inputs = dialog.locator('.el-input input');
+        await inputs.nth(0).fill('test');
+        await inputs.nth(1).fill('test');
+        await dialog.locator('.el-dialog__footer .el-button--primary').click();
+
+        // Ngay khoảnh khắc thông báo thành công xuất hiện, dòng gói mới 'test' phải ĐÃ có mặt trên bảng (không bị trễ 1-2s)
+        const successMsg = page.locator('.el-message--success').last();
+        await expect(successMsg).toBeVisible({ timeout: 10_000 });
+
+        const rowCountAtToast = await rows.count();
+        expect(rowCountAtToast).toBe(3);
+        await expect(rows.nth(2)).toContainText('test');
+        // Chỉ kiểm tra ngầm đúng 1 gói mới, không quét lại 2 gói cũ đã biết trạng thái
+        expect(mappingCallsAfterAdd).toBeLessThanOrEqual(1);
+    });
 });

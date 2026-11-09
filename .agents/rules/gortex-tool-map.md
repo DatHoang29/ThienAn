@@ -12,9 +12,9 @@ description: Quy trình nạp tool Gortex deferred và quy định riêng của 
 
 ## 1. Nạp Tool Deferred
 
-Trước khi thao tác trên mã nguồn, nạp tool schema:
+Trước khi thao tác trên mã nguồn, nạp tool schema (Gortex chạy bộ 21 tool `facade-v1`):
 ```
-ToolSearch: select:mcp__gortex__explore,mcp__gortex__search_symbols,mcp__gortex__get_symbol_source,mcp__gortex__search_text,mcp__gortex__find_usages,mcp__gortex__read_file,mcp__gortex__edit_file,mcp__gortex__verify_change,mcp__gortex__detect_changes
+ToolSearch: select:mcp__gortex__explore,mcp__gortex__search,mcp__gortex__read,mcp__gortex__relations,mcp__gortex__trace,mcp__gortex__change,mcp__gortex__edit,mcp__gortex__refactor,mcp__gortex__capabilities
 ```
 
 ## 2. Trường Hợp Ngoại Lệ Được Dùng Read / Grep / Glob / Bash

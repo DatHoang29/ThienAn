@@ -70,3 +70,10 @@ Lần gặp 2026-09-14: `dev` lệch 3 bảng (`ShareDataEventSource`/`ShareData
 `TollTransaction`), `test` lệch 36 bảng (nhiều `Sys*`/`HangFire_*`/`Toll*`/`ShareData*` +
 `VwActivityLog`), `staging` lệch đúng 1 bảng (`ShareDataDataSource`) — không có entity `Vw*`
 (VideoWall) nào khác bị lỗi ngoài `VwActivityLog` ở test.
+
+## CSDL máy chủ mới (06/11/2026)
+
+- MCP `mssql_staging` trỏ CSDL `DEV_ITS015` trên máy chủ mới qua `.agents/mcp/.env` (git bỏ qua, chỉ đọc, `ApplicationIntent=ReadOnly`); từ 09/11/2026 tắt mặc định, bật khi người dùng yêu cầu.
+- Máy đó còn `DEV_ITS016` (bản cũ hơn: 15 gói, 118 câu dịch ShareData so với 20 gói, 222 câu dịch ở `DEV_ITS015`). Cả hai CSDL DEV chưa có cột `CursorKey` ở `ShareDataLastSend`; `DEV_ITS015` còn bảng cũ `ShareDataLastSendKey`.
+- Kiểm CSDL không có sqlcmd: dựng app .NET nhỏ trong scratchpad dùng `Microsoft.Data.SqlClient`, chuỗi kết nối qua biến môi trường, chỉ `SELECT`; viết tệp bằng Write vì hook chặn `cat > *.cs`.
+- Phiên Claude đang mở thì `mssql_staging` không tự kết nối lại: dùng `/mcp` hoặc mở phiên mới.

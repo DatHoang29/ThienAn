@@ -1,78 +1,43 @@
 ---
 name: core-protocol
-version: 1.1.0
+version: 1.2.0
 priority: P0
 trigger: always_on
 ---
 
 # Core Protocol - ThienAn
 
-> Quy tắc nền luôn bật cho mọi yêu cầu: nạp skill, đọc memory, kế thừa phiên, ngôn ngữ, hỏi lại, clean code.
-> 📎 Quy tắc dự án ThienAn: xem [thienan_rules.md](./thienan_rules.md) (ưu tiên cao hơn khi trùng).
+> Quy tắc nền luôn bật. [thienan_rules.md](./thienan_rules.md) ưu tiên cao hơn khi trùng.
 
----
+## 1. Skill & agent
 
-## 1. Modular Skill Loading Protocol
+- Thứ tự ưu tiên: rule (`.agents/rules/`) > vai (`.agents/agent/`) > skill (`.agents/skills/`). Mục lục: `skills/INDEX.md`, `agent/INDEX.md`.
+- Chỉ đọc `SKILL.md` rồi phần khớp việc, không đọc cả thư mục skill. Thông báo trước khi áp dụng: `📚 **Using skill: @[tên-skill]...**`.
 
-Agent activated → Check frontmatter `skills:` → Read `SKILL.md` (INDEX) → Read specific sections.
-- **Selective Reading:** DO NOT read all files in a skill folder. Read `SKILL.md` first, then only read sections matching the request.
-- **Rule Priority:** P0 (Workspace Rules in `.agents/rules/`) > P1 (Agent `.md`) > P2 (SKILL.md).
+## 2. Định tuyến
 
-### 1.1 Skill Announcement (MANDATORY)
+Đối chiếu bảng định tuyến [request-routing.md](./request-routing.md) và đọc tệp rule của miền trước khi làm.
 
-Mỗi khi nạp và áp dụng skill, BẮT BUỘC thông báo trước:
-```markdown
-📚 **Using skill: `@[skill-name]`...**
-```
+## 3. Memory
 
----
+- Memory duy nhất ở `.agents/memory/`: mục lục `MEMORY.md` nạp sẵn qua `AGENTS.md` (Codex, Cline đọc khi bắt đầu phiên). Ghi nhớ mới ghi vào đó, không ghi kho riêng của công cụ.
+- Bản đồ `.agents/`: [`.agents/README.md`](../README.md).
 
-## 2. Enforcement Protocol
+## 4. Kế thừa phiên (Rule 19.112)
 
-1. **Khi agent kích hoạt:** Đọc Rules → Kiểm tra Frontmatter → Nạp SKILL.md → Thực thi.
-2. **Tuân thủ quy trình kiểm tra:** Đối chiếu bảng định tuyến tại [request-routing.md](./request-routing.md).
+Tiếp quản phiên trước (Claude Code, Antigravity, phiên cũ): đọc `.agents/memory/` và log phiên gần nhất (`.jsonl`); nắm quyết định kiến trúc đã chốt, việc dở dang và test đỏ, chỉ đạo riêng của người dùng (gộp tệp, quy ước SSOT, chặn lỗi). ⛔ Tự phán đoán thay thế, nới validation hay sửa ngọn để test xanh.
 
----
+## 5. Ngôn ngữ
 
-## 3. System Map & Memory Read
-
-> 🔴 **MANDATORY:** Khi bắt đầu phiên làm việc, BẮT BUỘC đọc [`.agents/memory/MEMORY.md`](../memory/MEMORY.md) để nạp các quy ước và quyết định dự án.
-> Bản đồ thư mục `.agents/` (rule, skill, agent, hook, MCP) xem [`.agents/README.md`](../README.md).
-
----
-
-## 4. Multi-Agent & Session Handover Protocol (Rule 19.112)
-
-Khi tiếp quản phiên làm việc từ AI khác (Claude Code, Antigravity, phiên trước):
-1. **Đọc bộ nhớ phiên trước:** BẮT BUỘC đọc thư mục memory (`.claude/projects/.../memory/` hoặc `.agents/memory/`) và các sự kiện/prompt gần nhất trong transcript (`.jsonl`).
-2. **Nắm bắt 3 yếu tố cốt lõi:**
-   - Quyết định kiến trúc & trade-off đã thống nhất với người dùng.
-   - Các công việc đang làm dở dang và các bài test đỏ trong quy trình TDD.
-   - Các chỉ đạo đặc biệt của người dùng (gộp file, quy ước SSOT, chặn lỗi).
-3. **⛔ CẤM TUYỆT ĐỐI:** Tự ý phán đoán thay thế, cấm nới lỏng validation hoặc sửa ngọn chỉ để làm xanh test tạm bợ. Mọi hành động phải liền mạch và bảo toàn hướng giải quyết gốc rễ của hệ thống.
-
----
-
-## 5. Language Handling
-
-Khi prompt của người dùng KHÔNG phải tiếng Anh:
-1. Tự động dịch hiểu nội dung.
-2. Phản hồi bằng ngôn ngữ của người dùng (tiếng Việt).
-3. Code comments / biến / hàm: giữ nguyên bằng tiếng Anh.
-
----
+Trả lời bằng ngôn ngữ của người dùng (tiếng Việt); comment, tên biến, hàm giữ tiếng Anh.
 
 ## 6. Socratic Gate
 
-- **Nguyên tắc:** Chỉ hỏi khi yêu cầu mơ hồ hoặc thiếu thông tin mang tính quyết định thiết kế. Khi yêu cầu đã rõ ràng, bắt tay vào thực hiện ngay, không hỏi rườm rà.
-- **Reference:** Quy trình chi tiết tại `@[skills/brainstorming]`.
+Chỉ hỏi khi yêu cầu mơ hồ hoặc thiếu thông tin quyết định thiết kế; yêu cầu rõ thì làm ngay (`@[skills/brainstorming]`).
 
----
+## 7. Clean Code
 
-## 7. Clean Code (Global Mandatory)
-
-Mọi code BẮT BUỘC tuân thủ `@[skills/clean-code]` và `@[skills/karpathy-guidelines]`:
-- Trước khi viết: nêu rõ giả định, chọn cách đơn giản nhất; khi sửa: mọi dòng thay đổi phải truy được về yêu cầu; đặt tiêu chí kiểm chứng (test) rồi lặp đến khi đạt.
-- Code ngắn gọn, trực diện, không over-engineering, tự giải thích (self-documenting).
-- Tuân thủ Minimal Diff (Rule 19.6, 19.35, 19.89) và dọn sạch mã thừa/obsolete (Rule 19.68).
-- **Bỏ là bỏ hết các liên đới (Cascading Cleanup):** Khi gỡ bỏ một tính năng, nút bấm, thành phần giao diện hoặc API: BẮT BUỘC rà soát và xóa bỏ triệt để toàn bộ thành phần liên đới (hàm xử lý, biến state/computed/props, DTO, API Controller, Handler CQRS, hằng số BaseMsg, i18n không còn dùng, và cập nhật/xóa test tương ứng). Tuyệt đối không để lại mã chết / zombie code.
+Mọi code tuân thủ `@[skills/clean-code]` (gồm nguyên tắc Karpathy):
+- Trước khi viết: nêu giả định, chọn cách đơn giản nhất; khi sửa: mọi dòng đổi phải truy được về yêu cầu; đặt tiêu chí kiểm chứng (test) rồi lặp đến khi đạt.
+- Minimal Diff (Rule 19.6, 19.35, 19.89); dọn mã thừa, obsolete (Rule 19.68).
+- **Bỏ là bỏ hết liên đới:** gỡ tính năng, nút, API thì xóa hết phần liên quan (hàm, state/computed/props, DTO, controller, handler CQRS, BaseMsg, i18n, test); ⛔ để lại mã chết.

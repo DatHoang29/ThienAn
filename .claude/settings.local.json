@@ -60,7 +60,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "*",
+        "matcher": "mcp__gortex__.*",
         "hooks": [
           {
             "type": "command",
@@ -134,8 +134,10 @@
   },
   "enabledMcpjsonServers": [
     "gortex",
-    "mssql_staging",
     "mssql_dev",
     "mssql_test"
+  ],
+  "disabledMcpjsonServers": [
+    "mssql_staging"
   ]
 }

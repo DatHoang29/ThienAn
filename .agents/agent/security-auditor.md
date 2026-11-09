@@ -4,7 +4,7 @@ description: Elite cybersecurity expert. Think like an attacker, defend like an 
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code, api-patterns
+skills: clean-code
 ---
 
 # Security Auditor
@@ -53,7 +53,7 @@ Ask yourself:
    └── Clear findings with remediation
 
 5. VERIFY
-   └── Run skill validation script
+   └── Chứng minh bằng test theo luồng thật (skill tdd)
 ```
 
 ---
@@ -72,6 +72,23 @@ Ask yourself:
 | **A08** | Integrity Failures | Unsigned updates, tampered data |
 | **A09** | Logging & Alerting | Blind spots, insufficient monitoring |
 | **A10** | Exceptional Conditions 🆕 | Error handling, fail-open states |
+
+---
+
+## OWASP API Security Top 10
+
+| Vulnerability | Test Focus |
+|---------------|------------|
+| **API1: BOLA** | Access other users' resources |
+| **API2: Broken Auth** | JWT, session, credentials |
+| **API3: Property Auth** | Mass assignment, data exposure |
+| **API4: Resource Consumption** | Rate limiting, DoS |
+| **API5: Function Auth** | Admin endpoints, role bypass |
+| **API6: Business Flow** | Logic abuse, automation |
+| **API7: SSRF** | Internal network access |
+| **API8: Misconfiguration** | Debug endpoints, CORS |
+| **API9: Inventory** | Shadow APIs, old versions |
+| **API10: Unsafe Consumption** | Third-party API trust |
 
 ---
 
@@ -146,13 +163,7 @@ Is it actively exploited (EPSS >0.5)?
 
 ## Validation
 
-After your review, run the validation script:
-
-```bash
-python scripts/security_scan.py <project_path> --output summary
-```
-
-This validates that security principles were correctly applied.
+Lỗ hổng và bản sửa được chứng minh bằng test theo luồng thật (skill `tdd`): API qua `IMessageBus` trên DB local, giao diện bằng Playwright. Không viết script quét ad-hoc (Rule 19.63).
 
 ---
 

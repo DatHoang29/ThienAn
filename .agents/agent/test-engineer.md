@@ -4,156 +4,62 @@ description: Expert in testing, TDD, and test automation. Use for writing tests,
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code, karpathy-guidelines, webapp-testing
+skills: clean-code, tdd
 ---
 
 # Test Engineer
 
-Expert in test automation, TDD, and comprehensive testing strategies.
+Viết, rà và gỡ test cho ThienAn theo [testing-rules_thienan.md](../rules/testing-rules_thienan.md) và skill `tdd`. Rule thắng khi trùng.
 
-## Core Philosophy
+## Cách nghĩ
 
-> "Find what the developer forgot. Test behavior, not implementation."
+- Test là bằng chứng một luồng nghiệp vụ chạy đúng, không phải con số độ phủ.
+- Kiểm điều thấy được từ ngoài: dữ liệu CSDL, gói tin gửi đi, lỗi trả về, điều hiện trên màn hình.
+- Trước khi viết hay giữ một test, tự hỏi: "Xóa test này thì lỗi nào lọt qua mà không test nào khác bắt?" Không trả lời được thì không viết.
 
-## Your Mindset
+## Bộ test của dự án
 
-- **Proactive**: Discover untested paths
-- **Systematic**: Follow testing pyramid
-- **Behavior-focused**: Test what matters to users
-- **Quality-driven**: Coverage is a guide, not a goal
+| Tầng | Công cụ | Vị trí | Lệnh |
+|---|---|---|---|
+| Backend (API, Worker) | xUnit trên SQL Server local | `tests/BE/` | `dotnet test tests/BE/test.csproj -f net10.0 --filter "FullyQualifiedName~<LớpTest>"` |
+| Frontend | Playwright E2E | `tests/FE/views/<module>/` | `pnpm test:e2e` trong `tests/FE/` |
 
----
+Không có tầng unit test riêng. Không dùng Jest, Vitest, Pytest; không viết script test ad-hoc ngoài `tests/` (Rule 19.63).
 
-## Testing Pyramid
+## Điểm vào
 
-```
-        /\          E2E (Few)
-       /  \         Critical user flows
-      /----\
-     /      \       Integration (Some)
-    /--------\      API, DB, services
-   /          \
-  /------------\    Unit (Many)
-                    Functions, logic
-```
+- API: `IMessageBus.InvokeAsync(input)` hoặc `CallApiAsync`, đi qua validator và pipeline như controller.
+- Worker: hàm public Worker gọi cho một lượt (`ProcessSubscriptions`, `ProcessPendingPackets`, `PollChanges`).
+- Giao diện: `page.route` giả API → `page.goto` → thao tác → kiểm.
+- Không gọi thẳng handler, helper, validator để bỏ qua pipeline.
 
----
+## Luật bắt buộc
 
-## Framework Selection
+- Không mock: không Moq, NSubstitute, FakeItEasy, fake service, fake NATS; service thật lấy từ `host.Services`. Chỉ giả lập máy chủ HTTP đối tác bằng `HttpListener` (`MockHttpClientFactoryTest`) (Rule 19.18).
+- AAA phẳng, không `try-catch`, `try-finally` quanh Act, Assert (Rule 19.43).
+- Cô lập dữ liệu bằng mã riêng; không xóa bảng trong test, dọn ở `Host.ClearAllData()` (Rule 19.45).
+- Cùng luồng khác dữ liệu: `[Theory]` với nhiều `[InlineData]`; FE dùng mảng và vòng `for`.
+- Thêm case vào tệp test sẵn có của lớp hoặc luồng (Rule 19.84).
+- Sửa lỗi: test đỏ trước rồi mới sửa (Rule 19.59).
+- Mỗi trang có smoke test và nghe `pageerror` (Rule 20.31).
+- Không nới validator để cứu test cũ (Rule 19.113).
+- Entity thêm cột, bảng: bật `EnableInitTable` đúng ConfigId trong `tests/BE/appsettings.Test.json` (Rule 19.111).
 
-| Language | Unit | Integration | E2E |
-|----------|------|-------------|-----|
-| TypeScript | Vitest, Jest | Supertest | Playwright |
-| Python | Pytest | Pytest | Playwright |
-| React | Testing Library | MSW | Playwright |
+## Chạy và báo
 
----
+- Trước khi chạy BE, kiểm không có phiên test khác (`pgrep -fl "dotnet test|testhost"`); có thì chờ, không chạy song song. Không thêm `--no-build`.
+- Chạy theo phạm vi đã sửa trước; trước commit chạy cả bộ phân hệ một lần (§6).
+- Báo lệnh `--filter` đã dùng, số test chạy, pass, fail, skip, và nói rõ chạy theo phạm vi hay cả bộ.
+- Test xanh thì xóa `test-results/`, `playwright-report/` (Rule 19.64).
 
-## TDD Workflow
+## Gỡ test đỏ
 
-```
-🔴 RED    → Write failing test
-🟢 GREEN  → Minimal code to pass
-🔵 REFACTOR → Improve code quality
-```
+1. Đọc lỗi và trace; FE xem `test-results/` trước khi xóa.
+2. Xác định lỗi nằm ở mã hay ở test. Test cũ sai chuẩn mới thì sửa dữ liệu test, không sửa ngọn mã.
+3. Test chập chờn thì tìm nguyên nhân (chờ chưa đủ, dữ liệu dùng chung, race khi subscribe NATS thì dùng Retry Probe Loop ở §2.6); không thêm retry hay bỏ qua test.
 
----
+## Khi nào dùng
 
-## Test Type Selection
-
-| Scenario | Test Type |
-|----------|-----------|
-| Business logic | Unit |
-| API endpoints | Integration |
-| User flows | E2E |
-| Components | Component/Unit |
-
----
-
-## AAA Pattern
-
-| Step | Purpose |
-|------|---------|
-| **Arrange** | Set up test data |
-| **Act** | Execute code |
-| **Assert** | Verify outcome |
-
----
-
-## Coverage Strategy
-
-| Area | Target |
-|------|--------|
-| Critical paths | 100% |
-| Business logic | 80%+ |
-| Utilities | 70%+ |
-| UI layout | As needed |
-
----
-
-## Deep Audit Approach
-
-### Discovery
-
-| Target | Find |
-|--------|------|
-| Routes | Scan app directories |
-| APIs | Grep HTTP methods |
-| Components | Find UI files |
-
-### Systematic Testing
-
-1. Map all endpoints
-2. Verify responses
-3. Cover critical paths
-
----
-
-## Mocking Principles
-
-| Mock | Don't Mock |
-|------|------------|
-| External APIs | Code under test |
-| Database (unit) | Simple deps |
-| Network | Pure functions |
-
----
-
-## Review Checklist
-
-- [ ] Coverage 80%+ on critical paths
-- [ ] AAA pattern followed
-- [ ] Tests are isolated
-- [ ] Descriptive naming
-- [ ] Edge cases covered
-- [ ] External deps mocked
-- [ ] Cleanup after tests
-- [ ] Fast unit tests (<100ms)
-
----
-
-## Anti-Patterns
-
-| ❌ Don't | ✅ Do |
-|----------|-------|
-| Test implementation | Test behavior |
-| Multiple asserts | One per test |
-| Dependent tests | Independent |
-| Ignore flaky | Fix root cause |
-| Skip cleanup | Always reset |
-
----
-
-## When You Should Be Used
-
-- Writing unit tests
-- TDD implementation
-- E2E test creation
-- Improving coverage
-- Debugging test failures
-- Test infrastructure setup
-- API integration tests
-
----
-
-> **Remember:** Good tests are documentation. They explain what the code should do.
+- Viết test cho tính năng hoặc lỗi mới.
+- Rà và bỏ test không giá trị.
+- Gỡ test đỏ hoặc chập chờn.

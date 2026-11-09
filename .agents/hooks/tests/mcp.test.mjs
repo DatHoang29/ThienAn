@@ -20,8 +20,9 @@ const workspaceTargets = [
 
 const source = {
   mcpServers: {
-    gortex: {command: 'gortex', args: ['mcp'], env: {GORTEX_INDEX_WORKERS: '8'}},
-    mssql_dev: {command: 'node', args: ['.agents/mcp/dab.mjs', 'dev']}
+    gortex: {command: 'gortex', args: ['mcp', '--tools', 'facade-v1'], env: {GORTEX_INDEX_WORKERS: '8'}},
+    mssql_dev: {command: 'node', args: ['.agents/mcp/dab.mjs', 'dev']},
+    mssql_staging: {command: 'node', args: ['.agents/mcp/dab.mjs', 'staging']}
   }
 };
 
@@ -63,6 +64,29 @@ test('MCP: cấu hình MCP các công cụ trong repo khớp nguồn .agents/mcp
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
 
+test('MCP: Gortex chạy bộ 21 tool, mssql_staging tắt mặc định, tool ghi CSDL tắt ngay ở dab-config', () => {
+  const readRepoJson = relative => JSON.parse(fs.readFileSync(path.join(root, relative), 'utf8'));
+
+  // Bộ mặc định của Gortex có 183 tool (274 KB định nghĩa); facade-v1 có 21 tool (15 KB).
+  assert.deepEqual(readRepoJson('.agents/mcp_config.json').mcpServers.gortex.args, ['mcp', '--tools', 'facade-v1']);
+
+  // Codex, Kiro, Cline tắt staging qua sync.mjs; Claude Code, Gemini CLI tắt bằng cài đặt của công cụ.
+  const claude = readRepoJson('.claude/settings.local.json');
+  assert.ok(claude.disabledMcpjsonServers?.includes('mssql_staging'), 'Claude: mssql_staging phải nằm trong disabledMcpjsonServers');
+  assert.ok(!claude.enabledMcpjsonServers?.includes('mssql_staging'), 'Claude: mssql_staging không được nằm trong enabledMcpjsonServers');
+  assert.ok(readRepoJson('.gemini/settings.json').mcp?.excluded?.includes('mssql_staging'), 'Gemini: mssql_staging phải nằm trong mcp.excluded');
+
+  // Memory nhóm cấm ghi CSDL qua MCP: tắt tool ghi ở DAB (áp cho mọi công cụ, cả 3 môi trường), entity chỉ có quyền read.
+  const dab = readRepoJson('.agents/mcp/dab-config.json');
+  for (const tool of ['create-record', 'update-record', 'delete-record', 'execute-entity']) {
+    assert.equal(dab.runtime.mcp['dml-tools']?.[tool], false, `dab-config: ${tool} phải tắt`);
+  }
+  for (const [name, entity] of Object.entries(dab.entities)) {
+    const actions = entity.permissions.flatMap(permission => permission.actions.map(action => action.action ?? action));
+    assert.deepEqual([...new Set(actions)], ['read'], `dab-config: entity ${name} chỉ được quyền read`);
+  }
+});
+
 test('MCP: --apply sinh đủ tệp cho từng công cụ, giữ phần không thuộc MCP, --check bắt được tệp sửa tay', () => {
   const base = makeWorkspace();
 
@@ -75,6 +99,7 @@ test('MCP: --apply sinh đủ tệp cho từng công cụ, giữ phần không t
   const kiro = readJson(base, '.kiro/settings/mcp.json');
   assert.ok(kiro.mcpServers.gortex.autoApprove.includes('explore'));
   assert.deepEqual(kiro.mcpServers.mssql_dev, source.mcpServers.mssql_dev);
+  assert.equal(kiro.mcpServers.mssql_staging.disabled, true);
 
   const gemini = readJson(base, '.gemini/settings.json');
   assert.deepEqual(gemini.hooks, geminiHooks);
@@ -83,7 +108,8 @@ test('MCP: --apply sinh đủ tệp cho từng công cụ, giữ phần không t
   const codex = fs.readFileSync(path.join(base, '.codex/config.toml'), 'utf8');
   assert.ok(codex.startsWith(codexPrefix), 'phần ngoài vùng MCP của Codex phải giữ nguyên');
   assert.match(codex, /\[mcp_servers\.gortex\]\ncommand = "gortex"\nargs = \["mcp", "--tools", "facade-v1"\]\nstartup_timeout_sec = 90/);
-  assert.match(codex, /\[mcp_servers\.mssql_dev\]\ncommand = "node"\nargs = \["\.agents\/mcp\/dab\.mjs", "dev"\]\nstartup_timeout_sec = 60/);
+  assert.match(codex, /\[mcp_servers\.mssql_dev\]\ncommand = "node"\nargs = \["\.agents\/mcp\/dab\.mjs", "dev"\]\nstartup_timeout_sec = 60\n/);
+  assert.match(codex, /\[mcp_servers\.mssql_staging\]\ncommand = "node"\nargs = \["\.agents\/mcp\/dab\.mjs", "staging"\]\nstartup_timeout_sec = 60\nenabled = false/);
   assert.doesNotMatch(codex, /mcp_servers\.old/);
 
   const snapshot = workspaceTargets.map(relative => fs.readFileSync(path.join(base, relative), 'utf8'));
@@ -136,8 +162,9 @@ test('MCP: --target cline / cline-cli ghi vào tệp MCP global của Cline (ext
   }
 
   const mssqlDev = {command: 'node', args: [path.join(base, '.agents/mcp/dab.mjs'), 'dev']};
-  assert.deepEqual(JSON.parse(fs.readFileSync(extensionFile, 'utf8')).mcpServers, {gortex, mssql_dev: mssqlDev});
-  assert.deepEqual(JSON.parse(fs.readFileSync(cliFile, 'utf8')).mcpServers, {mssql_dev: mssqlDev});
+  const mssqlStaging = {command: 'node', args: [path.join(base, '.agents/mcp/dab.mjs'), 'staging'], disabled: true};
+  assert.deepEqual(JSON.parse(fs.readFileSync(extensionFile, 'utf8')).mcpServers, {gortex, mssql_dev: mssqlDev, mssql_staging: mssqlStaging});
+  assert.deepEqual(JSON.parse(fs.readFileSync(cliFile, 'utf8')).mcpServers, {mssql_dev: mssqlDev, mssql_staging: mssqlStaging});
   assert.equal(fs.existsSync(path.join(base, '.cline/mcp.json')), false);
 });
 

@@ -3,7 +3,9 @@
     "gortex": {
       "command": "gortex",
       "args": [
-        "mcp"
+        "mcp",
+        "--tools",
+        "facade-v1"
       ],
       "env": {
         "GORTEX_INDEX_WORKERS": "8"
@@ -42,7 +44,8 @@
       "args": [
         ".agents/mcp/dab.mjs",
         "staging"
-      ]
+      ],
+      "disabled": true
     }
   }
 }

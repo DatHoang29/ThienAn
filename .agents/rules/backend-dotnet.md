@@ -273,9 +273,9 @@ namespace Module.ShareData.Controllers
       ```
     - Chỉ giữ bí danh / hàm bọc khi có lý do ghi rõ bằng comment, và thuộc một trong các trường hợp:
       (a) Đổi kiểu hoặc đóng gói để che giấu chi tiết triển khai (ví dụ trả về `IReadOnlySet` thay cho `HashSet`);
-      (b) Giữ tương thích ngược cho API công khai có nơi dùng bên ngoài đã được kiểm chứng bằng `find_usages`;
+      (b) Giữ tương thích ngược cho API công khai có nơi dùng bên ngoài đã được kiểm chứng bằng `relations(operation:"usages")`;
       (c) Rút gọn biểu thức dài bằng biến cục bộ trong thân hàm (không phải field/method của lớp).
-    - Cách kiểm tra trước khi bàn giao: `find_usages` trên mỗi field/hằng/hàm mới thêm; thành phần chỉ chuyển tiếp sang lớp khác và không có lý do (a)-(c) thì xóa.
+    - Cách kiểm tra trước khi bàn giao: `relations(operation:"usages")` trên mỗi field/hằng/hàm mới thêm; thành phần chỉ chuyển tiếp sang lớp khác và không có lý do (a)-(c) thì xóa.
     - Liên quan Rule 19.68 (xóa mã không dùng) và 19.33 (không dựng lại tính năng có sẵn).
 16. **Cấm Tham Chiếu Prompt / Phiên AI & Cấm Ghi Nhật Ký Thao Tác / Đổi Tên Trong Comment (Rule 19.80, bổ sung 28/10/2026)**:
     - ⛔ **TUYỆT ĐỐI CẤM** ghi vào comment (XML doc `///`, `//`, `/* */`), mô tả test (`[Fact]`, `Description:`), chú thích SQL hoặc tên hàm/biến các tham chiếu tới prompt, phiên AI hay số thứ tự yêu cầu giao cho AI.
@@ -405,7 +405,7 @@ namespace Module.ShareData.Controllers
       }
       // Gọi: NotiEnums.TargetTypeEnum.User
       ```
-    - ⛔ **CẤM** tách mỗi enum một tệp đứng riêng trong namespace (tên chung như `Direction`, `IsRequired`, `AlertSource` đứng trần dễ trùng kiểu khác khi một tệp dùng nhiều namespace). ⛔ Cấm tạo lớp bọc thứ hai cho cùng phân hệ hoặc khai lại enum đã có — trước khi thêm, `search_symbols` tên enum trong toàn solution.
+    - ⛔ **CẤM** tách mỗi enum một tệp đứng riêng trong namespace (tên chung như `Direction`, `IsRequired`, `AlertSource` đứng trần dễ trùng kiểu khác khi một tệp dùng nhiều namespace). ⛔ Cấm tạo lớp bọc thứ hai cho cùng phân hệ hoặc khai lại enum đã có — trước khi thêm, `search(operation:"symbols")` tên enum trong toàn solution.
     - Lớp bọc giữ tiền tố phân hệ (`NotiEnums`, `TollEnums`, `ShareDataEnum`) — ngoại lệ của Rule 19.73. Enum con bên trong không lặp tiền tố.
     - Mỗi enum có XML doc; mỗi giá trị gán số tường minh, kèm `[Description("...")]` để Swagger/FE hiển thị.
     - **Ảnh hưởng FE**: Swagger đặt tên model theo **tên kiểu** enum (đã kiểm: `BaseEnums.SessionState` sinh ra `api-services/.../models/session-state.ts`). Dời enum vào/ra lớp bọc không đổi tên model; **đổi tên** enum thì phải sinh lại client FE và sửa chỗ dùng.

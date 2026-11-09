@@ -3,7 +3,6 @@
 /**
  * Gortex Enforcement Hook — ThienAn AI Harness
  * - `pre-tool-use`: chặn (exit 2) Read/Grep/Glob/Bash đọc mã nguồn đã index, chỉ tới tool Gortex tương ứng.
- * - `session-start`: nhắc nạp schema tool Gortex (tool ở dạng deferred, phải ToolSearch trước khi gọi).
  * Tắt tạm thời: đặt biến môi trường GORTEX_ENFORCE=off (vd khi daemon Gortex không chạy).
  */
 
@@ -19,12 +18,10 @@ const READ_CMD =/(?:^|[\s;&|(])(?:cat|head|tail|less|more|grep|egrep|rg|ag|sed|a
 const TOOL_HINT = [
   'Dùng Gortex thay thế (nạp schema trước bằng ToolSearch nếu chưa có):',
   '  • tìm vị trí/nhiệm vụ  → mcp__gortex__explore',
-  '  • tìm symbol            → mcp__gortex__search_symbols',
-  '  • đọc 1 symbol/hàm      → mcp__gortex__get_symbol_source',
-  '  • tìm chuỗi/regex       → mcp__gortex__search_text',
-  '  • đọc cả file           → mcp__gortex__read_file',
-  '  • ai gọi/dùng symbol    → mcp__gortex__find_usages / get_callers',
-  'Đây là quy tắc bắt buộc trong ~/.claude/CLAUDE.md. Gortex hỏng mới được báo lỗi tích hợp, không tự dùng shell.'
+  '  • tìm symbol, chuỗi     → mcp__gortex__search (operation: symbols | text)',
+  '  • đọc symbol, cả file   → mcp__gortex__read (target: symbol | file)',
+  '  • ai gọi/dùng symbol    → mcp__gortex__relations (operation: usages | callers)',
+  'Gortex hỏng mới được báo lỗi tích hợp, không tự dùng shell (.agents/rules/gortex-tool-map.md).'
 ].join('\n');
 
 function readStdin() {
@@ -89,22 +86,6 @@ export function evaluate(payload) {
 }
 
 async function main() {
-  const mode = process.argv[2];
-
-  if (mode === 'session-start') {
-    process.stdout.write(JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: 'SessionStart',
-        additionalContext:
-          'GORTEX BẮT BUỘC: tool Gortex là deferred — việc đầu tiên khi cần đọc/tìm mã là chạy ToolSearch ' +
-          '"select:mcp__gortex__explore,mcp__gortex__search_symbols,mcp__gortex__get_symbol_source,mcp__gortex__search_text,' +
-          'mcp__gortex__find_usages,mcp__gortex__read_file,mcp__gortex__edit_file,mcp__gortex__verify_change,mcp__gortex__detect_changes". ' +
-          'Hook sẽ chặn Read/Grep/Glob/Bash lên file .cs/.vue/.ts/.js đã index. Bảng ánh xạ tên tool: .agents/rules/gortex-tool-map.md.'
-      }
-    }) + '\n');
-    return;
-  }
-
   if (process.env.GORTEX_ENFORCE === 'off') return;
 
   let payload;

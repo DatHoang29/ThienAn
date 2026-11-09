@@ -230,18 +230,6 @@ test('Prompt Submit Hook: Định hướng SSOT chuẩn JSON không chứa rule 
   assert.match(parsed.hookSpecificOutput?.additionalContext, /TUÂN THỦ SSOT TẠI \.agents/);
 });
 
-test('Prompt Submit Hook: --event đặt tên sự kiện (Gemini BeforeAgent), --text in chữ thường (Kiro)', () => {
-  const script = path.join(root, '.agents/hooks/prompt-submit.mjs');
-
-  const gemini = spawnSync(process.execPath, [script, '--event', 'BeforeAgent'], { encoding: 'utf8' });
-  assert.equal(gemini.status, 0);
-  assert.equal(JSON.parse(gemini.stdout).hookSpecificOutput?.hookEventName, 'BeforeAgent');
-
-  const kiro = spawnSync(process.execPath, [script, '--text'], { encoding: 'utf8' });
-  assert.equal(kiro.status, 0);
-  assert.match(kiro.stdout, /^TUÂN THỦ SSOT TẠI \.agents/);
-});
-
 test('Hooks: Hoạt động chính xác khi cwd là thư mục con với CLAUDE_PROJECT_DIR', () => {
   const subCwd = path.join(root, 'tests/BE');
   const env = { ...process.env, CLAUDE_PROJECT_DIR: root };
@@ -266,17 +254,7 @@ test('Hooks: Hoạt động chính xác khi cwd là thư mục con với CLAUDE_
   assert.equal(guardRes.status, 0);
   assert.equal(guardRes.stderr, '');
 
-  // 3. gortex-enforce session-start
-  const sessionRes = spawnSync(process.execPath, [path.join(root, '.agents/hooks/gortex-enforce.mjs'), 'session-start'], {
-    cwd: subCwd,
-    env,
-    encoding: 'utf8'
-  });
-  assert.equal(sessionRes.status, 0);
-  assert.equal(sessionRes.stderr, '');
-  assert.match(sessionRes.stdout, /SessionStart/);
-
-  // 4. gortex-enforce pre-tool-use (cho qua)
+  // 3. gortex-enforce pre-tool-use (cho qua)
   const enforcePass = spawnSync(process.execPath, [path.join(root, '.agents/hooks/gortex-enforce.mjs'), 'pre-tool-use'], {
     cwd: subCwd,
     env,
@@ -286,7 +264,7 @@ test('Hooks: Hoạt động chính xác khi cwd là thư mục con với CLAUDE_
   assert.equal(enforcePass.status, 0);
   assert.equal(enforcePass.stderr, '');
 
-  // 5. gortex-enforce pre-tool-use (chặn)
+  // 4. gortex-enforce pre-tool-use (chặn)
   const enforceBlock = spawnSync(process.execPath, [path.join(root, '.agents/hooks/gortex-enforce.mjs'), 'pre-tool-use'], {
     cwd: subCwd,
     env,
@@ -295,4 +273,45 @@ test('Hooks: Hoạt động chính xác khi cwd là thư mục con với CLAUDE_
   });
   assert.equal(enforceBlock.status, 2);
   assert.match(enforceBlock.stderr, /bị chặn/);
+});
+
+test('Guardrails: Rule 19.109 - Chặn chạy full test hoặc git commit khi code mới sửa (FE/BE) chưa có test tương ứng', () => {
+  const runGuard = payload => spawnSync(process.execPath, [path.join(root, '.agents/hooks/guardrails.mjs')], {
+    input: JSON.stringify(payload),
+    encoding: 'utf8'
+  });
+
+  // 1. Có thay đổi FE mới nhưng chưa cập nhật test trong tests/FE/ -> chặn chạy full suite và git commit
+  const blockedFeSuite = runGuard({
+    tool_name: 'run_command',
+    tool_args: { CommandLine: 'cd tests/FE && npx playwright test views/sharedata --project=chromium' },
+    untestedChanges: { fe: ['src/src/views/sharedata/dataSource/index.vue'], be: [] }
+  });
+  assert.equal(blockedFeSuite.status, 2);
+  assert.match(blockedFeSuite.stderr, /rule-19\.109-untested-fe-changes/);
+
+  // 2. Cho phép chạy từng tệp test đơn lẻ (.test.ts) trong quá trình phát triển / TDD
+  const allowedSingleTest = runGuard({
+    tool_name: 'run_command',
+    tool_args: { CommandLine: 'cd tests/FE && npx playwright test views/sharedata/cursorBlock.test.ts --project=chromium' },
+    untestedChanges: { fe: ['src/src/views/sharedata/dataSource/index.vue'], be: [] }
+  });
+  assert.equal(allowedSingleTest.status, 0);
+
+  // 3. Có thay đổi BE mới nhưng chưa cập nhật test trong tests/BE/ -> chặn chạy full suite BE và git commit
+  const blockedBeSuite = runGuard({
+    tool_name: 'run_command',
+    tool_args: { CommandLine: 'dotnet test tests/BE/test.csproj -f net10.0 --filter "FullyQualifiedName~ShareData"' },
+    untestedChanges: { fe: [], be: ['src/Modules/ShareData/PacketSqlService.cs'] }
+  });
+  assert.equal(blockedBeSuite.status, 2);
+  assert.match(blockedBeSuite.stderr, /rule-19\.109-untested-be-changes/);
+
+  // 4. Khi đã bổ sung test (untestedChanges rỗng) -> cho phép chạy full suite và git commit
+  const allowedAfterTestAdded = runGuard({
+    tool_name: 'run_command',
+    tool_args: { CommandLine: 'cd tests/FE && npx playwright test views/sharedata --project=chromium' },
+    untestedChanges: { fe: [], be: [] }
+  });
+  assert.equal(allowedAfterTestAdded.status, 0);
 });

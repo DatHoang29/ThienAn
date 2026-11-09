@@ -100,6 +100,18 @@ test('Harness: Claude Code, Gemini CLI, Kiro nạp sẵn AGENTS.md, rule luôn b
   }
 });
 
+test('Harness: Phần nạp sẵn mỗi phiên (AGENTS.md và các dòng @) không vượt 20.000 ký tự; mỗi dòng mục lục memory ≤ 150 ký tự', () => {
+  // Đo như Claude Code nạp: bỏ front matter YAML và comment HTML.
+  const loadedText = file => fs.readFileSync(path.join(root, file), 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '').replace(/<!--[\s\S]*?-->/g, '');
+  const sizes = [...followImports('AGENTS.md', new Set())].map(file => [file, [...loadedText(file)].length]);
+  const total = sizes.reduce((sum, [, size]) => sum + size, 0);
+  assert.ok(total <= 20000, `Phần nạp sẵn ${total} ký tự, vượt ngân sách 20.000: ${sizes.map(([file, size]) => `${file} ${size}`).join(', ')}`);
+
+  for (const line of fs.readFileSync(path.join(root, '.agents/memory/MEMORY.md'), 'utf8').split('\n')) {
+    assert.ok([...line].length <= 150, `Dòng mục lục memory dài hơn 150 ký tự: ${line.slice(0, 60)}…`);
+  }
+});
+
 test('Harness: AGENTS.md (Codex, Cline đọc trực tiếp) trỏ tới rule luôn bật, mục lục skill, mục lục agent, memory; mọi liên kết đều tồn tại', () => {
   const text = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
   const links = [...text.matchAll(/\]\(([^)#\s]+)\)|^@(\S+)$/gm)].map(match => toRepoPath('.', match[1] ?? match[2]));
@@ -195,7 +207,7 @@ const hookTools = [
     name: 'Claude Code',
     groups: () => jsonHookGroups(readJsonFile('.claude/settings.json').hooks),
     preTool: 'PreToolUse',
-    prompt: {event: 'UserPromptSubmit', hookEventName: 'UserPromptSubmit'},
+    prompt: null,
     matches: (matcher, tool) => matcher === '' || matcher === '*' || new RegExp(`^(?:${matcher})$`).test(tool),
     shell: command => ({tool_name: 'Bash', tool_input: {command}}),
     write: {tool_name: 'Write', tool_input: {file_path: path.join(root, adhocTest)}},
@@ -206,7 +218,7 @@ const hookTools = [
     name: 'Codex',
     groups: codexHookGroups,
     preTool: 'PreToolUse',
-    prompt: {event: 'UserPromptSubmit', hookEventName: 'UserPromptSubmit'},
+    prompt: 'UserPromptSubmit',
     matches: (matcher, tool) => new RegExp(matcher).test(tool),
     shell: command => ({tool_name: 'Bash', tool_input: {command}}),
     write: {tool_name: 'apply_patch', tool_input: {command: `*** Begin Patch\n*** Add File: ${adhocTest}\n+x\n*** End Patch\n`}},
@@ -217,7 +229,7 @@ const hookTools = [
     name: 'Gemini CLI',
     groups: () => jsonHookGroups(readJsonFile('.gemini/settings.json').hooks),
     preTool: 'BeforeTool',
-    prompt: {event: 'BeforeAgent', hookEventName: 'BeforeAgent'},
+    prompt: null,
     matches: (matcher, tool) => new RegExp(matcher).test(tool),
     shell: command => ({tool_name: 'run_shell_command', tool_input: {command}}),
     write: {tool_name: 'write_file', tool_input: {file_path: path.join(root, adhocTest), content: ''}},
@@ -264,15 +276,12 @@ test('Harness: Hook - cấu hình Claude Code, Codex, Gemini CLI, Antigravity g�
       }
     }
 
+    // Chỉ công cụ không tự nạp rule (Codex) mới cần lời nhắc SSOT mỗi prompt.
     if (!tool.prompt) continue;
-    const prompts = runHooks(tool, tool.prompt.event, null).filter(result => result.command.includes('prompt-submit.mjs'));
+    const prompts = runHooks(tool, tool.prompt, null).filter(result => result.command.includes('prompt-submit.mjs'));
     assert.equal(prompts.length, 1, `${tool.name}: chưa nối prompt-submit.mjs`);
     assert.equal(prompts[0].status, 0, prompts[0].stderr);
-    if (tool.prompt.hookEventName) {
-      assert.equal(JSON.parse(prompts[0].stdout).hookSpecificOutput.hookEventName, tool.prompt.hookEventName);
-    } else {
-      assert.match(prompts[0].stdout, /^TUÂN THỦ SSOT TẠI \.agents/);
-    }
+    assert.equal(JSON.parse(prompts[0].stdout).hookSpecificOutput.hookEventName, tool.prompt);
   }
 });
 
