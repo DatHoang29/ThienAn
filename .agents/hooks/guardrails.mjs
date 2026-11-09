@@ -7,7 +7,6 @@ import { spawnSync } from 'node:child_process';
 
 const defaultRoot =
   process.env.CLAUDE_PROJECT_DIR ||
-  process.env.GEMINI_PROJECT_DIR ||
   path.resolve(import.meta.dirname, '../..');
 
 function newestMtimeInDir(dir, filePattern) {
@@ -120,7 +119,7 @@ function readStdin() {
 export function evaluateGuardrail(payload) {
   // Hỗ trợ các chuẩn payload:
   // - Antigravity: { tool_name, tool_args: { TargetFile, Path, CommandLine, ... } }
-  // - Claude Code, Codex, Gemini CLI: { tool_name, tool_input: { file_path, command, path, ... } }
+  // - Claude Code, Codex: { tool_name, tool_input: { file_path, command, path, ... } }
   const toolName = payload?.tool_name ?? payload?.toolName ?? payload?.tool ?? '';
   const args = payload?.tool_args ?? payload?.toolArgs ?? payload?.tool_input ?? payload?.toolInput ?? payload?.arguments ?? {};
   const targetFile = args.TargetFile ?? args.targetFile ?? args.file_path ?? args.filePath ?? args.path ?? args.Path ?? args.AbsolutePath ?? '';

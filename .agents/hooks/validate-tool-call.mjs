@@ -90,14 +90,14 @@ async function main() {
     return 0;
   }
 
-  // Cho qua thì không in gì ra stdout: Gemini CLI coi stdout không phải JSON là thông báo hệ thống.
+  // Cho qua thì không in gì ra stdout.
   const command = extractCommand(payload);
   if (!command) return 0;
 
   const result = evaluateCommand(command);
   if (!result.allowed) {
     console.error(`BLOCKED by ThienAn (${result.rule}): ${result.reason}.`);
-    // Exit code 2 chặn tool ở Claude Code, Codex, Gemini CLI và Antigravity.
+    // Exit code 2 chặn tool ở Claude Code và Codex.
     return 2;
   }
 

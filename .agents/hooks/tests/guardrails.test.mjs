@@ -202,21 +202,6 @@ test('Guardrails: Codex apply_patch - xét đường dẫn trong patch, không c
   }
 });
 
-test('Guardrails: Payload Gemini CLI (file_path tuyệt đối)', () => {
-  const cases = [
-    { tool_name: 'write_file', tool_input: { file_path: '/Users/dev/ThienAn/TA-ITS015-WEBVUE-V1.0/src/a.test.ts' }, status: 2 },
-    { tool_name: 'replace', tool_input: { file_path: '/Users/dev/ThienAn/tests/FE/views/a.test.ts' }, status: 0 },
-    { tool_name: 'run_shell_command', tool_input: { command: 'git add .' }, status: 2 }
-  ];
-  for (const { status, ...payload } of cases) {
-    const res = spawnSync(process.execPath, [path.join(root, '.agents/hooks/guardrails.mjs')], {
-      input: JSON.stringify(payload),
-      encoding: 'utf8'
-    });
-    assert.equal(res.status, status, `${payload.tool_name} ${JSON.stringify(payload.tool_input)}: ${res.stderr}`);
-  }
-});
-
 test('Prompt Submit Hook: Định hướng SSOT chuẩn JSON không chứa rule tĩnh', () => {
   const hookOutput = spawnSync(process.execPath, [path.join(root, '.agents/hooks/prompt-submit.mjs')], {
     encoding: 'utf8'

@@ -35,8 +35,8 @@ test('Harness: validate-tool-call chặn lệnh nguy hiểm bằng mã 2, cho qu
   assert.equal(result.status, 2);
   assert.match(result.stderr, /BLOCKED by ThienAn/);
 
-  // Gemini CLI coi stdout không phải JSON là thông báo hệ thống: lệnh được cho qua thì hook im lặng.
-  for (const payload of [{tool_name: 'run_shell_command', tool_input: {command: 'git status'}}, {}]) {
+  // Lệnh được cho qua thì hook im lặng.
+  for (const payload of [{tool_name: 'Bash', tool_input: {command: 'git status'}}, {}]) {
     const allowed = spawnSync(process.execPath, [path.join(root, '.agents/hooks/validate-tool-call.mjs')], {
       input: JSON.stringify(payload),
       encoding: 'utf8'
@@ -61,7 +61,7 @@ function toRepoPath(base, relative) {
   return path.relative(root, path.resolve(root, base, relative)).replaceAll('\\', '/');
 }
 
-// Claude Code, Gemini CLI: dòng `@đường-dẫn` tính theo thư mục của tệp đang import, nạp lồng tối đa 5 cấp.
+// Claude Code: dòng `@đường-dẫn` tính theo thư mục của tệp đang import, nạp lồng tối đa 5 cấp.
 function followImports(file, loaded, depth = 0) {
   loaded.add(file);
   if (depth === 5) return loaded;
@@ -73,11 +73,9 @@ function followImports(file, loaded, depth = 0) {
   return loaded;
 }
 
-test('Harness: Claude Code, Gemini CLI nạp sẵn AGENTS.md, rule luôn bật, mục lục skill, mục lục agent, memory; mọi tệp được nạp đều tồn tại', () => {
-  const geminiFiles = [readJsonFile('.gemini/settings.json').context?.fileName ?? 'GEMINI.md'].flat();
+test('Harness: Claude Code nạp sẵn AGENTS.md, rule luôn bật, mục lục skill, mục lục agent, memory; mọi tệp được nạp đều tồn tại', () => {
   const loaded = {
-    'Claude Code': followImports('.claude/CLAUDE.md', new Set()),
-    'Gemini CLI': geminiFiles.reduce((files, file) => followImports(file, files), new Set())
+    'Claude Code': followImports('.claude/CLAUDE.md', new Set())
   };
   for (const [tool, files] of Object.entries(loaded)) {
     for (const relative of ['AGENTS.md', ...alwaysLoaded]) {
@@ -147,7 +145,7 @@ test('Harness: Agent - INDEX.md liệt kê đúng các vai, tệp vai có name t
   assert.deepEqual(listed, agents, 'INDEX.md phải liệt kê đúng các tệp vai trong .agents/agent/');
 
   // Một nguồn: công cụ nạp mục lục, không giữ bản chép hay tệp trỏ của từng vai trong thư mục riêng.
-  for (const dir of ['.claude/agents', '.gemini/agents', '.codex/agents']) {
+  for (const dir of ['.claude/agents', '.codex/agents']) {
     assert.equal(fs.existsSync(path.join(root, dir)), false, `${dir} không được tồn tại: vai chỉ nằm ở .agents/agent/`);
   }
 });
@@ -212,17 +210,6 @@ const hookTools = [
     env: {}
   },
   {
-    name: 'Gemini CLI',
-    groups: () => jsonHookGroups(readJsonFile('.gemini/settings.json').hooks),
-    preTool: 'BeforeTool',
-    prompt: null,
-    matches: (matcher, tool) => new RegExp(matcher).test(tool),
-    shell: command => ({tool_name: 'run_shell_command', tool_input: {command}}),
-    write: {tool_name: 'write_file', tool_input: {file_path: path.join(root, adhocTest), content: ''}},
-    cwd: subDir,
-    env: {GEMINI_PROJECT_DIR: root}
-  },
-  {
     name: 'Antigravity',
     groups: () => Object.entries(readJsonFile('.agents/hooks.json')).filter(([, list]) => Array.isArray(list)).flatMap(([event, list]) =>
       list.map(item => ({event, matcher: item.matcher ?? '', commands: [item.command]}))),
@@ -269,27 +256,26 @@ test('Harness: Hook rtk (Claude Code) - máy chưa cài rtk thì im lặng; có 
   assert.notEqual(output.permissionDecision, 'allow');
 });
 
-test('Harness: Hook rtk (Codex, Gemini CLI) qua guarded-rtk.mjs - lệnh bị cấm chặn trước rtk; chỉ lệnh shell mới chuyển cho rtk; máy chưa cài rtk thì im lặng', () => {
+test('Harness: Hook rtk (Codex) qua guarded-rtk.mjs - lệnh bị cấm chặn trước rtk; chỉ lệnh shell mới chuyển cho rtk; máy chưa cài rtk thì im lặng', () => {
   const script = path.join(root, '.agents/hooks/guarded-rtk.mjs');
   const run = (agent, payload, env = process.env) => spawnSync(process.execPath, [script, agent], {input: JSON.stringify(payload), env, encoding: 'utf8'});
-  // Payload đúng dạng Codex, Gemini CLI gửi (rtk hook codex cần đủ các trường này).
+  // Payload đúng dạng Codex gửi (rtk hook codex cần đủ các trường này).
   const codex = (tool_name, tool_input) => ({session_id: 's', transcript_path: null, cwd: root, hook_event_name: 'PreToolUse', model: 'gpt', permission_mode: 'default', turn_id: 't', tool_name, tool_use_id: 'u', tool_input});
-  const gemini = (tool_name, tool_input) => ({session_id: 's', transcript_path: '', cwd: root, hook_event_name: 'BeforeTool', timestamp: '2026-11-09T00:00:00Z', tool_name, tool_input});
+  const addFile = file => codex('apply_patch', {command: `*** Begin Patch\n*** Add File: ${file}\n+x\n*** End Patch\n`});
 
   // Lệnh bị cấm: chặn bằng mã 2, rtk không kịp trả quyết định "allow".
   for (const [agent, payload] of [
     ['codex', codex('Bash', {command: 'git add .'})],
     ['codex', codex('Bash', {command: 'rm -rf /'})],
-    ['gemini', gemini('run_shell_command', {command: 'git add .'})],
-    ['gemini', gemini('write_file', {file_path: path.join(root, 'TA-ITS015-WEBVUE-V1.0/src/a.test.ts'), content: ''})]
+    ['codex', addFile('TA-ITS015-WEBVUE-V1.0/src/a.test.ts')]
   ]) {
     const blocked = run(agent, payload);
     assert.equal(blocked.status, 2, `${agent} ${JSON.stringify(payload.tool_input)}`);
     assert.equal(blocked.stdout, '');
   }
 
-  // Tool không phải shell: không chuyển cho rtk (rtk hook gemini trả "allow" cho cả write_file).
-  const write = run('gemini', gemini('write_file', {file_path: path.join(root, 'README.md'), content: 'x'}));
+  // Tool không phải shell (apply_patch): không chuyển cho rtk, vì rtk tự trả "allow" là lách hệ thống quyền.
+  const write = run('codex', addFile('README.md'));
   assert.equal(write.status, 0);
   assert.equal(write.stdout, '');
 
@@ -301,10 +287,9 @@ test('Harness: Hook rtk (Codex, Gemini CLI) qua guarded-rtk.mjs - lệnh bị c�
   // Máy có rtk: lệnh shell hợp lệ được viết lại.
   if (spawnSync('/bin/sh', ['-c', 'command -v rtk']).status !== 0) return;
   assert.match(JSON.parse(run('codex', codex('Bash', {command: 'git status'})).stdout).hookSpecificOutput.updatedInput.command, /^rtk git status/);
-  assert.match(JSON.parse(run('gemini', gemini('run_shell_command', {command: 'git status'})).stdout).hookSpecificOutput.tool_input.command, /^rtk git status/);
 });
 
-test('Harness: Hook - cấu hình Claude Code, Codex, Gemini CLI, Antigravity gọi đúng .agents/hooks: chặn vi phạm P0, chặn lệnh phá ổ đĩa, cho qua thì im lặng, nhắc SSOT', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
+test('Harness: Hook - cấu hình Claude Code, Codex, Antigravity gọi đúng .agents/hooks: chặn vi phạm P0, chặn lệnh phá ổ đĩa, cho qua thì im lặng, nhắc SSOT', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
   for (const tool of hookTools) {
     const blocked = payload => runHooks(tool, tool.preTool, payload).some(result => result.status === 2);
     assert.ok(blocked(tool.shell('git add .')), `${tool.name}: chưa nối guardrails.mjs cho lệnh shell`);

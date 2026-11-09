@@ -13,7 +13,7 @@ const CODEX_BEGIN = '# >>> .agents/mcp/sync.mjs (sinh từ .agents/mcp_config.js
 const CODEX_END = '# <<< .agents/mcp/sync.mjs';
 
 // Tùy chọn riêng của từng công cụ, không đưa vào nguồn chung.
-// mssql_staging tắt mặc định (chỉ dùng khi người dùng yêu cầu); Claude Code, Gemini CLI tắt bằng cài đặt của công cụ.
+// mssql_staging tắt mặc định (chỉ dùng khi người dùng yêu cầu); Claude Code tắt bằng cài đặt của công cụ.
 const CODEX_DEFAULTS = {startup_timeout_sec: 60};
 const CODEX_EXTRAS = {
   gortex: {
@@ -27,7 +27,6 @@ const CODEX_EXTRAS = {
 const TARGETS = {
   claude: {file: root => path.join(root, '.mcp.json'), render: servers => json({mcpServers: servers})},
   vscode: {file: root => path.join(root, '.vscode', 'mcp.json'), render: servers => json({mcpServers: servers})},
-  gemini: {file: root => path.join(root, '.gemini', 'settings.json'), render: renderGemini},
   codex: {file: root => path.join(root, '.codex', 'config.toml'), render: renderCodex},
   antigravity: {home: true, file: () => path.join(os.homedir(), '.gemini', 'antigravity', 'mcp_config.json'), render: renderGlobal}
 };
@@ -42,12 +41,6 @@ function isPlainObject(value) {
 
 function withExtras(servers, extras, defaults = {}) {
   return Object.fromEntries(Object.entries(servers).map(([name, server]) => [name, {...server, ...defaults, ...extras[name]}]));
-}
-
-function renderGemini(servers, current) {
-  const settings = current ? JSON.parse(current) : {};
-  settings.mcpServers = servers;
-  return json(settings);
 }
 
 function isRepoPath(arg) {

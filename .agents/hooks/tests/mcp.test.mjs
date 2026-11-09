@@ -13,7 +13,6 @@ const dabScript = path.join(root, '.agents/mcp/dab.mjs');
 const workspaceTargets = [
   '.mcp.json',
   '.vscode/mcp.json',
-  '.gemini/settings.json',
   '.codex/config.toml'
 ];
 
@@ -26,7 +25,6 @@ const source = {
 };
 
 const codexPrefix = 'model = "gpt"\n\n[[hooks.Stop]]\n[[hooks.Stop.hooks]]\ncommand = "gortex hook"\n\n';
-const geminiHooks = {SessionStart: [{hooks: [{command: 'gortex hook --agent gemini', type: 'command'}]}]};
 
 function writeFile(base, relative, content) {
   const file = path.join(base, relative);
@@ -41,7 +39,6 @@ function readJson(base, relative) {
 function makeWorkspace() {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-test-mcp-'));
   writeFile(base, '.agents/mcp_config.json', source);
-  writeFile(base, '.gemini/settings.json', {hooks: geminiHooks, mcpServers: {old: {command: 'old'}}});
   writeFile(base, '.codex/config.toml', `${codexPrefix}[mcp_servers]\n[mcp_servers.old]\ncommand = "old"\n`);
   return base;
 }
@@ -69,11 +66,10 @@ test('MCP: Gortex chạy bộ 21 tool, mssql_staging tắt mặc định, tool g
   // Bộ mặc định của Gortex có 183 tool (274 KB định nghĩa); facade-v1 có 21 tool (15 KB).
   assert.deepEqual(readRepoJson('.agents/mcp_config.json').mcpServers.gortex.args, ['mcp', '--tools', 'facade-v1']);
 
-  // Codex tắt staging qua sync.mjs; Claude Code, Gemini CLI tắt bằng cài đặt của công cụ.
+  // Codex tắt staging qua sync.mjs; Claude Code tắt bằng cài đặt của công cụ.
   const claude = readRepoJson('.claude/settings.local.json');
   assert.ok(claude.disabledMcpjsonServers?.includes('mssql_staging'), 'Claude: mssql_staging phải nằm trong disabledMcpjsonServers');
   assert.ok(!claude.enabledMcpjsonServers?.includes('mssql_staging'), 'Claude: mssql_staging không được nằm trong enabledMcpjsonServers');
-  assert.ok(readRepoJson('.gemini/settings.json').mcp?.excluded?.includes('mssql_staging'), 'Gemini: mssql_staging phải nằm trong mcp.excluded');
 
   // Memory nhóm cấm ghi CSDL qua MCP: tắt tool ghi ở DAB (áp cho mọi công cụ, cả 3 môi trường), entity chỉ có quyền read.
   const dab = readRepoJson('.agents/mcp/dab-config.json');
@@ -95,9 +91,8 @@ test('MCP: --apply sinh đủ tệp cho từng công cụ, giữ phần không t
   assert.deepEqual(readJson(base, '.mcp.json'), source);
   assert.deepEqual(readJson(base, '.vscode/mcp.json'), source);
 
-  const gemini = readJson(base, '.gemini/settings.json');
-  assert.deepEqual(gemini.hooks, geminiHooks);
-  assert.deepEqual(gemini.mcpServers, source.mcpServers);
+  // Không công cụ nào đọc .gemini/ (Antigravity đọc .agents/): sync.mjs không sinh thư mục này.
+  assert.equal(fs.existsSync(path.join(base, '.gemini')), false, 'sync.mjs không được sinh .gemini/');
 
   const codex = fs.readFileSync(path.join(base, '.codex/config.toml'), 'utf8');
   assert.ok(codex.startsWith(codexPrefix), 'phần ngoài vùng MCP của Codex phải giữ nguyên');

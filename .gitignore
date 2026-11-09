@@ -42,8 +42,6 @@ SQL/Bacpac/
 
 # AI Harness & Tooling configurations
 !.agents/
-!.gemini/
-!.kiro/
 !.codex/
 !.claude/settings.json
 !.claude/settings.local.json

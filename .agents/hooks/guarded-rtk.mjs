@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-// Lọc output lệnh shell qua rtk cho Codex, Gemini CLI mà không để rtk vượt qua bộ chặn của dự án:
+// Lọc output lệnh shell qua rtk cho Codex mà không để rtk vượt qua bộ chặn của dự án:
 // chạy guardrails và validate-tool-call trước, lệnh bị cấm thì chặn luôn (exit 2); chỉ lệnh shell hợp lệ mới chuyển
-// cho `rtk hook <codex|gemini>` (rtk trả quyết định "allow"/"ask_user" kèm lệnh đã viết lại).
+// cho `rtk hook codex` (rtk trả quyết định "allow" kèm lệnh đã viết lại).
 // Tool không phải shell không chuyển cho rtk; máy chưa cài rtk thì cho qua, không in gì.
 
 import {spawnSync} from 'node:child_process';
@@ -11,7 +11,7 @@ import process from 'node:process';
 import {evaluateGuardrail} from './guardrails.mjs';
 import {evaluateCommand, extractCommand} from './validate-tool-call.mjs';
 
-const SHELL_TOOLS = new Set(['Bash', 'run_shell_command']);
+const SHELL_TOOLS = new Set(['Bash']);
 
 function readStdin() {
   return new Promise((resolve, reject) => {
