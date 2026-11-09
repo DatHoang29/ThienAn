@@ -73,25 +73,11 @@ function followImports(file, loaded, depth = 0) {
   return loaded;
 }
 
-// Kiro: tự nạp AGENTS.md và steering; `#[[file:đường-dẫn]]` tính theo gốc workspace.
-function kiroLoaded() {
-  const steering = fs.readdirSync(path.join(root, '.kiro/steering')).map(file => `.kiro/steering/${file}`);
-  const loaded = new Set(['AGENTS.md', ...steering]);
-  for (const file of steering) {
-    for (const [, target] of fs.readFileSync(path.join(root, file), 'utf8').matchAll(/^#\[\[file:(.+)\]\]$/gm)) {
-      assert.ok(fs.existsSync(path.join(root, target)), `${file} nạp tệp không tồn tại: ${target}`);
-      loaded.add(target);
-    }
-  }
-  return loaded;
-}
-
-test('Harness: Claude Code, Gemini CLI, Kiro nạp sẵn AGENTS.md, rule luôn bật, mục lục skill, mục lục agent, memory; mọi tệp được nạp đều tồn tại', () => {
+test('Harness: Claude Code, Gemini CLI nạp sẵn AGENTS.md, rule luôn bật, mục lục skill, mục lục agent, memory; mọi tệp được nạp đều tồn tại', () => {
   const geminiFiles = [readJsonFile('.gemini/settings.json').context?.fileName ?? 'GEMINI.md'].flat();
   const loaded = {
     'Claude Code': followImports('.claude/CLAUDE.md', new Set()),
-    'Gemini CLI': geminiFiles.reduce((files, file) => followImports(file, files), new Set()),
-    Kiro: kiroLoaded()
+    'Gemini CLI': geminiFiles.reduce((files, file) => followImports(file, files), new Set())
   };
   for (const [tool, files] of Object.entries(loaded)) {
     for (const relative of ['AGENTS.md', ...alwaysLoaded]) {
@@ -112,7 +98,7 @@ test('Harness: Phần nạp sẵn mỗi phiên (AGENTS.md và các dòng @) khô
   }
 });
 
-test('Harness: AGENTS.md (Codex, Cline đọc trực tiếp) trỏ tới rule luôn bật, mục lục skill, mục lục agent, memory; mọi liên kết đều tồn tại', () => {
+test('Harness: AGENTS.md (Codex đọc trực tiếp) trỏ tới rule luôn bật, mục lục skill, mục lục agent, memory; mọi liên kết đều tồn tại', () => {
   const text = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
   const links = [...text.matchAll(/\]\(([^)#\s]+)\)|^@(\S+)$/gm)].map(match => toRepoPath('.', match[1] ?? match[2]));
   for (const link of links) {
@@ -128,7 +114,7 @@ test('Harness: Skill - INDEX.md liệt kê đúng các thư mục skill, SKILL.m
   const skills = fs.readdirSync(skillsDir, {withFileTypes: true}).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
   for (const skill of skills) {
     const text = fs.readFileSync(path.join(skillsDir, skill, 'SKILL.md'), 'utf8');
-    // Kiro, Cline bỏ qua skill có name khác tên thư mục; Codex, Kiro, Cline giới hạn description 1024 ký tự.
+    // Quy ước Agent Skills: name trùng tên thư mục, description không quá 1024 ký tự.
     assert.equal(text.match(/^name:\s*(.+)$/m)?.[1].trim(), skill, `${skill}/SKILL.md: name phải trùng tên thư mục`);
     const description = text.match(/^description:\s*(.+)$/m)?.[1].trim() ?? '';
     assert.ok(description.length > 0 && description.length <= 1024, `${skill}/SKILL.md: description rỗng hoặc quá 1024 ký tự`);
@@ -161,7 +147,7 @@ test('Harness: Agent - INDEX.md liệt kê đúng các vai, tệp vai có name t
   assert.deepEqual(listed, agents, 'INDEX.md phải liệt kê đúng các tệp vai trong .agents/agent/');
 
   // Một nguồn: công cụ nạp mục lục, không giữ bản chép hay tệp trỏ của từng vai trong thư mục riêng.
-  for (const dir of ['.claude/agents', '.gemini/agents', '.codex/agents', '.kiro/agents']) {
+  for (const dir of ['.claude/agents', '.gemini/agents', '.codex/agents']) {
     assert.equal(fs.existsSync(path.join(root, dir)), false, `${dir} không được tồn tại: vai chỉ nằm ở .agents/agent/`);
   }
 });
@@ -281,6 +267,41 @@ test('Harness: Hook rtk (Claude Code) - máy chưa cài rtk thì im lặng; có 
   const output = JSON.parse(withRtk.stdout).hookSpecificOutput;
   assert.match(output.updatedInput.command, /^rtk git status/);
   assert.notEqual(output.permissionDecision, 'allow');
+});
+
+test('Harness: Hook rtk (Codex, Gemini CLI) qua guarded-rtk.mjs - lệnh bị cấm chặn trước rtk; chỉ lệnh shell mới chuyển cho rtk; máy chưa cài rtk thì im lặng', () => {
+  const script = path.join(root, '.agents/hooks/guarded-rtk.mjs');
+  const run = (agent, payload, env = process.env) => spawnSync(process.execPath, [script, agent], {input: JSON.stringify(payload), env, encoding: 'utf8'});
+  // Payload đúng dạng Codex, Gemini CLI gửi (rtk hook codex cần đủ các trường này).
+  const codex = (tool_name, tool_input) => ({session_id: 's', transcript_path: null, cwd: root, hook_event_name: 'PreToolUse', model: 'gpt', permission_mode: 'default', turn_id: 't', tool_name, tool_use_id: 'u', tool_input});
+  const gemini = (tool_name, tool_input) => ({session_id: 's', transcript_path: '', cwd: root, hook_event_name: 'BeforeTool', timestamp: '2026-11-09T00:00:00Z', tool_name, tool_input});
+
+  // Lệnh bị cấm: chặn bằng mã 2, rtk không kịp trả quyết định "allow".
+  for (const [agent, payload] of [
+    ['codex', codex('Bash', {command: 'git add .'})],
+    ['codex', codex('Bash', {command: 'rm -rf /'})],
+    ['gemini', gemini('run_shell_command', {command: 'git add .'})],
+    ['gemini', gemini('write_file', {file_path: path.join(root, 'TA-ITS015-WEBVUE-V1.0/src/a.test.ts'), content: ''})]
+  ]) {
+    const blocked = run(agent, payload);
+    assert.equal(blocked.status, 2, `${agent} ${JSON.stringify(payload.tool_input)}`);
+    assert.equal(blocked.stdout, '');
+  }
+
+  // Tool không phải shell: không chuyển cho rtk (rtk hook gemini trả "allow" cho cả write_file).
+  const write = run('gemini', gemini('write_file', {file_path: path.join(root, 'README.md'), content: 'x'}));
+  assert.equal(write.status, 0);
+  assert.equal(write.stdout, '');
+
+  // Máy chưa cài rtk: lệnh hợp lệ cho qua, không in gì.
+  const withoutRtk = run('codex', codex('Bash', {command: 'git status'}), {...process.env, PATH: '/usr/bin:/bin'});
+  assert.equal(withoutRtk.status, 0);
+  assert.equal(withoutRtk.stdout, '');
+
+  // Máy có rtk: lệnh shell hợp lệ được viết lại.
+  if (spawnSync('/bin/sh', ['-c', 'command -v rtk']).status !== 0) return;
+  assert.match(JSON.parse(run('codex', codex('Bash', {command: 'git status'})).stdout).hookSpecificOutput.updatedInput.command, /^rtk git status/);
+  assert.match(JSON.parse(run('gemini', gemini('run_shell_command', {command: 'git status'})).stdout).hookSpecificOutput.tool_input.command, /^rtk git status/);
 });
 
 test('Harness: Hook - cấu hình Claude Code, Codex, Gemini CLI, Antigravity gọi đúng .agents/hooks: chặn vi phạm P0, chặn lệnh phá ổ đĩa, cho qua thì im lặng, nhắc SSOT', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {

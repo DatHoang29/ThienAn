@@ -20,7 +20,7 @@ trigger: always_on
 
 ## 3. Memory
 
-- Memory duy nhất ở `.agents/memory/`: mục lục `MEMORY.md` nạp sẵn qua `AGENTS.md` (Codex, Cline đọc khi bắt đầu phiên). Ghi nhớ mới ghi vào đó, không ghi kho riêng của công cụ.
+- Memory duy nhất ở `.agents/memory/`: mục lục `MEMORY.md` nạp sẵn qua `AGENTS.md` (Codex đọc khi bắt đầu phiên). Ghi nhớ mới ghi vào đó, không ghi kho riêng của công cụ.
 - Bản đồ `.agents/`: [`.agents/README.md`](../README.md).
 
 ## 4. Kế thừa phiên (Rule 19.112)

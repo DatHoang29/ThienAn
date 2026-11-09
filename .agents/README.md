@@ -1,8 +1,8 @@
 # `.agents/` — bộ khung AI dùng chung (SSOT)
 
-Mọi công cụ AI (Claude Code, Codex, Gemini CLI, Kiro, Cline, Antigravity) dùng chung thư mục này. Sửa quy tắc, skill, agent, memory, hook hay MCP thì sửa ở đây. Thư mục riêng của từng công cụ (`.claude/`, `.codex/`, `.gemini/`, `.kiro/`…) không tạo thêm tệp: chỉ giữ tệp cấu hình công cụ bắt buộc, trỏ về đây (dòng nạp, đăng ký hook) hoặc sinh từ đây (MCP). Không symlink, không chép tệp agent hay skill.
+Mọi công cụ AI của dự án (Claude Code, Codex, Gemini CLI, Antigravity) dùng chung thư mục này. Sửa quy tắc, skill, agent, memory, hook hay MCP thì sửa ở đây. Thư mục riêng của từng công cụ (`.claude/`, `.codex/`, `.gemini/`) không tạo thêm tệp: chỉ giữ tệp cấu hình công cụ bắt buộc, trỏ về đây (dòng nạp, đăng ký hook) hoặc sinh từ đây (MCP). Không symlink, không chép tệp agent hay skill.
 
-> ⛔ Đã gỡ bộ AG-Kit (01/11/2026): thư mục này do dự án tự quản. Không chạy `ag-kit update` — lệnh đó chép lại toàn bộ skill, agent và công cụ của kit đã bỏ.
+> ⛔ Đã gỡ bộ AG-Kit (01/11/2026): thư mục này do dự án tự quản. Không chạy `ag-kit update` — lệnh đó chép lại toàn bộ skill, agent và công cụ của kit đã bỏ. Kiro, Cline đã bỏ khỏi bộ khung (09/11/2026).
 
 ## Cấu trúc
 
@@ -12,7 +12,7 @@ Mọi công cụ AI (Claude Code, Codex, Gemini CLI, Kiro, Cline, Antigravity) d
 | `memory/` | Memory duy nhất của mọi công cụ: mục lục `MEMORY.md` (mỗi tệp một dòng ≤ 150 ký tự) và tệp chủ đề. Claude Code tắt auto memory riêng (`autoMemoryEnabled: false`) |
 | `skills/` | 5 skill (`clean-code` gồm nguyên tắc Karpathy, `tdd`, `brainstorming`, `plan-writing`, `code-review`), mỗi skill một `SKILL.md` chỉ có `name`, `description`; mục lục `skills/INDEX.md` |
 | `agent/` | Vai chuyên gia, mỗi vai một tệp (`name` trùng tên tệp, `skills:` trỏ tới `skills/`); mục lục `agent/INDEX.md` |
-| `hooks/` | `guardrails.mjs` (chặn vi phạm P0: test sai chỗ, `git add .`, build FE, `--no-build`…), `validate-tool-call.mjs` (chặn lệnh phá ổ đĩa), `gortex-enforce.mjs` (chặn Read/Grep/Glob/Bash đọc mã đã index), `gortex-hook.mjs` (ngữ cảnh Gortex), `prompt-submit.mjs` (nhắc SSOT cho Codex); test ở `hooks/tests/`. Hook rtk (tùy chọn, chỉ Claude Code) khai trong `.claude/settings.json`, máy chưa cài rtk thì bỏ qua |
+| `hooks/` | `guardrails.mjs` (chặn vi phạm P0: test sai chỗ, `git add .`, build FE, `--no-build`…), `validate-tool-call.mjs` (chặn lệnh phá ổ đĩa), `guarded-rtk.mjs` (Codex, Gemini CLI: chạy hai bộ chặn trước rồi mới cho rtk viết lại lệnh shell), `gortex-enforce.mjs` (chặn Read/Grep/Glob/Bash đọc mã đã index), `gortex-hook.mjs` (ngữ cảnh Gortex), `prompt-submit.mjs` (nhắc SSOT cho Codex); test ở `hooks/tests/` |
 | `hooks.json` | Đăng ký hook cho Antigravity |
 | `mcp_config.json` | Nguồn duy nhất danh sách MCP server (Gortex chạy bộ 21 tool `--tools facade-v1`) |
 | `mcp/` | `sync.mjs` sinh cấu hình MCP cho từng công cụ; `dab.mjs` + `dab-config.json` chạy DAB cho DB dev/test/staging (chỉ đọc: tool ghi tắt ở `runtime.mcp.dml-tools`); `.env` chứa chuỗi kết nối (không commit, mẫu `.env.example`) |
@@ -24,24 +24,22 @@ Danh sách tệp nạp sẵn mỗi phiên (rule luôn bật, mục lục skill, 
 
 | Công cụ | Tệp nạp sẵn | Skill | Agent | Hook | MCP |
 |---|---|---|---|---|---|
-| Claude Code | `.claude/CLAUDE.md` nạp `@../AGENTS.md`, rồi nạp lồng các dòng `@` | `skills/INDEX.md` nạp sẵn | `agent/INDEX.md` nạp sẵn | `.claude/settings*.json` | `.mcp.json` (sinh); staging tắt bằng `disabledMcpjsonServers` |
-| Codex | đọc `AGENTS.md`, mở tệp theo đường dẫn | tự quét `.agents/skills/` | theo `agent/INDEX.md` | `[hooks]` trong `.codex/config.toml` — chỉ chạy khi dự án đã trust và hook đã duyệt bằng `/hooks` | `.codex/config.toml` (sinh, staging `enabled = false`) |
-| Gemini CLI | `context.fileName` = `AGENTS.md` trong `.gemini/settings.json`, nạp lồng các dòng `@` | tự quét `.agents/skills/` | `agent/INDEX.md` nạp sẵn | `hooks` trong `.gemini/settings.json` | `.gemini/settings.json` (sinh); staging tắt bằng `mcp.excluded` |
-| Kiro | tự nạp `AGENTS.md`; `#[[file:…]]` trong `.kiro/steering/main.md` | `skills/INDEX.md` qua steering | `agent/INDEX.md` qua steering | chưa nối: Kiro chỉ nhận hook từ tệp riêng trong `.kiro/hooks/` | `.kiro/settings/mcp.json` (sinh, staging `disabled`) |
-| Cline | đọc `AGENTS.md`, mở tệp theo đường dẫn | tự quét `.agents/skills/` | theo `agent/INDEX.md` | extension VS Code chưa hỗ trợ (plugin chỉ có ở Cline CLI/SDK) | tệp global: `--target cline`, `--target cline-cli` (staging `disabled`) |
+| Claude Code | `.claude/CLAUDE.md` nạp `@../AGENTS.md`, rồi nạp lồng các dòng `@` | `skills/INDEX.md` nạp sẵn | `agent/INDEX.md` nạp sẵn | `.claude/settings*.json` (rtk qua `rtk hook claude`) | `.mcp.json` (sinh); staging tắt bằng `disabledMcpjsonServers` |
+| Codex | đọc `AGENTS.md`, mở tệp theo đường dẫn | tự quét `.agents/skills/` | theo `agent/INDEX.md` | `[hooks]` trong `.codex/config.toml` (`guarded-rtk.mjs codex`) — chỉ chạy khi dự án đã trust và hook đã duyệt bằng `/hooks` | `.codex/config.toml` (sinh, staging `enabled = false`) |
+| Gemini CLI | `context.fileName` = `AGENTS.md` trong `.gemini/settings.json`, nạp lồng các dòng `@` | tự quét `.agents/skills/` | `agent/INDEX.md` nạp sẵn | `hooks` trong `.gemini/settings.json` (`guarded-rtk.mjs gemini`) | `.gemini/settings.json` (sinh); staging tắt bằng `mcp.excluded` |
 | Antigravity | tự quét `rules/` | tự quét `skills/` | đọc thẳng `agent/` | `hooks.json` | `--target antigravity` |
 
 Agent dùng theo kiểu áp dụng vai: đọc `agent/<tên>.md` rồi làm theo trong cuộc trò chuyện; cần chạy riêng thì gọi subagent thường kèm câu "đọc `.agents/agent/<tên>.md` và làm theo".
 
 ## Thêm, sửa
 
-- **Tệp nạp sẵn:** sửa khối "Nạp sẵn mỗi phiên" trong `AGENTS.md` (dòng `@./…`) và `.kiro/steering/main.md` (`#[[file:…]]`) cùng lúc; giữ tổng ≤ 20.000 ký tự. Ghi chú cho người bảo trì đặt trong comment HTML `<!-- -->` (Claude Code lược khi nạp).
+- **Tệp nạp sẵn:** sửa khối "Nạp sẵn mỗi phiên" trong `AGENTS.md` (dòng `@./…`); giữ tổng ≤ 20.000 ký tự. Ghi chú cho người bảo trì đặt trong comment HTML `<!-- -->` (Claude Code lược khi nạp).
 - **Memory:** ghi vào tệp chủ đề trong `memory/`, thêm hoặc sửa dòng mục lục ≤ 150 ký tự. Repo công khai: không ghi mật khẩu, chuỗi kết nối, địa chỉ máy chủ.
 - **Skill:** thêm, đổi tên, xóa thì sửa `skills/INDEX.md` và dòng `skills:` của agent cùng lúc; `name` trong `SKILL.md` phải trùng tên thư mục.
 - **Agent:** thêm, đổi tên, xóa vai thì sửa `agent/INDEX.md` cùng lúc; `name` phải trùng tên tệp. Không tạo tệp agent trong thư mục công cụ.
 - **Hook:** logic chỉ nằm trong `hooks/`; cấu hình từng công cụ ở bảng trên chỉ gọi lại script. Chặn bằng exit 2, cho qua thì không in gì ra stdout (Gemini CLI coi stdout không phải JSON là thông báo hệ thống).
 
-`hooks/tests/harness.test.mjs` bắt lệch: tệp nạp không tồn tại hoặc bị thiếu, phần nạp sẵn vượt 20.000 ký tự, dòng mục lục memory quá dài, mục lục skill hay agent lệch thư mục, thư mục công cụ có tệp agent riêng, hook của công cụ nào chưa nối.
+`hooks/tests/harness.test.mjs` bắt lệch: tệp nạp không tồn tại hoặc bị thiếu, phần nạp sẵn vượt 20.000 ký tự, dòng mục lục memory quá dài, mục lục skill hay agent lệch thư mục, thư mục công cụ có tệp agent riêng, hook của công cụ nào chưa nối, hook rtk tự duyệt quyền hay chạy trước bộ chặn.
 
 ## MCP
 
@@ -49,14 +47,12 @@ Sửa danh sách server trong `mcp_config.json`, rồi sinh lại cấu hình c�
 
 ```bash
 node .agents/mcp/sync.mjs --check                       # exit 1 khi có tệp lệch nguồn
-node .agents/mcp/sync.mjs --apply                       # .mcp.json, .codex/, .gemini/, .kiro/, .vscode/
+node .agents/mcp/sync.mjs --apply                       # .mcp.json, .codex/, .gemini/, .vscode/
 node .agents/mcp/sync.mjs --apply --target antigravity  # ~/.gemini/antigravity/mcp_config.json
-node .agents/mcp/sync.mjs --apply --target cline        # tệp MCP global của Cline extension VS Code
-node .agents/mcp/sync.mjs --apply --target cline-cli    # ~/.cline/data/settings/cline_mcp_settings.json
 ```
 
-- Tệp global (`antigravity`, `cline`, `cline-cli`) chỉ ghi khi chọn `--target`: thay server chạy tệp trong repo (đổi sang đường dẫn tuyệt đối), giữ nguyên server khác, sao lưu trước khi ghi. Entry `gortex` có sẵn trong tệp global do người dùng tự cấu hình: thêm `--tools facade-v1` bằng tay (bộ mặc định 183 tool, 274 KB định nghĩa; `facade-v1` 21 tool, 15 KB).
-- `mssql_staging` tắt mặc định (chỉ dùng khi người dùng yêu cầu): Codex, Kiro, Cline qua `sync.mjs`; Claude Code qua `disabledMcpjsonServers` trong `.claude/settings.local.json`; Gemini CLI qua `mcp.excluded`. Bật lại khi cần bằng `/mcp`.
+- Tệp global của Antigravity chỉ ghi khi chọn `--target`: thay server chạy tệp trong repo (đổi sang đường dẫn tuyệt đối), giữ nguyên server khác, sao lưu trước khi ghi. Entry `gortex` có sẵn trong tệp đó do người dùng tự cấu hình: thêm `--tools facade-v1` bằng tay (bộ mặc định 183 tool, 274 KB định nghĩa; `facade-v1` 21 tool, 15 KB).
+- `mssql_staging` tắt mặc định (chỉ dùng khi người dùng yêu cầu): Codex qua `sync.mjs`; Claude Code qua `disabledMcpjsonServers` trong `.claude/settings.local.json`; Gemini CLI qua `mcp.excluded`. Bật lại khi cần bằng `/mcp`.
 - Ghi CSDL qua MCP bị cấm: `dab-config.json` tắt `create-record`, `update-record`, `delete-record`, `execute-entity`; entity chỉ có quyền `read`.
 - Đổi mật khẩu DB (`mcp/.env`) hay bảng trong `mcp/dab-config.json` thì không cần chạy lại `sync.mjs`. Sau mọi thay đổi MCP, mở lại công cụ AI vì MCP chỉ nạp lúc khởi động.
 
@@ -65,9 +61,12 @@ node .agents/mcp/sync.mjs --apply --target cline-cli    # ~/.cline/data/settings
 - Khảo sát, tìm kiếm thì dùng subagent Explore: subagent thường nạp lại toàn bộ phần nạp sẵn. Yêu cầu subagent trả tóm tắt ngắn.
 - Không đổi model, effort hay bật tắt MCP giữa phiên (mất cache prefix).
 - Đo: `/context all`, `/usage` (Claude Code), `/memory show` (Gemini CLI).
-- rtk (tùy chọn): `brew install rtk-ai/tap/rtk-oss` (bản chỉ Apache-2.0). Claude Code tự lọc output git, ls, grep, Playwright qua hook; xem mức tiết kiệm bằng `rtk gain`. Chưa nối cho Codex (rtk trả `permissionDecision: "allow"`, tự duyệt lệnh đã viết lại), Gemini CLI (trả `ask_user`), Antigravity (chỉ trả `allow`, không viết lại), Kiro (rtk không hỗ trợ), Cline (extension không có hook). rtk không lọc `dotnet test`: dùng cờ output gọn ở `rules/testing-rules_thienan.md` §6.
+- rtk (tùy chọn): `brew install rtk-ai/tap/rtk-oss` (bản chỉ Apache-2.0); máy chưa cài thì hook bỏ qua. Lọc output git, ls, grep, find, Playwright; xem mức tiết kiệm bằng `rtk gain`.
+  - Claude Code: `rtk hook claude` chỉ viết lại lệnh, không tự duyệt quyền.
+  - Codex, Gemini CLI: qua `hooks/guarded-rtk.mjs` vì rtk tự trả `allow` (Codex) hoặc `ask_user` (Gemini); script chạy `guardrails`, `validate-tool-call` trước và chỉ chuyển lệnh shell cho rtk.
+  - rtk không lọc `dotnet test`: dùng cờ output gọn ở `rules/testing-rules_thienan.md` §6.
 
-Số đo 09/11/2026: phần nạp sẵn ~44.000 → 19.686 ký tự; tool Gortex 183 (274 KB) → 21 (15 KB); skill 131 KB → 16 KB; tool DAB mỗi server 7 → 3.
+Số đo 09/11/2026: phần nạp sẵn ~44.000 → 19.686 ký tự; tool Gortex 183 (274 KB) → 21 (15 KB); skill 131 KB → 16 KB; tool DAB mỗi server 7 → 3; rtk giảm output `git log` 76%, `grep` 65%, `ls` 60%, `find` 35%, `git diff` lớn 28%.
 
 ## Kiểm tra
 

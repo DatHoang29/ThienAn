@@ -8,7 +8,7 @@
 
 ## 📥 Nạp sẵn mỗi phiên
 
-Đọc các tệp dưới đây trước khi làm việc. Claude Code (qua `.claude/CLAUDE.md`) và Gemini CLI (qua `context.fileName` trong `.gemini/settings.json`) tự nạp các dòng `@`; Codex, Cline đọc theo đường dẫn; Kiro nạp qua `.kiro/steering/main.md`.
+Đọc các tệp dưới đây trước khi làm việc. Claude Code (qua `.claude/CLAUDE.md`) và Gemini CLI (qua `context.fileName` trong `.gemini/settings.json`) tự nạp các dòng `@`; Codex đọc theo đường dẫn.
 
 @./.agents/rules/thienan_rules.md
 @./.agents/rules/core-protocol.md

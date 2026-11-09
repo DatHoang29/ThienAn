@@ -33,17 +33,8 @@ type = "command"
 matcher = "^(Bash|apply_patch)$"
 
 [[hooks.PreToolUse.hooks]]
-command = "node \"$(git rev-parse --show-toplevel)/.agents/hooks/guardrails.mjs\""
+command = "node \"$(git rev-parse --show-toplevel)/.agents/hooks/guarded-rtk.mjs\" codex"
 statusMessage = "Checking ThienAn guardrails..."
-timeout = 10
-type = "command"
-
-[[hooks.PreToolUse]]
-matcher = "^Bash$"
-
-[[hooks.PreToolUse.hooks]]
-command = "node \"$(git rev-parse --show-toplevel)/.agents/hooks/validate-tool-call.mjs\""
-statusMessage = "Checking destructive commands..."
 timeout = 10
 type = "command"
 

@@ -1,6 +1,6 @@
 # Mục lục agent (vai chuyên gia)
 
-<!-- Nguồn duy nhất: .agents/agent/<tên>.md; không chép tệp vai sang thư mục riêng của công cụ nào. Thêm, đổi tên, xóa vai thì sửa bảng này cùng lúc; name trong tệp vai phải trùng tên tệp. Claude Code, Gemini CLI nạp mục lục qua dòng @ trong AGENTS.md, Kiro qua .kiro/steering/main.md, Codex và Cline đọc theo đường dẫn. -->
+<!-- Nguồn duy nhất: .agents/agent/<tên>.md; không chép tệp vai sang thư mục riêng của công cụ nào. Thêm, đổi tên, xóa vai thì sửa bảng này cùng lúc; name trong tệp vai phải trùng tên tệp. Claude Code, Gemini CLI nạp mục lục qua dòng @ trong AGENTS.md, Codex đọc theo đường dẫn. -->
 
 Việc khớp cột "Dùng khi": đọc `.agents/agent/<tên>.md`, thông báo `🤖 **Applying knowledge of @[tên]...**`, làm theo vai đó kèm các skill ở dòng `skills:` của tệp vai. Cần chạy riêng (Rule 19.70) thì gọi subagent thường kèm câu "đọc `.agents/agent/<tên>.md` và làm theo".
 

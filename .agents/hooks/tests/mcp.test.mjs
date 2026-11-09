@@ -12,7 +12,6 @@ const dabScript = path.join(root, '.agents/mcp/dab.mjs');
 // Tệp cấu hình MCP của từng công cụ, đều sinh từ .agents/mcp_config.json.
 const workspaceTargets = [
   '.mcp.json',
-  '.kiro/settings/mcp.json',
   '.vscode/mcp.json',
   '.gemini/settings.json',
   '.codex/config.toml'
@@ -70,7 +69,7 @@ test('MCP: Gortex chạy bộ 21 tool, mssql_staging tắt mặc định, tool g
   // Bộ mặc định của Gortex có 183 tool (274 KB định nghĩa); facade-v1 có 21 tool (15 KB).
   assert.deepEqual(readRepoJson('.agents/mcp_config.json').mcpServers.gortex.args, ['mcp', '--tools', 'facade-v1']);
 
-  // Codex, Kiro, Cline tắt staging qua sync.mjs; Claude Code, Gemini CLI tắt bằng cài đặt của công cụ.
+  // Codex tắt staging qua sync.mjs; Claude Code, Gemini CLI tắt bằng cài đặt của công cụ.
   const claude = readRepoJson('.claude/settings.local.json');
   assert.ok(claude.disabledMcpjsonServers?.includes('mssql_staging'), 'Claude: mssql_staging phải nằm trong disabledMcpjsonServers');
   assert.ok(!claude.enabledMcpjsonServers?.includes('mssql_staging'), 'Claude: mssql_staging không được nằm trong enabledMcpjsonServers');
@@ -95,11 +94,6 @@ test('MCP: --apply sinh đủ tệp cho từng công cụ, giữ phần không t
 
   assert.deepEqual(readJson(base, '.mcp.json'), source);
   assert.deepEqual(readJson(base, '.vscode/mcp.json'), source);
-
-  const kiro = readJson(base, '.kiro/settings/mcp.json');
-  assert.ok(kiro.mcpServers.gortex.autoApprove.includes('explore'));
-  assert.deepEqual(kiro.mcpServers.mssql_dev, source.mcpServers.mssql_dev);
-  assert.equal(kiro.mcpServers.mssql_staging.disabled, true);
 
   const gemini = readJson(base, '.gemini/settings.json');
   assert.deepEqual(gemini.hooks, geminiHooks);
@@ -143,29 +137,6 @@ test('MCP: --target antigravity chỉ thay server dùng tệp trong repo, đổi
     args: [path.join(base, '.agents/mcp/dab.mjs'), 'dev']
   });
   assert.ok(fs.readdirSync(path.join(home, '.gemini/antigravity')).some(name => name.startsWith('mcp_config.json.mcp-backup-')));
-});
-
-test('MCP: --target cline / cline-cli ghi vào tệp MCP global của Cline (extension VS Code, CLI), chỉ thay server dùng tệp trong repo', () => {
-  const base = makeWorkspace();
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-test-home-'));
-  const appData = path.join(home, 'AppData', 'Roaming');
-  const codeDir = {win32: path.join(appData, 'Code'), darwin: path.join(home, 'Library', 'Application Support', 'Code')}[process.platform] ?? path.join(home, '.config', 'Code');
-  const extensionFile = path.join(codeDir, 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json');
-  const cliFile = path.join(home, '.cline', 'data', 'settings', 'cline_mcp_settings.json');
-  const gortex = {command: 'gortex', args: ['mcp'], disabled: false, autoApprove: []};
-  fs.mkdirSync(path.dirname(extensionFile), {recursive: true});
-  fs.writeFileSync(extensionFile, `${JSON.stringify({mcpServers: {gortex}}, null, 2)}\n`);
-
-  for (const target of ['cline', 'cline-cli']) {
-    const result = runSync(base, ['--apply', '--target', target], {...process.env, HOME: home, USERPROFILE: home, APPDATA: appData});
-    assert.equal(result.status, 0, result.stderr);
-  }
-
-  const mssqlDev = {command: 'node', args: [path.join(base, '.agents/mcp/dab.mjs'), 'dev']};
-  const mssqlStaging = {command: 'node', args: [path.join(base, '.agents/mcp/dab.mjs'), 'staging'], disabled: true};
-  assert.deepEqual(JSON.parse(fs.readFileSync(extensionFile, 'utf8')).mcpServers, {gortex, mssql_dev: mssqlDev, mssql_staging: mssqlStaging});
-  assert.deepEqual(JSON.parse(fs.readFileSync(cliFile, 'utf8')).mcpServers, {mssql_dev: mssqlDev, mssql_staging: mssqlStaging});
-  assert.equal(fs.existsSync(path.join(base, '.cline/mcp.json')), false);
 });
 
 test('MCP: launcher DAB thiếu chuỗi kết nối thì báo tên biến ra stderr, không ghi gì ra stdout', () => {

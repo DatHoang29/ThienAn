@@ -120,7 +120,7 @@ function readStdin() {
 export function evaluateGuardrail(payload) {
   // Hỗ trợ các chuẩn payload:
   // - Antigravity: { tool_name, tool_args: { TargetFile, Path, CommandLine, ... } }
-  // - Claude Code, Codex, Gemini CLI, Kiro: { tool_name, tool_input: { file_path, command, path, ... } }
+  // - Claude Code, Codex, Gemini CLI: { tool_name, tool_input: { file_path, command, path, ... } }
   const toolName = payload?.tool_name ?? payload?.toolName ?? payload?.tool ?? '';
   const args = payload?.tool_args ?? payload?.toolArgs ?? payload?.tool_input ?? payload?.toolInput ?? payload?.arguments ?? {};
   const targetFile = args.TargetFile ?? args.targetFile ?? args.file_path ?? args.filePath ?? args.path ?? args.Path ?? args.AbsolutePath ?? '';
@@ -133,7 +133,7 @@ export function evaluateGuardrail(payload) {
 
   // 1. Guard Rule 19.63: Cấm tạo file test ad-hoc rải rác ngoài tests/FE, tests/BE và .agents/hooks/tests/
   for (const file of files) {
-    // Thêm '/' đầu để đường dẫn tương đối (Codex, Kiro) khớp như đường dẫn tuyệt đối.
+    // Thêm '/' đầu để đường dẫn tương đối (Codex apply_patch) khớp như đường dẫn tuyệt đối.
     const normalized = `/${file.replace(/\\/g, '/')}`;
     const isTestFile = /(?:^|\/)[^/]*(?:test|spec)[^/]*\.(?:[cm]?js|ts|py|cs)$/i.test(normalized);
     if (isTestFile) {

@@ -14,13 +14,6 @@ const CODEX_END = '# <<< .agents/mcp/sync.mjs';
 
 // Tùy chọn riêng của từng công cụ, không đưa vào nguồn chung.
 // mssql_staging tắt mặc định (chỉ dùng khi người dùng yêu cầu); Claude Code, Gemini CLI tắt bằng cài đặt của công cụ.
-const KIRO_EXTRAS = {
-  gortex: {
-    autoApprove: ['analyze', 'capabilities', 'change', 'explore', 'read', 'recall', 'relations', 'response', 'search', 'trace', 'workspace'],
-    disabled: false
-  },
-  mssql_staging: {disabled: true}
-};
 const CODEX_DEFAULTS = {startup_timeout_sec: 60};
 const CODEX_EXTRAS = {
   gortex: {
@@ -30,25 +23,14 @@ const CODEX_EXTRAS = {
   },
   mssql_staging: {enabled: false}
 };
-const CLINE_EXTRAS = {mssql_staging: {disabled: true}};
 
 const TARGETS = {
   claude: {file: root => path.join(root, '.mcp.json'), render: servers => json({mcpServers: servers})},
-  kiro: {file: root => path.join(root, '.kiro', 'settings', 'mcp.json'), render: servers => json({mcpServers: withExtras(servers, KIRO_EXTRAS)})},
   vscode: {file: root => path.join(root, '.vscode', 'mcp.json'), render: servers => json({mcpServers: servers})},
   gemini: {file: root => path.join(root, '.gemini', 'settings.json'), render: renderGemini},
   codex: {file: root => path.join(root, '.codex', 'config.toml'), render: renderCodex},
-  antigravity: {home: true, file: () => path.join(os.homedir(), '.gemini', 'antigravity', 'mcp_config.json'), render: renderGlobal},
-  // Cline không đọc cấu hình MCP trong repo, chỉ đọc tệp global: extension VS Code và CLI mỗi bên một tệp.
-  cline: {home: true, file: () => path.join(vscodeGlobalStorage(), 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'), render: renderCline},
-  'cline-cli': {home: true, file: () => path.join(os.homedir(), '.cline', 'data', 'settings', 'cline_mcp_settings.json'), render: renderCline}
+  antigravity: {home: true, file: () => path.join(os.homedir(), '.gemini', 'antigravity', 'mcp_config.json'), render: renderGlobal}
 };
-
-function vscodeGlobalStorage() {
-  if (process.platform === 'win32') return path.join(process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'), 'Code', 'User', 'globalStorage');
-  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'Code', 'User', 'globalStorage');
-  return path.join(os.homedir(), '.config', 'Code', 'User', 'globalStorage');
-}
 
 function json(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
@@ -82,10 +64,6 @@ function renderGlobal(servers, current, root) {
     config.mcpServers[name] = {...server, args: server.args.map(arg => (isRepoPath(arg) ? path.join(root, arg) : arg))};
   }
   return json(config);
-}
-
-function renderCline(servers, current, root) {
-  return renderGlobal(withExtras(servers, CLINE_EXTRAS), current, root);
 }
 
 function tomlKey(key) {

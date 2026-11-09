@@ -23,26 +23,14 @@
       {
         "hooks": [
           {
-            "command": "node $GEMINI_PROJECT_DIR/.agents/hooks/guardrails.mjs",
-            "description": "Chặn vi phạm P0 của dự án",
-            "name": "thienan-guardrails",
+            "command": "node $GEMINI_PROJECT_DIR/.agents/hooks/guarded-rtk.mjs gemini",
+            "description": "Chặn vi phạm P0, lệnh phá ổ đĩa; lọc output lệnh shell qua rtk nếu máy đã cài",
+            "name": "thienan-guarded-rtk",
             "timeout": 10000,
             "type": "command"
           }
         ],
         "matcher": "^(run_shell_command|write_file|replace)$"
-      },
-      {
-        "hooks": [
-          {
-            "command": "node $GEMINI_PROJECT_DIR/.agents/hooks/validate-tool-call.mjs",
-            "description": "Chặn lệnh phá ổ đĩa",
-            "name": "thienan-validate-tool-call",
-            "timeout": 10000,
-            "type": "command"
-          }
-        ],
-        "matcher": "^run_shell_command$"
       }
     ],
     "SessionStart": [
