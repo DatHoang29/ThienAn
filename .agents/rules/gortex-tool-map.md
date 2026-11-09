@@ -26,5 +26,5 @@ ToolSearch: select:mcp__gortex__explore,mcp__gortex__search,mcp__gortex__read,mc
 ## 3. Cơ Chế Cưỡng Chế (Hook Guardrails)
 
 Hook `.agents/hooks/gortex-enforce.mjs`:
-- `PreToolUse`: Chặn Read/Grep/Glob/Bash đụng vào file `.cs/.vue/.ts/.tsx/.js` ngoài vùng miễn trừ (exit code 2).
+- `PreToolUse`: Chặn Read/Grep/Glob/Bash đụng vào file `.cs/.vue/.ts/.tsx/.js` ngoài vùng miễn trừ (exit code 2); Codex, Antigravity chạy cùng bộ chặn qua `guarded-rtk.mjs`.
 - Tắt tạm khi daemon Gortex không chạy: đặt biến môi trường `GORTEX_ENFORCE=off`.

@@ -73,6 +73,11 @@ function followImports(file, loaded, depth = 0) {
   return loaded;
 }
 
+// Nội dung một tệp như Claude Code nạp: bỏ front matter YAML và comment HTML.
+function loadedText(file) {
+  return fs.readFileSync(path.join(root, file), 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '').replace(/<!--[\s\S]*?-->/g, '');
+}
+
 test('Harness: Claude Code nạp sẵn AGENTS.md, rule luôn bật, mục lục skill, mục lục agent, memory; mọi tệp được nạp đều tồn tại', () => {
   const loaded = {
     'Claude Code': followImports('.claude/CLAUDE.md', new Set())
@@ -85,8 +90,6 @@ test('Harness: Claude Code nạp sẵn AGENTS.md, rule luôn bật, mục lục 
 });
 
 test('Harness: Phần nạp sẵn mỗi phiên (AGENTS.md và các dòng @) không vượt 20.000 ký tự; mỗi dòng mục lục memory ≤ 150 ký tự', () => {
-  // Đo như Claude Code nạp: bỏ front matter YAML và comment HTML.
-  const loadedText = file => fs.readFileSync(path.join(root, file), 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '').replace(/<!--[\s\S]*?-->/g, '');
   const sizes = [...followImports('AGENTS.md', new Set())].map(file => [file, [...loadedText(file)].length]);
   const total = sizes.reduce((sum, [, size]) => sum + size, 0);
   assert.ok(total <= 20000, `Phần nạp sẵn ${total} ký tự, vượt ngân sách 20.000: ${sizes.map(([file, size]) => `${file} ${size}`).join(', ')}`);
@@ -173,60 +176,81 @@ function codexHookGroups() {
       current = null;
       continue;
     }
-    const pair = line.match(/^(matcher|command) = (".*")$/);
+    const pair = line.match(/^(matcher|command|additionalContextLimit) = (".*"|\d+)$/);
     if (current && pair) {
       if (pair[1] === 'matcher') current.matcher = JSON.parse(pair[2]);
-      else current.commands.push(JSON.parse(pair[2]));
+      else if (pair[1] === 'command') current.commands.push(JSON.parse(pair[2]));
+      else current.additionalContextLimit = Number(pair[2]);
     }
   }
   return groups;
 }
 
 const adhocTest = 'TA-ITS015-WEBVUE-V1.0/src/adhoc.test.ts';
+const codeFile = path.join(root, 'TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI/Program.cs');
 const subDir = path.join(root, 'tests/BE');
 
-// Mỗi công cụ: cách đọc cấu hình hook, cách khớp matcher, payload gửi cho hook và môi trường chạy lệnh hook như chính công cụ đó.
+// Antigravity (agy): mỗi khóa cấp trên của .agents/hooks.json là một hook có tên; PreToolUse lồng matcher + hooks,
+// SessionStart là danh sách lệnh phẳng.
+function antigravityHookGroups() {
+  return Object.values(readJsonFile('.agents/hooks.json')).flatMap(spec => Object.entries(spec)
+    .filter(([, list]) => Array.isArray(list))
+    .flatMap(([event, list]) => list.map(item => ({event, matcher: item.matcher ?? '', commands: item.hooks ? item.hooks.map(hook => hook.command) : [item.command]}))));
+}
+
+// Payload agy gửi cho hook PreToolUse: {toolCall: {name, args}} kèm các trường chung.
+const antigravityCall = (name, args) => ({toolCall: {name, args}, stepIdx: 1, conversationId: 'c', workspacePaths: [root]});
+const decisionOf = result => JSON.parse(result.stdout || '{}').decision;
+
+// Mỗi công cụ: cách đọc cấu hình hook, cách khớp matcher, payload gửi cho hook, môi trường chạy lệnh hook và cách hook báo chặn, cho qua như chính công cụ đó.
 const hookTools = [
   {
     name: 'Claude Code',
     groups: () => jsonHookGroups(readJsonFile('.claude/settings.json').hooks),
-    preTool: 'PreToolUse',
-    prompt: null,
     matches: (matcher, tool) => matcher === '' || matcher === '*' || new RegExp(`^(?:${matcher})$`).test(tool),
     shell: command => ({tool_name: 'Bash', tool_input: {command}}),
     write: {tool_name: 'Write', tool_input: {file_path: path.join(root, adhocTest)}},
+    read: file => ({tool_name: 'Read', tool_input: {file_path: file}}),
     cwd: subDir,
-    env: {CLAUDE_PROJECT_DIR: root}
+    env: {CLAUDE_PROJECT_DIR: root},
+    blocked: result => result.status === 2,
+    passed: result => result.status === 0 && result.stdout === ''
   },
   {
     name: 'Codex',
     groups: codexHookGroups,
-    preTool: 'PreToolUse',
-    prompt: 'UserPromptSubmit',
     matches: (matcher, tool) => new RegExp(matcher).test(tool),
     shell: command => ({tool_name: 'Bash', tool_input: {command}}),
     write: {tool_name: 'apply_patch', tool_input: {command: `*** Begin Patch\n*** Add File: ${adhocTest}\n+x\n*** End Patch\n`}},
+    // Codex đọc tệp bằng lệnh shell.
+    read: file => ({tool_name: 'Bash', tool_input: {command: `sed -n 1,40p ${file}`}}),
     cwd: subDir,
-    env: {}
+    env: {},
+    blocked: result => result.status === 2,
+    // Cho qua thì không chặn; stdout chỉ có thể là lệnh rtk viết lại.
+    passed: result => result.status === 0
   },
   {
     name: 'Antigravity',
-    groups: () => Object.entries(readJsonFile('.agents/hooks.json')).filter(([, list]) => Array.isArray(list)).flatMap(([event, list]) =>
-      list.map(item => ({event, matcher: item.matcher ?? '', commands: [item.command]}))),
-    preTool: 'PreToolUse',
-    prompt: null,
-    matches: (matcher, tool) => new RegExp(`^(?:${matcher})$`).test(tool),
-    shell: command => ({tool_name: 'run_command', tool_args: {CommandLine: command}}),
-    write: {tool_name: 'write_to_file', tool_args: {TargetFile: path.join(root, adhocTest)}},
-    cwd: root,
-    env: {}
+    groups: antigravityHookGroups,
+    matches: (matcher, tool) => new RegExp(matcher).test(tool),
+    shell: command => antigravityCall('run_command', {CommandLine: command, Cwd: root}),
+    write: antigravityCall('write_to_file', {TargetFile: path.join(root, adhocTest), CodeContent: 'x'}),
+    read: file => antigravityCall('read_file', {Path: file}),
+    // agy chạy lệnh hook tại thư mục chứa hooks.json.
+    cwd: path.join(root, '.agents'),
+    env: {},
+    // agy đọc quyết định JSON trên stdout: "deny" chặn, "ask" để Antigravity xử lý quyền như bình thường.
+    blocked: result => result.status === 0 && decisionOf(result) === 'deny',
+    passed: result => result.status === 0 && decisionOf(result) === 'ask'
   }
 ];
 
 // Chạy các lệnh hook gọi script trong .agents/hooks/ (bỏ qua hook Gortex) đúng như công cụ chạy: qua shell, với payload trên stdin.
 function runHooks(tool, event, payload) {
+  const toolName = payload?.tool_name ?? payload?.toolCall?.name;
   return tool.groups()
-    .filter(group => group.event === event && (payload === null || tool.matches(group.matcher, payload.tool_name)))
+    .filter(group => group.event === event && (payload === null || tool.matches(group.matcher, toolName)))
     .flatMap(group => group.commands)
     .filter(command => command?.includes('.agents/hooks/'))
     .map(command => ({
@@ -289,26 +313,116 @@ test('Harness: Hook rtk (Codex) qua guarded-rtk.mjs - lệnh bị cấm chặn t
   assert.match(JSON.parse(run('codex', codex('Bash', {command: 'git status'})).stdout).hookSpecificOutput.updatedInput.command, /^rtk git status/);
 });
 
-test('Harness: Hook - cấu hình Claude Code, Codex, Antigravity gọi đúng .agents/hooks: chặn vi phạm P0, chặn lệnh phá ổ đĩa, cho qua thì im lặng, nhắc SSOT', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
+test('Harness: Hook rtk (Antigravity) qua guarded-rtk.mjs - lệnh bị cấm trả "deny" trước rtk; lệnh shell được rtk viết lại nhưng vẫn để Antigravity hỏi quyền ("ask"); máy chưa cài rtk thì "ask"', () => {
+  const script = path.join(root, '.agents/hooks/guarded-rtk.mjs');
+  const run = (payload, env = process.env) => JSON.parse(spawnSync(process.execPath, [script, 'antigravity'], {input: JSON.stringify(payload), env, encoding: 'utf8'}).stdout);
+
+  for (const payload of [
+    antigravityCall('run_command', {CommandLine: 'git add .'}),
+    antigravityCall('run_command', {CommandLine: 'rm -rf /'}),
+    antigravityCall('write_to_file', {TargetFile: path.join(root, adhocTest), CodeContent: 'x'}),
+    antigravityCall('edit_file', {Path: path.join(root, adhocTest), Target: 'a', Replacement: 'b'})
+  ]) {
+    const output = run(payload);
+    assert.equal(output.decision, 'deny', JSON.stringify(payload.toolCall));
+    assert.match(output.reason, /BLOCKED by ThienAn/);
+  }
+
+  // Tool không phải shell: không chuyển cho rtk.
+  assert.deepEqual(run(antigravityCall('write_to_file', {TargetFile: path.join(root, 'README.md'), CodeContent: 'x'})), {decision: 'ask'});
+
+  // Máy chưa cài rtk: cho qua, Antigravity hỏi quyền như bình thường.
+  assert.deepEqual(run(antigravityCall('run_command', {CommandLine: 'git status'}), {...process.env, PATH: '/usr/bin:/bin'}), {decision: 'ask'});
+
+  // Máy có rtk: lấy lệnh rtk viết lại; không nhận "allow" của rtk (tự chạy, không hỏi quyền), kể cả lệnh rtk không viết lại.
+  if (spawnSync('/bin/sh', ['-c', 'command -v rtk']).status !== 0) return;
+  const rewritten = run(antigravityCall('run_command', {CommandLine: 'git status'}));
+  assert.equal(rewritten.decision, 'ask');
+  assert.match(rewritten.overwrite.CommandLine, /^rtk git status/);
+  assert.deepEqual(run(antigravityCall('run_command', {CommandLine: 'npm install left-pad'})), {decision: 'ask'});
+});
+
+test('Harness: Hook - cấu hình Claude Code, Codex, Antigravity gọi đúng .agents/hooks: chặn vi phạm P0, chặn lệnh phá ổ đĩa, lệnh hợp lệ cho qua', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
   for (const tool of hookTools) {
-    const blocked = payload => runHooks(tool, tool.preTool, payload).some(result => result.status === 2);
+    for (const command of tool.groups().flatMap(group => group.commands).filter(command => command?.includes('.agents/hooks/'))) {
+      const script = command.match(/\.agents\/hooks\/[\w.-]+\.mjs/)?.[0];
+      assert.ok(script && fs.existsSync(path.join(root, script)), `${tool.name}: hook trỏ tới script không tồn tại: ${command}`);
+    }
+
+    const blocked = payload => runHooks(tool, 'PreToolUse', payload).some(tool.blocked);
     assert.ok(blocked(tool.shell('git add .')), `${tool.name}: chưa nối guardrails.mjs cho lệnh shell`);
     assert.ok(blocked(tool.shell('rm -rf /')), `${tool.name}: chưa nối validate-tool-call.mjs cho lệnh shell`);
     assert.ok(blocked(tool.write), `${tool.name}: chưa nối guardrails.mjs cho thao tác ghi tệp`);
 
-    for (const result of runHooks(tool, tool.preTool, tool.shell('git status'))) {
-      assert.equal(result.status, 0, `${tool.name} ${result.command}: ${result.stderr}`);
-      if (/guardrails|validate-tool-call/.test(result.command)) {
-        assert.equal(result.stdout, '', `${tool.name} ${result.command}: cho qua thì không được in ra stdout`);
+    const results = runHooks(tool, 'PreToolUse', tool.shell('git status'));
+    assert.ok(results.length > 0, `${tool.name}: lệnh shell không đi qua hook nào`);
+    for (const result of results) {
+      assert.ok(tool.passed(result), `${tool.name} ${result.command}: lệnh hợp lệ bị chặn hoặc hook lỗi: ${result.stdout}${result.stderr}`);
+    }
+  }
+});
+
+test('Harness: Hook - Claude Code, Codex, Antigravity cùng chặn đọc, tìm mã nguồn đã index bằng tool có sẵn (gortex-enforce); tài liệu cho qua', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
+  for (const tool of hookTools) {
+    assert.ok(runHooks(tool, 'PreToolUse', tool.read(codeFile)).some(tool.blocked), `${tool.name}: chưa nối gortex-enforce cho thao tác đọc mã nguồn`);
+    assert.ok(runHooks(tool, 'PreToolUse', tool.read(path.join(root, 'AGENTS.md'))).every(tool.passed), `${tool.name}: đọc tài liệu không được bị chặn`);
+  }
+
+  // Antigravity còn tìm bằng grep_search, find_by_name: xét như Grep, Glob của Claude Code.
+  const antigravity = hookTools.find(tool => tool.name === 'Antigravity');
+  const search = (name, args) => runHooks(antigravity, 'PreToolUse', antigravityCall(name, args));
+  assert.ok(search('grep_search', {SearchPath: path.join(root, 'TA-ITS015-WEBAPI-V1.0/src'), Query: 'Program', Includes: ['*.cs']}).some(antigravity.blocked), 'Antigravity: grep_search trong mã nguồn phải bị chặn');
+  assert.ok(search('find_by_name', {SearchDirectory: root, Pattern: '*.vue'}).some(antigravity.blocked), 'Antigravity: find_by_name tìm tệp mã phải bị chặn');
+  assert.ok(search('grep_search', {SearchPath: path.join(root, 'DocBusinessThienAn'), Query: 'ShareData', Includes: ['*.md']}).every(antigravity.passed), 'Antigravity: tìm trong tài liệu không được bị chặn');
+});
+
+test('Harness: Antigravity - .agents/hooks.json đúng định dạng agy: mỗi khóa cấp trên là một hook có tên, sự kiện hợp lệ, PreToolUse lồng matcher + hooks', () => {
+  const grouped = new Set(['PreToolUse', 'PostToolUse']);
+  const flat = new Set(['SessionStart', 'PreInvocation', 'PostInvocation', 'Stop']);
+  for (const [name, spec] of Object.entries(readJsonFile('.agents/hooks.json'))) {
+    // agy bỏ qua cả tệp khi một khóa cấp trên không phải hook ("cannot unmarshal ... into JSONHookSpec").
+    assert.ok(spec && typeof spec === 'object' && !Array.isArray(spec), `.agents/hooks.json: "${name}" phải là một hook có tên (object)`);
+    for (const [event, list] of Object.entries(spec)) {
+      if (event === 'enabled') continue;
+      assert.ok(grouped.has(event) || flat.has(event), `hook "${name}": sự kiện không hợp lệ ${event}`);
+      for (const item of list) {
+        if (grouped.has(event)) assert.ok(typeof item.matcher === 'string' && Array.isArray(item.hooks), `hook "${name}" ${event}: cần matcher và hooks`);
+        else assert.equal(typeof item.command, 'string', `hook "${name}" ${event}: mỗi phần tử là một lệnh`);
       }
     }
+  }
+});
 
-    // Chỉ công cụ không tự nạp rule (Codex) mới cần lời nhắc SSOT mỗi prompt.
-    if (!tool.prompt) continue;
-    const prompts = runHooks(tool, tool.prompt, null).filter(result => result.command.includes('prompt-submit.mjs'));
-    assert.equal(prompts.length, 1, `${tool.name}: chưa nối prompt-submit.mjs`);
-    assert.equal(prompts[0].status, 0, prompts[0].stderr);
-    assert.equal(JSON.parse(prompts[0].stdout).hookSpecificOutput.hookEventName, tool.prompt);
+test('Harness: Codex, Antigravity nhận phần nạp sẵn qua hook SessionStart như Claude Code - đủ tệp dòng @ của AGENTS.md; Antigravity bỏ rule, skill vì tự nạp', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
+  const imported = [...followImports('AGENTS.md', new Set())].filter(file => file !== 'AGENTS.md');
+  const sessionOutput = name => {
+    const tool = hookTools.find(item => item.name === name);
+    const results = runHooks(tool, 'SessionStart', null).filter(result => result.command.includes('session-context.mjs'));
+    assert.equal(results.length, 1, `${name}: chưa nối session-context.mjs cho SessionStart`);
+    assert.equal(results[0].status, 0, results[0].stderr);
+    return JSON.parse(results[0].stdout);
+  };
+
+  // Codex chỉ tự đọc AGENTS.md: nhận đủ các tệp dòng @, nội dung như Claude Code nạp.
+  const codexText = sessionOutput('Codex').hookSpecificOutput.additionalContext;
+  for (const file of imported) {
+    assert.ok(codexText.includes(`Contents of ${file}:\n\n${loadedText(file).trim()}`), `Codex chưa nạp ${file}`);
+  }
+  // Codex mặc định cắt additionalContext ở 2.500 token: giới hạn phải đủ cho phần nạp sẵn (ước lượng ≤ 1 token / 2 ký tự).
+  const session = codexHookGroups().find(group => group.event === 'SessionStart' && group.commands.some(command => command.includes('session-context.mjs')));
+  assert.ok(session.additionalContextLimit >= Math.ceil([...codexText].length / 2), `Codex: additionalContextLimit ${session.additionalContextLimit} quá nhỏ`);
+  for (const source of ['startup', 'clear', 'compact']) {
+    assert.ok(new RegExp(session.matcher).test(source), `Codex: SessionStart chưa nạp lại khi ${source}`);
+  }
+
+  // Antigravity tự nạp .agents/rules/ (rule trigger: always_on) và .agents/skills/: chỉ bơm các tệp còn lại.
+  const antigravityText = sessionOutput('Antigravity').injectSteps[0].systemMessage.systemMessage;
+  for (const file of imported) {
+    const native = /^\.agents\/(?:rules|skills)\//.test(file);
+    assert.equal(antigravityText.includes(`Contents of ${file}:`), !native, `Antigravity: ${file} ${native ? 'đã tự nạp, không bơm lại' : 'chưa nạp'}`);
+    if (file.startsWith('.agents/rules/')) {
+      assert.match(fs.readFileSync(path.join(root, file), 'utf8'), /^---\n(?:.*\n)*?trigger: always_on\n(?:.*\n)*?---\n/, `${file}: Antigravity chỉ tự nạp rule trigger: always_on`);
+    }
   }
 });
 

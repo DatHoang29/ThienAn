@@ -3,6 +3,7 @@
 /**
  * Gortex Enforcement Hook — ThienAn AI Harness
  * - `pre-tool-use`: chặn (exit 2) Read/Grep/Glob/Bash đọc mã nguồn đã index, chỉ tới tool Gortex tương ứng.
+ * Codex, Antigravity dùng `evaluate` qua guarded-rtk.mjs (tool đọc, tìm của Antigravity đổi sang Read/Grep/Glob/Bash).
  * Tắt tạm thời: đặt biến môi trường GORTEX_ENFORCE=off (vd khi daemon Gortex không chạy).
  */
 

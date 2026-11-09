@@ -202,31 +202,11 @@ test('Guardrails: Codex apply_patch - xét đường dẫn trong patch, không c
   }
 });
 
-test('Prompt Submit Hook: Định hướng SSOT chuẩn JSON không chứa rule tĩnh', () => {
-  const hookOutput = spawnSync(process.execPath, [path.join(root, '.agents/hooks/prompt-submit.mjs')], {
-    encoding: 'utf8'
-  });
-  assert.equal(hookOutput.status, 0);
-  const parsed = JSON.parse(hookOutput.stdout.trim());
-  assert.equal(parsed.hookSpecificOutput?.hookEventName, 'UserPromptSubmit');
-  assert.match(parsed.hookSpecificOutput?.additionalContext, /TUÂN THỦ SSOT TẠI \.agents/);
-});
-
 test('Hooks: Hoạt động chính xác khi cwd là thư mục con với CLAUDE_PROJECT_DIR', () => {
   const subCwd = path.join(root, 'tests/BE');
   const env = { ...process.env, CLAUDE_PROJECT_DIR: root };
 
-  // 1. prompt-submit
-  const promptRes = spawnSync(process.execPath, [path.join(root, '.agents/hooks/prompt-submit.mjs')], {
-    cwd: subCwd,
-    env,
-    encoding: 'utf8'
-  });
-  assert.equal(promptRes.status, 0);
-  assert.equal(promptRes.stderr, '');
-  assert.match(promptRes.stdout, /UserPromptSubmit/);
-
-  // 2. guardrails
+  // 1. guardrails
   const guardRes = spawnSync(process.execPath, [path.join(root, '.agents/hooks/guardrails.mjs')], {
     cwd: subCwd,
     env,
@@ -236,7 +216,7 @@ test('Hooks: Hoạt động chính xác khi cwd là thư mục con với CLAUDE_
   assert.equal(guardRes.status, 0);
   assert.equal(guardRes.stderr, '');
 
-  // 3. gortex-enforce pre-tool-use (cho qua)
+  // 2. gortex-enforce pre-tool-use (cho qua)
   const enforcePass = spawnSync(process.execPath, [path.join(root, '.agents/hooks/gortex-enforce.mjs'), 'pre-tool-use'], {
     cwd: subCwd,
     env,
@@ -246,7 +226,7 @@ test('Hooks: Hoạt động chính xác khi cwd là thư mục con với CLAUDE_
   assert.equal(enforcePass.status, 0);
   assert.equal(enforcePass.stderr, '');
 
-  // 4. gortex-enforce pre-tool-use (chặn)
+  // 3. gortex-enforce pre-tool-use (chặn)
   const enforceBlock = spawnSync(process.execPath, [path.join(root, '.agents/hooks/gortex-enforce.mjs'), 'pre-tool-use'], {
     cwd: subCwd,
     env,

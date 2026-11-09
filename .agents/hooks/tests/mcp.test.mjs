@@ -112,7 +112,7 @@ test('MCP: --apply sinh đủ tệp cho từng công cụ, giữ phần không t
   assert.match(drift.stdout, /\.mcp\.json/);
 });
 
-test('MCP: --target antigravity chỉ thay server dùng tệp trong repo, đổi sang đường dẫn tuyệt đối và sao lưu tệp cũ', () => {
+test('MCP: --target antigravity chỉ thay server dùng tệp trong repo, đổi sang đường dẫn tuyệt đối, tắt mssql_staging và sao lưu tệp cũ', () => {
   const base = makeWorkspace();
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-test-home-'));
   const gortex = {command: '/opt/gortex', args: ['mcp', '--index', '/repo']};
@@ -130,6 +130,12 @@ test('MCP: --target antigravity chỉ thay server dùng tệp trong repo, đổi
   assert.deepEqual(config.mcpServers.mssql_dev, {
     command: 'node',
     args: [path.join(base, '.agents/mcp/dab.mjs'), 'dev']
+  });
+  // Antigravity tắt server bằng "disabled": true (định dạng `agy mcp disable` ghi ra).
+  assert.deepEqual(config.mcpServers.mssql_staging, {
+    command: 'node',
+    args: [path.join(base, '.agents/mcp/dab.mjs'), 'staging'],
+    disabled: true
   });
   assert.ok(fs.readdirSync(path.join(home, '.gemini/antigravity')).some(name => name.startsWith('mcp_config.json.mcp-backup-')));
 });

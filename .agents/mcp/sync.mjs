@@ -23,6 +23,8 @@ const CODEX_EXTRAS = {
   },
   mssql_staging: {enabled: false}
 };
+// Antigravity tắt server bằng "disabled": true (định dạng `agy mcp disable` ghi ra).
+const ANTIGRAVITY_EXTRAS = {mssql_staging: {disabled: true}};
 
 const TARGETS = {
   claude: {file: root => path.join(root, '.mcp.json'), render: servers => json({mcpServers: servers})},
@@ -54,7 +56,7 @@ function renderGlobal(servers, current, root) {
   config.mcpServers ??= {};
   for (const [name, server] of Object.entries(servers)) {
     if (!(server.args ?? []).some(isRepoPath)) continue;
-    config.mcpServers[name] = {...server, args: server.args.map(arg => (isRepoPath(arg) ? path.join(root, arg) : arg))};
+    config.mcpServers[name] = {...server, args: server.args.map(arg => (isRepoPath(arg) ? path.join(root, arg) : arg)), ...ANTIGRAVITY_EXTRAS[name]};
   }
   return json(config);
 }

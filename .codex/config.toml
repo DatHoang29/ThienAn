@@ -11,24 +11,7 @@ sandbox_mode = "danger-full-access"
 direct_only_tool_namespaces = ["mcp__gortex", "gortex"]
 
 [hooks]
-[[hooks.PostToolUse]]
-matcher = "^(Bash|apply_patch|(mcp__gortex__|gortex__)(explore|search|read|relations|trace|analyze))$"
-
-[[hooks.PostToolUse.hooks]]
-command = "gortex hook --agent=codex --mode=enrich"
-statusMessage = "Loading Gortex post-tool context..."
-timeout = 5
-type = "command"
-
-[[hooks.PreToolUse]]
-matcher = ".*"
-
-[[hooks.PreToolUse.hooks]]
-command = "gortex hook --agent=codex --mode=enrich"
-statusMessage = "Loading Gortex tool guidance..."
-timeout = 5
-type = "command"
-
+# Hook Gortex (enrich) đăng ký ở ~/.codex/config.toml của từng máy (gortex init); không lặp ở đây để không chạy 2 lần.
 [[hooks.PreToolUse]]
 matcher = "^(Bash|apply_patch)$"
 
@@ -38,33 +21,15 @@ statusMessage = "Checking ThienAn guardrails..."
 timeout = 10
 type = "command"
 
+# Nạp sẵn như Claude Code: các tệp dòng @ của AGENTS.md (resume, fork giữ lịch sử nên không nạp lại).
 [[hooks.SessionStart]]
-matcher = "startup|resume|clear|compact"
+matcher = "startup|clear|compact"
 
 [[hooks.SessionStart.hooks]]
-command = "gortex hook --agent=codex --mode=enrich"
-statusMessage = "Loading Gortex graph orientation..."
-timeout = 5
-type = "command"
-
-[[hooks.Stop]]
-[[hooks.Stop.hooks]]
-command = "gortex hook --agent=codex --mode=enrich"
-statusMessage = "Checking Gortex evidence authority..."
-timeout = 5
-type = "command"
-
-[[hooks.UserPromptSubmit]]
-[[hooks.UserPromptSubmit.hooks]]
-command = "gortex hook --agent=codex --mode=enrich"
-statusMessage = "Surfacing Gortex graph context for your prompt..."
-timeout = 5
-type = "command"
-
-[[hooks.UserPromptSubmit.hooks]]
-command = "node \"$(git rev-parse --show-toplevel)/.agents/hooks/prompt-submit.mjs\""
-statusMessage = "Loading ThienAn SSOT reminder..."
+command = "node \"$(git rev-parse --show-toplevel)/.agents/hooks/session-context.mjs\" codex"
+statusMessage = "Loading ThienAn rules, indexes and memory..."
 timeout = 10
+additionalContextLimit = 12000
 type = "command"
 
 # >>> .agents/mcp/sync.mjs (sinh từ .agents/mcp_config.json — không sửa tay)

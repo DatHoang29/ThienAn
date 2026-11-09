@@ -1,6 +1,6 @@
 # Mục lục skill
 
-> Nguồn duy nhất: `.agents/skills/<tên-skill>/SKILL.md`. Codex, Antigravity tự quét `.agents/skills/`; Claude Code nạp mục lục này qua dòng `@` trong `AGENTS.md`.
+> Nguồn duy nhất: `.agents/skills/<tên-skill>/SKILL.md`. Codex, Antigravity tự quét `.agents/skills/`; Claude Code, Codex nạp sẵn mục lục này theo dòng `@` trong `AGENTS.md`.
 > Thêm, đổi tên hay xóa skill thì sửa bảng này cùng lúc.
 
 Khi việc đang làm khớp cột "Dùng khi": đọc `SKILL.md` của skill đó (tệp phụ trong thư mục chỉ đọc khi `SKILL.md` chỉ tới), thông báo `📚 Using skill: @[tên-skill]...` rồi áp dụng. Rule trong `.agents/rules/` ưu tiên hơn skill khi trùng (`core-protocol.md` §1).

@@ -97,7 +97,7 @@ async function main() {
   const result = evaluateCommand(command);
   if (!result.allowed) {
     console.error(`BLOCKED by ThienAn (${result.rule}): ${result.reason}.`);
-    // Exit code 2 chặn tool ở Claude Code và Codex.
+    // Exit code 2 chặn tool ở Claude Code (Codex, Antigravity gọi evaluateCommand qua guarded-rtk.mjs).
     return 2;
   }
 

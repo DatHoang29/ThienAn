@@ -8,7 +8,7 @@
 
 ## 📥 Nạp sẵn mỗi phiên
 
-Đọc các tệp dưới đây trước khi làm việc. Claude Code (qua `.claude/CLAUDE.md`) tự nạp các dòng `@`; Codex đọc theo đường dẫn.
+Đọc các tệp dưới đây trước khi làm việc. Claude Code (qua `.claude/CLAUDE.md`) tự nạp các dòng `@`; Codex, Antigravity nạp qua hook SessionStart (`.agents/hooks/session-context.mjs`).
 
 @./.agents/rules/thienan_rules.md
 @./.agents/rules/core-protocol.md

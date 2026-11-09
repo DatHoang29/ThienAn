@@ -118,7 +118,7 @@ function readStdin() {
 
 export function evaluateGuardrail(payload) {
   // Hỗ trợ các chuẩn payload:
-  // - Antigravity: { tool_name, tool_args: { TargetFile, Path, CommandLine, ... } }
+  // - Antigravity (guarded-rtk.mjs đổi từ toolCall): { tool_name, tool_args: { TargetFile, Path, CommandLine, ... } }
   // - Claude Code, Codex: { tool_name, tool_input: { file_path, command, path, ... } }
   const toolName = payload?.tool_name ?? payload?.toolName ?? payload?.tool ?? '';
   const args = payload?.tool_args ?? payload?.toolArgs ?? payload?.tool_input ?? payload?.toolInput ?? payload?.arguments ?? {};
@@ -279,7 +279,7 @@ async function main() {
   const result = evaluateGuardrail(payload);
   if (!result.allowed) {
     console.error(`\n⛔ BLOCKED by ThienAn Guardrails (${result.rule}):\n${result.reason}\n`);
-    // Exit code 2 tương thích cả Antigravity và Claude Code (Claude Code nhận exit 2 để block tool và feed stderr cho LLM)
+    // Exit code 2: Claude Code chặn tool và đưa stderr cho mô hình (Codex, Antigravity gọi evaluateGuardrail qua guarded-rtk.mjs)
     return 2;
   }
 

@@ -1,15 +1,23 @@
 {
-  "enabled": true,
-  "PreToolUse": [
-    {
-      "matcher": "run_command",
-      "command": "node .agents/hooks/validate-tool-call.mjs",
-      "timeout": 10
-    },
-    {
-      "matcher": "run_command|write_file|edit_file|write_to_file|Write|Edit|Bash",
-      "command": "node .agents/hooks/guardrails.mjs",
-      "timeout": 10
-    }
-  ]
+  "thienan": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/session-context.mjs\" antigravity",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(run_command|write_to_file|replace_file_content|multi_replace_file_content|edit_file|read_file|view_file|view_file_outline|view_code_item|grep_search|find_by_name|codebase_search)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/guarded-rtk.mjs\" antigravity",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
 }
