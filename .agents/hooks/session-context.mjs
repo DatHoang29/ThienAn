@@ -3,15 +3,15 @@
 // Nạp sẵn đầu phiên cho công cụ không tự mở dòng `@` trong AGENTS.md (Codex, Antigravity), giống Claude Code:
 // đọc các dòng `@` của AGENTS.md (nạp lồng tối đa 5 cấp, bỏ front matter YAML và comment HTML) rồi trả ngữ cảnh theo
 // giao thức hook SessionStart của từng công cụ. Danh sách tệp chỉ nằm ở AGENTS.md.
-// Antigravity tự nạp `.agents/rules/` (rule trigger: always_on) và `.agents/skills/`, nên chỉ nhận các tệp còn lại.
-// Đọc tệp lỗi thì không bơm gì, không chặn phiên.
+// Tệp công cụ tự nạp thì không bơm lại: Codex tự liệt kê `.agents/skills/`; Antigravity tự nạp `.agents/rules/`
+// (rule trigger: always_on) và `.agents/skills/`. Đọc tệp lỗi thì không bơm gì, không chặn phiên.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
 const root = path.resolve(import.meta.dirname, '../..');
-const NATIVE = {antigravity: /^\.agents\/(?:rules|skills)\//};
+const NATIVE = {codex: /^\.agents\/skills\//, antigravity: /^\.agents\/(?:rules|skills)\//};
 const OUTPUT = {
   codex: text => ({hookSpecificOutput: {hookEventName: 'SessionStart', additionalContext: text}}),
   antigravity: text => ({injectSteps: [{systemMessage: {systemMessage: text}}]})

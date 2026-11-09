@@ -51,7 +51,6 @@ const alwaysLoaded = [
   '.agents/rules/core-protocol.md',
   '.agents/rules/request-routing.md',
   '.agents/rules/thienan_rules.md',
-  '.agents/rules/gortex-tool-map.md',
   '.agents/skills/INDEX.md',
   '.agents/agent/INDEX.md',
   '.agents/memory/MEMORY.md'
@@ -87,6 +86,30 @@ test('Harness: Claude Code nạp sẵn AGENTS.md, rule luôn bật, mục lục 
       assert.ok(files.has(relative), `${tool} chưa nạp ${relative}`);
     }
   }
+});
+
+test('Harness: Rule - trigger: always_on đúng bằng bộ rule nạp sẵn theo dòng @ (Antigravity tự nạp cùng bộ); rule còn lại là model_decision có description và nằm trong bảng định tuyến', () => {
+  const rulesDir = path.join(root, '.agents/rules');
+  const imported = new Set([...followImports('AGENTS.md', new Set())].filter(file => file.startsWith('.agents/rules/')));
+  const routing = fs.readFileSync(path.join(rulesDir, 'request-routing.md'), 'utf8');
+  for (const file of fs.readdirSync(rulesDir).filter(name => name.endsWith('.md'))) {
+    const relative = `.agents/rules/${file}`;
+    const front = fs.readFileSync(path.join(rulesDir, file), 'utf8').match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? '';
+    const trigger = front.match(/^trigger:\s*(\S+)/m)?.[1];
+    if (imported.has(relative)) {
+      assert.equal(trigger, 'always_on', `${relative}: nạp sẵn theo dòng @ thì phải trigger: always_on`);
+      continue;
+    }
+    assert.equal(trigger, 'model_decision', `${relative}: không nạp sẵn thì phải trigger: model_decision`);
+    assert.match(front, /^description:\s*\S/m, `${relative}: rule model_decision cần description`);
+    assert.ok(routing.includes(`(./${file})`), `${relative}: chưa có trong bảng định tuyến request-routing.md`);
+  }
+});
+
+test('Harness: Memory một nguồn .agents/memory - Claude Code tắt auto memory, Codex tắt memory riêng trong dự án', () => {
+  assert.equal(readJsonFile('.claude/settings.json').autoMemoryEnabled, false, 'Claude Code: phải tắt auto memory');
+  const features = fs.readFileSync(path.join(root, '.codex/config.toml'), 'utf8').match(/^\[features\]\n((?:(?!\[).*\n)*)/m)?.[1] ?? '';
+  assert.match(features, /^memories = false$/m, 'Codex: phải tắt memory riêng ([features] memories = false)');
 });
 
 test('Harness: Phần nạp sẵn mỗi phiên (AGENTS.md và các dòng @) không vượt 20.000 ký tự; mỗi dòng mục lục memory ≤ 150 ký tự', () => {
@@ -393,7 +416,7 @@ test('Harness: Antigravity - .agents/hooks.json đúng định dạng agy: mỗi
   }
 });
 
-test('Harness: Codex, Antigravity nhận phần nạp sẵn qua hook SessionStart như Claude Code - đủ tệp dòng @ của AGENTS.md; Antigravity bỏ rule, skill vì tự nạp', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
+test('Harness: Codex, Antigravity nhận phần nạp sẵn qua hook SessionStart như Claude Code - đủ tệp dòng @ của AGENTS.md, trừ tệp công cụ tự nạp (skill ở Codex; rule, skill ở Antigravity)', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
   const imported = [...followImports('AGENTS.md', new Set())].filter(file => file !== 'AGENTS.md');
   const sessionOutput = name => {
     const tool = hookTools.find(item => item.name === name);
@@ -403,10 +426,11 @@ test('Harness: Codex, Antigravity nhận phần nạp sẵn qua hook SessionStar
     return JSON.parse(results[0].stdout);
   };
 
-  // Codex chỉ tự đọc AGENTS.md: nhận đủ các tệp dòng @, nội dung như Claude Code nạp.
+  // Codex tự đọc AGENTS.md và tự liệt kê skill trong .agents/skills/: nhận các tệp dòng @ còn lại, nội dung như Claude Code nạp.
   const codexText = sessionOutput('Codex').hookSpecificOutput.additionalContext;
   for (const file of imported) {
-    assert.ok(codexText.includes(`Contents of ${file}:\n\n${loadedText(file).trim()}`), `Codex chưa nạp ${file}`);
+    const native = file.startsWith('.agents/skills/');
+    assert.equal(codexText.includes(`Contents of ${file}:\n\n${loadedText(file).trim()}`), !native, `Codex: ${file} ${native ? 'đã tự nạp, không bơm lại' : 'chưa nạp'}`);
   }
   // Codex mặc định cắt additionalContext ở 2.500 token: giới hạn phải đủ cho phần nạp sẵn (ước lượng ≤ 1 token / 2 ký tự).
   const session = codexHookGroups().find(group => group.event === 'SessionStart' && group.commands.some(command => command.includes('session-context.mjs')));

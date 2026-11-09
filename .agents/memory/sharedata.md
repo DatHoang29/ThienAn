@@ -264,3 +264,17 @@ Yêu cầu từ họp 16/09/2026, nhắc lại 02/11/2026: clone Worker, 4 con c
   5. Khối 2: Cột trên bảng theo chuẩn wireframe: `Khoá (alias)`, `Tên hiển thị`, `Kiểu`, `Bắt buộc`, `Ghi chú`, `Trạng thái`. Tất cả header cột được căn giữa (`header-align: 'center'`).
   6. Khối 3: Bảng Tham số loại bỏ dòng chú thích dài `Giá trị lần trước:...`; cấu trúc cột tham số giữ nguyên để phân tích sau.
   7. Chiều cao tabs (`.direction-tabs`, `.sql-partner-tabs`): Tối ưu gọn gàng (28px - 32px).
+
+## ShareData: quyết định gom từ memory Codex
+
+> Người dùng chốt trong phiên Codex 13–14/10/2026: ConnectionType ở ShareDataPartner, Kafka để cuối, lập lịch chỉ trong ShareData, chính sách gói 105, 110
+
+- `ConnectionType`/`ConnectionConfig` là thuộc tính của `ShareDataPartner`, không dùng `SystemConfig`/`SystemConfigData` (người dùng sửa khi kiến trúc bị suy từ transcript).
+- Kafka để cuối: "để cuối đi phải hỏi lại"; hỏi lại trước khi làm hay nghiệm thu.
+- Bộ lập lịch dùng chung chỉ tích hợp trong phạm vi ShareData ("chỉ tập trung ở sharedata thôi"); không sửa Email, VideoWall, Maintenance, VMS/Equipment, TMS, Outbox.
+- Gói 105: mặc định Bản chụp toàn bộ, cấu hình được Bản chụp toàn bộ hoặc Gửi nối đuôi, Worker dùng thiết lập đã lưu. Xét chính sách 105 thì đọc `02-mapping-goi-tin-101-111.md` và quyết định mới nhất trước ("105 tui thấy lần nào check bạn lộn quài"); câu transcript, spec mâu thuẫn ghi là lịch sử.
+- Gói 110: tạo, cấu hình bình thường với bảng và dữ liệu giả để test toàn trình; chặn tạo `NotReady` cố định không còn là yêu cầu.
+
+**Why:** Codex từng lưu các quyết định này trong memory riêng; 09/11/2026 người dùng chốt memory một nguồn `.agents/memory/` cho mọi công cụ nên gom về đây, bỏ phần trạng thái test cũ.
+
+**How to apply:** coi là quyết định đã chốt; trước khi báo trạng thái vẫn đối chiếu `02-mapping-goi-tin-101-111.md` và mã hiện tại.

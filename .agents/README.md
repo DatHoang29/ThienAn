@@ -8,8 +8,8 @@ Mọi công cụ AI của dự án (Claude Code, Codex, Antigravity) dùng chung
 
 | Đường dẫn | Nội dung |
 |---|---|
-| `rules/` | Quy tắc dự án. `thienan_rules.md` là P0, `core-protocol.md` là quy tắc nền, `request-routing.md` định tuyến sang rule theo miền (BE, FE, test, DB, tài liệu, git), `gortex-tool-map.md` quy định dùng Gortex |
-| `memory/` | Memory duy nhất của mọi công cụ: mục lục `MEMORY.md` (mỗi tệp một dòng ≤ 150 ký tự) và tệp chủ đề. Claude Code tắt auto memory riêng (`autoMemoryEnabled: false`) |
+| `rules/` | Quy tắc dự án. `thienan_rules.md` là P0, `core-protocol.md` là quy tắc nền, `request-routing.md` định tuyến sang rule theo miền (BE, FE, test, DB, Gortex, tài liệu, git). Rule nạp sẵn theo dòng `@` của `AGENTS.md` có `trigger: always_on`, rule còn lại `model_decision` (test chặn lệch) |
+| `memory/` | Memory duy nhất của mọi công cụ: mục lục `MEMORY.md` (mỗi tệp một dòng ≤ 150 ký tự) và tệp chủ đề. Claude Code tắt auto memory riêng (`autoMemoryEnabled: false`), Codex tắt memory riêng trong dự án (`[features] memories = false` ở `.codex/config.toml`) |
 | `skills/` | 5 skill (`clean-code` gồm nguyên tắc Karpathy, `tdd`, `brainstorming`, `plan-writing`, `code-review`), mỗi skill một `SKILL.md` chỉ có `name`, `description`; mục lục `skills/INDEX.md` |
 | `agent/` | Vai chuyên gia, mỗi vai một tệp (`name` trùng tên tệp, `skills:` trỏ tới `skills/`); mục lục `agent/INDEX.md` |
 | `hooks/` | `guardrails.mjs` (chặn vi phạm P0: test sai chỗ, `git add .`, build FE, `--no-build`…), `validate-tool-call.mjs` (chặn lệnh phá ổ đĩa), `guarded-rtk.mjs` (Codex, Antigravity: chạy `guardrails`, `validate-tool-call`, `gortex-enforce` rồi mới cho rtk viết lại lệnh shell), `gortex-enforce.mjs` (chặn Read/Grep/Glob/Bash đọc mã đã index), `gortex-hook.mjs` (ngữ cảnh Gortex), `session-context.mjs` (nạp sẵn các tệp dòng `@` cho Codex, Antigravity qua hook SessionStart); test ở `hooks/tests/` |
@@ -25,8 +25,8 @@ Danh sách tệp nạp sẵn mỗi phiên (rule luôn bật, mục lục skill, 
 | Công cụ | Tệp nạp sẵn | Skill | Agent | Hook | MCP |
 |---|---|---|---|---|---|
 | Claude Code | `.claude/CLAUDE.md` nạp `@../AGENTS.md`, rồi nạp lồng các dòng `@` | `skills/INDEX.md` nạp sẵn | `agent/INDEX.md` nạp sẵn | `.claude/settings*.json` (rtk qua `rtk hook claude`) | `.mcp.json` (sinh); staging tắt bằng `disabledMcpjsonServers` |
-| Codex | đọc `AGENTS.md`; hook SessionStart (`session-context.mjs codex`) bơm các tệp dòng `@` | tự quét `.agents/skills/` | `agent/INDEX.md` nạp sẵn | `[hooks]` trong `.codex/config.toml` (`guarded-rtk.mjs codex`); hook Gortex ở `~/.codex/config.toml` của từng máy — chỉ chạy khi dự án đã trust và hook đã duyệt bằng `/hooks` | `.codex/config.toml` (sinh, staging `enabled = false`) |
-| Antigravity | tự nạp `AGENTS.md` và rule `trigger: always_on` trong `rules/`; hook SessionStart (`session-context.mjs antigravity`) bơm mục lục agent, memory | tự quét `skills/` | `agent/INDEX.md` nạp sẵn | `hooks.json` (`guarded-rtk.mjs antigravity`) | app đọc `~/.gemini/antigravity/mcp_config.json` (`--target antigravity`, staging `disabled: true`) |
+| Codex | đọc `AGENTS.md`; hook SessionStart (`session-context.mjs codex`) bơm các tệp dòng `@` trừ mục lục skill (Codex tự liệt kê skill) | tự quét `.agents/skills/` | `agent/INDEX.md` nạp sẵn | `[hooks]` trong `.codex/config.toml` (`guarded-rtk.mjs codex`); hook Gortex ở `~/.codex/config.toml` của từng máy — chỉ chạy khi dự án đã trust và hook đã duyệt bằng `/hooks` | `.codex/config.toml` (sinh, staging `enabled = false`) |
+| Antigravity | tự nạp `AGENTS.md` và rule `trigger: always_on` trong `rules/`; hook SessionStart (`session-context.mjs` + `gortex-hook.mjs antigravity`) bơm mục lục agent, memory và ngữ cảnh Gortex | tự quét `skills/` | `agent/INDEX.md` nạp sẵn | `hooks.json` (`guarded-rtk.mjs antigravity`) | app đọc `~/.gemini/antigravity/mcp_config.json` (`--target antigravity`, staging `disabled: true`) |
 
 Agent dùng theo kiểu áp dụng vai: đọc `agent/<tên>.md` rồi làm theo trong cuộc trò chuyện; cần chạy riêng thì gọi subagent thường kèm câu "đọc `.agents/agent/<tên>.md` và làm theo".
 
@@ -67,7 +67,7 @@ node .agents/mcp/sync.mjs --apply --target antigravity  # ~/.gemini/antigravity/
   - Antigravity: rtk trả `allow` (tự chạy, không hỏi quyền) cho mọi lệnh nên script chỉ lấy lệnh đã viết lại, quyết định vẫn `ask`; nếu Antigravity dùng danh sách lệnh được phép thì thêm `command(rtk *)`.
   - rtk không lọc `dotnet test`: dùng cờ output gọn ở `rules/testing-rules_thienan.md` §6.
 
-Số đo 09/11/2026: phần nạp sẵn ~44.000 → 19.686 ký tự; tool Gortex 183 (274 KB) → 21 (15 KB); skill 131 KB → 16 KB; tool DAB mỗi server 7 → 3; rtk giảm output `git log` 76%, `grep` 65%, `ls` 60%, `find` 35%, `git diff` lớn 28%.
+Số đo 09/11/2026: phần nạp sẵn ~44.000 → 17.000 ký tự (Codex nhận 15.025 qua hook, Antigravity 3.525); tool Gortex 183 (274 KB) → 21 (15 KB); skill 131 KB → 16 KB; tool DAB mỗi server 7 → 3; rtk giảm output `git log` 76%, `grep` 65%, `ls` 60%, `find` 35%, `git diff` lớn 28%.
 
 ## Kiểm tra
 

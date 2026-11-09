@@ -245,3 +245,15 @@ Ngày 01/11/2026 người dùng yêu cầu dọn `.agents/` ("còn xoá được
 **Why:** người dùng muốn một nguồn duy nhất cho Claude/Codex/Antigravity và không muốn tệp/tiền tố khó hiểu (đã hỏi "thienan-mcp là làm gì" → bỏ tiền tố `thienan-` khi tệp nằm trong thư mục riêng).
 
 **How to apply:** không đề xuất/chạy `ag-kit update` (sẽ chép lại kit). Thêm MCP server → sửa `.agents/mcp_config.json` rồi `node .agents/mcp/sync.mjs --apply`; không sửa tay `.mcp.json`/`.codex/config.toml`. Tên tệp mới trong `.agents/` đặt theo thư mục, không thêm tiền tố dự án. Xem feedback-limit-file-churn, feedback-prompt-first-fixes.
+
+## Báo cáo review và trạng thái
+
+> Review: một danh sách phát hiện liền mạch kèm cột ưu tiên riêng; trạng thái tách: có mã, đã chạy test, đã bật trên môi trường
+
+- Báo cáo review dùng một danh sách phát hiện liền mạch và một cột ưu tiên riêng; không chia nhóm đánh số lặp "P2 P2 rồi P1 P1".
+- Báo trạng thái tách riêng: mã đã có, test đã chạy (ghi đúng số đạt, lỗi, bỏ qua hoặc lỗi môi trường), tính năng đã bật trên môi trường. Không coi là xong chỉ vì có entity, seed, stub hay prompt ghi test đạt.
+- Tệp bị báo "không thấy" thì kiểm tồn tại trên đĩa, tách khỏi Git và chỉ mục Gortex.
+
+**Why:** gom từ memory Codex 13–14/10/2026: người dùng phản đối "trùng lặp P2 P2 rồi P1 P1"; review từng báo xong khi Playwright còn lỗi; prompt từng bị báo thiếu vì chưa track. 09/11/2026 người dùng chốt memory một nguồn `.agents/memory/`.
+
+**How to apply:** áp cho mọi báo cáo review và báo trạng thái.

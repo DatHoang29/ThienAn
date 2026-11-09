@@ -2,7 +2,7 @@
 name: gortex-tool-map
 version: 1.1.0
 priority: P0
-trigger: always_on
+trigger: model_decision
 description: Quy trình nạp tool Gortex deferred và quy định riêng của dự án ThienAn về công cụ Gortex MCP.
 ---
 

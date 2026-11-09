@@ -5,6 +5,11 @@
         "type": "command",
         "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/session-context.mjs\" antigravity",
         "timeout": 10
+      },
+      {
+        "type": "command",
+        "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/gortex-hook.mjs\" antigravity",
+        "timeout": 10
       }
     ],
     "PreToolUse": [

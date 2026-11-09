@@ -11,7 +11,7 @@ trigger: always_on
 
 ## 1. Skill & agent
 
-- Thứ tự ưu tiên: rule (`.agents/rules/`) > vai (`.agents/agent/`) > skill (`.agents/skills/`). Mục lục: `skills/INDEX.md`, `agent/INDEX.md`.
+- Thứ tự ưu tiên: rule (`.agents/rules/`) > vai (`.agents/agent/`) > skill (`.agents/skills/`).
 - Chỉ đọc `SKILL.md` rồi phần khớp việc, không đọc cả thư mục skill. Thông báo trước khi áp dụng: `📚 **Using skill: @[tên-skill]...**`.
 
 ## 2. Định tuyến
@@ -25,7 +25,7 @@ trigger: always_on
 
 ## 4. Kế thừa phiên (Rule 19.112)
 
-Tiếp quản phiên trước (Claude Code, Antigravity, phiên cũ): đọc `.agents/memory/` và log phiên gần nhất (`.jsonl`); nắm quyết định kiến trúc đã chốt, việc dở dang và test đỏ, chỉ đạo riêng của người dùng (gộp tệp, quy ước SSOT, chặn lỗi). ⛔ Tự phán đoán thay thế, nới validation hay sửa ngọn để test xanh.
+Ngoài P0 STT 72, 73: từ log phiên gần nhất (`.jsonl`) nắm việc dở dang, test đỏ và chỉ đạo riêng của người dùng (gộp tệp, quy ước SSOT, chặn lỗi).
 
 ## 5. Ngôn ngữ
 
@@ -37,7 +37,5 @@ Chỉ hỏi khi yêu cầu mơ hồ hoặc thiếu thông tin quyết định th
 
 ## 7. Clean Code
 
-Mọi code tuân thủ `@[skills/clean-code]` (gồm nguyên tắc Karpathy):
-- Trước khi viết: nêu giả định, chọn cách đơn giản nhất; khi sửa: mọi dòng đổi phải truy được về yêu cầu; đặt tiêu chí kiểm chứng (test) rồi lặp đến khi đạt.
-- Minimal Diff (Rule 19.6, 19.35, 19.89); dọn mã thừa, obsolete (Rule 19.68).
+Mọi code tuân thủ `@[skills/clean-code]` (gồm nguyên tắc Karpathy), sửa tối thiểu theo P0 STT 13, 48; dọn mã thừa, obsolete (Rule 19.68).
 - **Bỏ là bỏ hết liên đới:** gỡ tính năng, nút, API thì xóa hết phần liên quan (hàm, state/computed/props, DTO, controller, handler CQRS, BaseMsg, i18n, test); ⛔ để lại mã chết.

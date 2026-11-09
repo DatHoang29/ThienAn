@@ -1,7 +1,7 @@
 # Memory Index
 
-> Memory duy nhất của mọi công cụ AI. Claude Code tắt auto memory riêng (`autoMemoryEnabled: false`), đọc mục lục này qua `AGENTS.md`.
-> Ghi nhớ mới: thêm vào tệp chủ đề (hoặc tạo tệp mới), mỗi tệp một dòng mục lục ≤ 150 ký tự; quy tắc P0 ghi ở `../rules/thienan_rules.md`.
+> Memory duy nhất của mọi công cụ AI; kho riêng của Claude Code, Codex đã tắt.
+> Ghi mới vào tệp chủ đề (hoặc tệp mới), mỗi tệp một dòng mục lục ≤ 150 ký tự; quy tắc P0 ghi ở `../rules/thienan_rules.md`.
 > Repo công khai: không ghi mật khẩu, chuỗi kết nối, địa chỉ máy chủ.
 
 ## Người dùng & cách làm việc

@@ -7,7 +7,7 @@
  * cho cùng sự kiện, để hook không chạy 2 lần. Đổi đường dẫn binary bằng biến GORTEX_BIN.
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -53,6 +53,47 @@ function resolveGortexBinary() {
 }
 
 const input = await readStdin();
+const isAntigravity = process.argv.includes('antigravity');
+
+if (isAntigravity) {
+  let payload = {};
+  try {
+    payload = JSON.parse(input.toString('utf8') || '{}');
+  } catch {
+    process.stdout.write('{}\n');
+    process.exit(0);
+  }
+
+  // Antigravity SessionStart không có hook_event_name; PreToolUse/PostToolUse có toolCall.
+  const eventName = payload.toolCall ? 'PostToolUse' : 'SessionStart';
+  const gortexPayload = { hook_event_name: eventName, ...payload };
+
+  const binary = resolveGortexBinary();
+  const args = ['hook', '--agent', 'antigravity', ...process.argv.slice(2).filter((arg) => arg !== 'antigravity')];
+  const res = spawnSync(binary, args, {
+    input: JSON.stringify(gortexPayload),
+    encoding: 'utf8',
+    windowsHide: true
+  });
+
+  if (res.error || res.status !== 0 || !res.stdout) {
+    process.stdout.write('{}\n');
+    process.exit(0);
+  }
+
+  try {
+    const parsed = JSON.parse(res.stdout);
+    const text = parsed.hookSpecificOutput?.additionalContext;
+    if (text && eventName === 'SessionStart') {
+      process.stdout.write(`${JSON.stringify({ injectSteps: [{ systemMessage: { systemMessage: text } }] })}\n`);
+    } else {
+      process.stdout.write('{}\n');
+    }
+  } catch {
+    process.stdout.write('{}\n');
+  }
+  process.exit(0);
+}
 
 if (isHandledByUserSettings(readEventName(input))) {
   process.exit(0);
