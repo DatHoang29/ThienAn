@@ -19,6 +19,11 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/validate-tool-call.mjs\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "command -v rtk >/dev/null 2>&1 && rtk hook claude || true",
+            "timeout": 10
           }
         ]
       },

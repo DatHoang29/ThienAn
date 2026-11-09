@@ -262,6 +262,27 @@ function runHooks(tool, event, payload) {
     }));
 }
 
+test('Harness: Hook rtk (Claude Code) - máy chưa cài rtk thì im lặng; có rtk thì chỉ viết lại lệnh, không tự duyệt quyền', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
+  const commands = jsonHookGroups(readJsonFile('.claude/settings.json').hooks)
+    .filter(group => group.event === 'PreToolUse')
+    .flatMap(group => group.commands)
+    .filter(command => command.includes('rtk hook claude'));
+  assert.equal(commands.length, 1, 'Claude Code: chưa nối hook rtk');
+  const payload = JSON.stringify({tool_name: 'Bash', tool_input: {command: 'git status'}});
+
+  // Máy chưa cài rtk (PATH không có rtk): hook không được chặn hay in gì.
+  const withoutRtk = spawnSync(commands[0], {shell: '/bin/sh', env: {...process.env, PATH: '/usr/bin:/bin'}, input: payload, encoding: 'utf8'});
+  assert.equal(withoutRtk.status, 0);
+  assert.equal(withoutRtk.stdout, '');
+
+  // Máy có rtk: chỉ viết lại lệnh; trả permissionDecision "allow" là lách hệ thống quyền của Claude Code.
+  if (spawnSync('/bin/sh', ['-c', 'command -v rtk']).status !== 0) return;
+  const withRtk = spawnSync(commands[0], {shell: '/bin/sh', input: payload, encoding: 'utf8'});
+  const output = JSON.parse(withRtk.stdout).hookSpecificOutput;
+  assert.match(output.updatedInput.command, /^rtk git status/);
+  assert.notEqual(output.permissionDecision, 'allow');
+});
+
 test('Harness: Hook - cấu hình Claude Code, Codex, Gemini CLI, Antigravity gọi đúng .agents/hooks: chặn vi phạm P0, chặn lệnh phá ổ đĩa, cho qua thì im lặng, nhắc SSOT', {skip: process.platform === 'win32' && 'lệnh hook dùng cú pháp shell POSIX'}, () => {
   for (const tool of hookTools) {
     const blocked = payload => runHooks(tool, tool.preTool, payload).some(result => result.status === 2);

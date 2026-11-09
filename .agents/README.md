@@ -12,7 +12,7 @@ Mọi công cụ AI (Claude Code, Codex, Gemini CLI, Kiro, Cline, Antigravity) d
 | `memory/` | Memory duy nhất của mọi công cụ: mục lục `MEMORY.md` (mỗi tệp một dòng ≤ 150 ký tự) và tệp chủ đề. Claude Code tắt auto memory riêng (`autoMemoryEnabled: false`) |
 | `skills/` | 5 skill (`clean-code` gồm nguyên tắc Karpathy, `tdd`, `brainstorming`, `plan-writing`, `code-review`), mỗi skill một `SKILL.md` chỉ có `name`, `description`; mục lục `skills/INDEX.md` |
 | `agent/` | Vai chuyên gia, mỗi vai một tệp (`name` trùng tên tệp, `skills:` trỏ tới `skills/`); mục lục `agent/INDEX.md` |
-| `hooks/` | `guardrails.mjs` (chặn vi phạm P0: test sai chỗ, `git add .`, build FE, `--no-build`…), `validate-tool-call.mjs` (chặn lệnh phá ổ đĩa), `gortex-enforce.mjs` (chặn Read/Grep/Glob/Bash đọc mã đã index), `gortex-hook.mjs` (ngữ cảnh Gortex), `prompt-submit.mjs` (nhắc SSOT cho Codex); test ở `hooks/tests/` |
+| `hooks/` | `guardrails.mjs` (chặn vi phạm P0: test sai chỗ, `git add .`, build FE, `--no-build`…), `validate-tool-call.mjs` (chặn lệnh phá ổ đĩa), `gortex-enforce.mjs` (chặn Read/Grep/Glob/Bash đọc mã đã index), `gortex-hook.mjs` (ngữ cảnh Gortex), `prompt-submit.mjs` (nhắc SSOT cho Codex); test ở `hooks/tests/`. Hook rtk (tùy chọn, chỉ Claude Code) khai trong `.claude/settings.json`, máy chưa cài rtk thì bỏ qua |
 | `hooks.json` | Đăng ký hook cho Antigravity |
 | `mcp_config.json` | Nguồn duy nhất danh sách MCP server (Gortex chạy bộ 21 tool `--tools facade-v1`) |
 | `mcp/` | `sync.mjs` sinh cấu hình MCP cho từng công cụ; `dab.mjs` + `dab-config.json` chạy DAB cho DB dev/test/staging (chỉ đọc: tool ghi tắt ở `runtime.mcp.dml-tools`); `.env` chứa chuỗi kết nối (không commit, mẫu `.env.example`) |
@@ -65,6 +65,7 @@ node .agents/mcp/sync.mjs --apply --target cline-cli    # ~/.cline/data/settings
 - Khảo sát, tìm kiếm thì dùng subagent Explore: subagent thường nạp lại toàn bộ phần nạp sẵn. Yêu cầu subagent trả tóm tắt ngắn.
 - Không đổi model, effort hay bật tắt MCP giữa phiên (mất cache prefix).
 - Đo: `/context all`, `/usage` (Claude Code), `/memory show` (Gemini CLI).
+- rtk (tùy chọn): `brew install rtk-ai/tap/rtk-oss` (bản chỉ Apache-2.0). Claude Code tự lọc output git, ls, grep, Playwright qua hook; xem mức tiết kiệm bằng `rtk gain`. Chưa nối cho Codex (rtk trả `permissionDecision: "allow"`, tự duyệt lệnh đã viết lại), Gemini CLI (trả `ask_user`), Antigravity (chỉ trả `allow`, không viết lại), Kiro (rtk không hỗ trợ), Cline (extension không có hook). rtk không lọc `dotnet test`: dùng cờ output gọn ở `rules/testing-rules_thienan.md` §6.
 
 Số đo 09/11/2026: phần nạp sẵn ~44.000 → 19.686 ký tự; tool Gortex 183 (274 KB) → 21 (15 KB); skill 131 KB → 16 KB; tool DAB mỗi server 7 → 3.
 
