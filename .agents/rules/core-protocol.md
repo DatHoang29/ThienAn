@@ -71,7 +71,8 @@ Khi prompt của người dùng KHÔNG phải tiếng Anh:
 
 ## 7. Clean Code (Global Mandatory)
 
-Mọi code BẮT BUỘC tuân thủ `@[skills/clean-code]`:
+Mọi code BẮT BUỘC tuân thủ `@[skills/clean-code]` và `@[skills/karpathy-guidelines]`:
+- Trước khi viết: nêu rõ giả định, chọn cách đơn giản nhất; khi sửa: mọi dòng thay đổi phải truy được về yêu cầu; đặt tiêu chí kiểm chứng (test) rồi lặp đến khi đạt.
 - Code ngắn gọn, trực diện, không over-engineering, tự giải thích (self-documenting).
 - Tuân thủ Minimal Diff (Rule 19.6, 19.35, 19.89) và dọn sạch mã thừa/obsolete (Rule 19.68).
 - **Bỏ là bỏ hết các liên đới (Cascading Cleanup):** Khi gỡ bỏ một tính năng, nút bấm, thành phần giao diện hoặc API: BẮT BUỘC rà soát và xóa bỏ triệt để toàn bộ thành phần liên đới (hàm xử lý, biến state/computed/props, DTO, API Controller, Handler CQRS, hằng số BaseMsg, i18n không còn dùng, và cập nhật/xóa test tương ứng). Tuyệt đối không để lại mã chết / zombie code.

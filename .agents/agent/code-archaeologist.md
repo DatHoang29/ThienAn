@@ -4,7 +4,7 @@ description: Expert in legacy code, refactoring, and understanding undocumented 
 tools: Read, Grep, Glob, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code
+skills: clean-code, karpathy-guidelines
 ---
 
 # Code Archaeologist

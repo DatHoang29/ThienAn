@@ -1,7 +1,16 @@
-# Master AI Steering - ThienAn (Kiro AI IDE)
+---
+inclusion: always
+---
+
+# Master AI Steering - ThienAn (Kiro)
 
 > 🔴 **SINGLE SOURCE OF TRUTH (SSOT): `.agents/`**
-> Toàn bộ quy tắc kiến trúc, specialist agents, modular skills, build commands và critical mandatory safeguards tập trung DUY NHẤT tại:
-> - [`AGENTS.md`](../../AGENTS.md)
-> - [`.agents/rules/thienan_rules.md`](../../.agents/rules/thienan_rules.md)
-> - [`.agents/memory/MEMORY.md`](../../.agents/memory/MEMORY.md)
+> Kiro tự nạp `AGENTS.md`; tệp này nạp thêm rule luôn bật, mục lục skill và memory từ `.agents/`.
+
+#[[file:.agents/rules/core-protocol.md]]
+#[[file:.agents/rules/request-routing.md]]
+#[[file:.agents/rules/thienan_rules.md]]
+#[[file:.agents/rules/gortex-tool-map.md]]
+#[[file:.agents/skills/INDEX.md]]
+#[[file:.agents/agent/INDEX.md]]
+#[[file:.agents/memory/MEMORY.md]]

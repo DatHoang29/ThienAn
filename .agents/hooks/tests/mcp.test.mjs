@@ -12,7 +12,6 @@ const dabScript = path.join(root, '.agents/mcp/dab.mjs');
 // Tệp cấu hình MCP của từng công cụ, đều sinh từ .agents/mcp_config.json.
 const workspaceTargets = [
   '.mcp.json',
-  '.cline/mcp.json',
   '.kiro/settings/mcp.json',
   '.vscode/mcp.json',
   '.gemini/settings.json',
@@ -59,6 +58,11 @@ test('MCP: repo không chứa mật khẩu trong nguồn và các tệp cấu h�
   }
 });
 
+test('MCP: cấu hình MCP các công cụ trong repo khớp nguồn .agents/mcp_config.json', () => {
+  const result = spawnSync(process.execPath, [syncScript, '--check'], {encoding: 'utf8'});
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
 test('MCP: --apply sinh đủ tệp cho từng công cụ, giữ phần không thuộc MCP, --check bắt được tệp sửa tay', () => {
   const base = makeWorkspace();
 
@@ -66,7 +70,6 @@ test('MCP: --apply sinh đủ tệp cho từng công cụ, giữ phần không t
   assert.equal(apply.status, 0, apply.stderr);
 
   assert.deepEqual(readJson(base, '.mcp.json'), source);
-  assert.deepEqual(readJson(base, '.cline/mcp.json'), source);
   assert.deepEqual(readJson(base, '.vscode/mcp.json'), source);
 
   const kiro = readJson(base, '.kiro/settings/mcp.json');
@@ -114,6 +117,28 @@ test('MCP: --target antigravity chỉ thay server dùng tệp trong repo, đổi
     args: [path.join(base, '.agents/mcp/dab.mjs'), 'dev']
   });
   assert.ok(fs.readdirSync(path.join(home, '.gemini/antigravity')).some(name => name.startsWith('mcp_config.json.mcp-backup-')));
+});
+
+test('MCP: --target cline / cline-cli ghi vào tệp MCP global của Cline (extension VS Code, CLI), chỉ thay server dùng tệp trong repo', () => {
+  const base = makeWorkspace();
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-test-home-'));
+  const appData = path.join(home, 'AppData', 'Roaming');
+  const codeDir = {win32: path.join(appData, 'Code'), darwin: path.join(home, 'Library', 'Application Support', 'Code')}[process.platform] ?? path.join(home, '.config', 'Code');
+  const extensionFile = path.join(codeDir, 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json');
+  const cliFile = path.join(home, '.cline', 'data', 'settings', 'cline_mcp_settings.json');
+  const gortex = {command: 'gortex', args: ['mcp'], disabled: false, autoApprove: []};
+  fs.mkdirSync(path.dirname(extensionFile), {recursive: true});
+  fs.writeFileSync(extensionFile, `${JSON.stringify({mcpServers: {gortex}}, null, 2)}\n`);
+
+  for (const target of ['cline', 'cline-cli']) {
+    const result = runSync(base, ['--apply', '--target', target], {...process.env, HOME: home, USERPROFILE: home, APPDATA: appData});
+    assert.equal(result.status, 0, result.stderr);
+  }
+
+  const mssqlDev = {command: 'node', args: [path.join(base, '.agents/mcp/dab.mjs'), 'dev']};
+  assert.deepEqual(JSON.parse(fs.readFileSync(extensionFile, 'utf8')).mcpServers, {gortex, mssql_dev: mssqlDev});
+  assert.deepEqual(JSON.parse(fs.readFileSync(cliFile, 'utf8')).mcpServers, {mssql_dev: mssqlDev});
+  assert.equal(fs.existsSync(path.join(base, '.cline/mcp.json')), false);
 });
 
 test('MCP: launcher DAB thiếu chuỗi kết nối thì báo tên biến ra stderr, không ghi gì ra stdout', () => {

@@ -6,10 +6,24 @@
 
 ---
 
+## 📥 Nạp sẵn mỗi phiên
+
+Đọc các tệp dưới đây trước khi làm việc. Claude Code (qua `.claude/CLAUDE.md`) và Gemini CLI (qua `context.fileName` trong `.gemini/settings.json`) tự nạp các dòng `@`; Codex, Cline đọc theo đường dẫn; Kiro nạp qua `.kiro/steering/main.md`.
+
+@./.agents/rules/thienan_rules.md
+@./.agents/rules/core-protocol.md
+@./.agents/rules/request-routing.md
+@./.agents/rules/gortex-tool-map.md
+@./.agents/skills/INDEX.md
+@./.agents/agent/INDEX.md
+@./.agents/memory/MEMORY.md
+
+---
+
 ## 🗺️ Dynamic AG-Kit Registry (`.agents/`)
 - **Quy tắc dự án (P0):** Bắt buộc đọc và tuân thủ [`.agents/rules/thienan_rules.md`](.agents/rules/thienan_rules.md).
-- **Specialist Agents:** Khám phá vai trò từ [`.agents/agent/`](.agents/agent/).
-- **Modular Skills:** Nạp `SKILL.md` từ [`.agents/skills/`](.agents/skills/). Thông báo `📚 Using skill: @[skill-name]...` trước khi áp dụng.
+- **Specialist Agents:** Vai trò trong [`.agents/agent/`](.agents/agent/), mục lục và khi nào dùng ở [`.agents/agent/INDEX.md`](.agents/agent/INDEX.md).
+- **Modular Skills:** Nạp `SKILL.md` từ [`.agents/skills/`](.agents/skills/), mục lục và khi nào dùng ở [`.agents/skills/INDEX.md`](.agents/skills/INDEX.md). Thông báo `📚 Using skill: @[skill-name]...` trước khi áp dụng.
 - **Memory (SSOT):** Đọc [`.agents/memory/MEMORY.md`](.agents/memory/MEMORY.md).
 - **Bản đồ `.agents/` (rule, skill, agent, hook, MCP):** Xem [`.agents/README.md`](.agents/README.md).
 

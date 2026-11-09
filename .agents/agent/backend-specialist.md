@@ -4,7 +4,7 @@ description: Backend architect for the ThienAn .NET stack (ASP.NET Core WebAPI, 
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code, api-patterns, database-design
+skills: clean-code, karpathy-guidelines, api-patterns, database-design
 ---
 
 # Backend Development Architect

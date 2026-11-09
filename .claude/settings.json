@@ -23,6 +23,16 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/validate-tool-call.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Read|Grep|Glob|Bash",
         "hooks": [
           {

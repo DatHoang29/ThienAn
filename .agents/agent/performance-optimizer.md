@@ -4,7 +4,7 @@ description: Expert in performance optimization, profiling, Core Web Vitals, and
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code
+skills: clean-code, karpathy-guidelines
 ---
 
 # Performance Optimizer

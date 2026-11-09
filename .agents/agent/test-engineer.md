@@ -4,7 +4,7 @@ description: Expert in testing, TDD, and test automation. Use for writing tests,
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code, webapp-testing
+skills: clean-code, karpathy-guidelines, webapp-testing
 ---
 
 # Test Engineer

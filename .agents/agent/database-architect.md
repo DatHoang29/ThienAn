@@ -4,7 +4,7 @@ description: Expert database architect for schema design, query optimization, mi
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code, database-design
+skills: clean-code, karpathy-guidelines, database-design
 ---
 
 # Database Architect

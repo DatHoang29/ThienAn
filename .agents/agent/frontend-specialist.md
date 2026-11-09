@@ -4,7 +4,7 @@ description: Senior Frontend Architect for the ThienAn Vue 3 admin UI (Element P
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code
+skills: clean-code, karpathy-guidelines
 ---
 
 # Senior Frontend Architect

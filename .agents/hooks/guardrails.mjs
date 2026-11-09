@@ -21,15 +21,21 @@ function readStdin() {
 export function evaluateGuardrail(payload) {
   // Hỗ trợ các chuẩn payload:
   // - Antigravity: { tool_name, tool_args: { TargetFile, Path, CommandLine, ... } }
-  // - Claude Code: { tool_name, tool_input: { file_path, command, path, ... } }
+  // - Claude Code, Codex, Gemini CLI, Kiro: { tool_name, tool_input: { file_path, command, path, ... } }
   const toolName = payload?.tool_name ?? payload?.toolName ?? payload?.tool ?? '';
   const args = payload?.tool_args ?? payload?.toolArgs ?? payload?.tool_input ?? payload?.toolInput ?? payload?.arguments ?? {};
   const targetFile = args.TargetFile ?? args.targetFile ?? args.file_path ?? args.filePath ?? args.path ?? args.Path ?? args.AbsolutePath ?? '';
   const command = args.CommandLine ?? args.commandLine ?? args.command ?? args.cmd ?? '';
+  // Codex apply_patch gửi cả patch trong `command`: lấy đường dẫn ở dòng tiêu đề, không xét nội dung patch như lệnh shell.
+  const isPatch = toolName === 'apply_patch' || String(command).startsWith('*** Begin Patch');
+  const files = isPatch
+    ? [...String(command).matchAll(/^\*\*\* (?:Add File|Update File|Move to): (.+)$/gm)].map(match => match[1].trim())
+    : [targetFile].filter(Boolean);
 
   // 1. Guard Rule 19.63: Cấm tạo file test ad-hoc rải rác ngoài tests/FE, tests/BE và .agents/hooks/tests/
-  if (targetFile) {
-    const normalized = targetFile.replace(/\\/g, '/');
+  for (const file of files) {
+    // Thêm '/' đầu để đường dẫn tương đối (Codex, Kiro) khớp như đường dẫn tuyệt đối.
+    const normalized = `/${file.replace(/\\/g, '/')}`;
     const isTestFile = /(?:^|\/)[^/]*(?:test|spec)[^/]*\.(?:[cm]?js|ts|py|cs)$/i.test(normalized);
     if (isTestFile) {
       const isAllowedDir =
@@ -48,7 +54,7 @@ export function evaluateGuardrail(payload) {
   }
 
   // 2. Guard Rule 19.63: Cấm chạy runner test ad-hoc ngoài runner chuẩn
-  if (command) {
+  if (command && !isPatch) {
     const isAdhocNodeTest = /\bnode\s+--test\b/i.test(command) && !command.includes('.agents/hooks/tests');
     if (isAdhocNodeTest) {
       return {

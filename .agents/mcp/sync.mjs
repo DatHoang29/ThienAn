@@ -31,13 +31,21 @@ const CODEX_EXTRAS = {
 
 const TARGETS = {
   claude: {file: root => path.join(root, '.mcp.json'), render: servers => json({mcpServers: servers})},
-  cline: {file: root => path.join(root, '.cline', 'mcp.json'), render: servers => json({mcpServers: servers})},
   kiro: {file: root => path.join(root, '.kiro', 'settings', 'mcp.json'), render: servers => json({mcpServers: withExtras(servers, KIRO_EXTRAS)})},
   vscode: {file: root => path.join(root, '.vscode', 'mcp.json'), render: servers => json({mcpServers: servers})},
   gemini: {file: root => path.join(root, '.gemini', 'settings.json'), render: renderGemini},
   codex: {file: root => path.join(root, '.codex', 'config.toml'), render: renderCodex},
-  antigravity: {home: true, file: () => path.join(os.homedir(), '.gemini', 'antigravity', 'mcp_config.json'), render: renderAntigravity}
+  antigravity: {home: true, file: () => path.join(os.homedir(), '.gemini', 'antigravity', 'mcp_config.json'), render: renderGlobal},
+  // Cline không đọc cấu hình MCP trong repo, chỉ đọc tệp global: extension VS Code và CLI mỗi bên một tệp.
+  cline: {home: true, file: () => path.join(vscodeGlobalStorage(), 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'), render: renderGlobal},
+  'cline-cli': {home: true, file: () => path.join(os.homedir(), '.cline', 'data', 'settings', 'cline_mcp_settings.json'), render: renderGlobal}
 };
+
+function vscodeGlobalStorage() {
+  if (process.platform === 'win32') return path.join(process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'), 'Code', 'User', 'globalStorage');
+  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'Code', 'User', 'globalStorage');
+  return path.join(os.homedir(), '.config', 'Code', 'User', 'globalStorage');
+}
 
 function json(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
@@ -63,7 +71,7 @@ function isRepoPath(arg) {
 
 // Tệp global dùng chung mọi workspace: chỉ ghi server chạy tệp trong repo (đổi sang đường dẫn tuyệt đối),
 // server khác (gortex, stitch...) giữ nguyên như người dùng đã cấu hình.
-function renderAntigravity(servers, current, root) {
+function renderGlobal(servers, current, root) {
   const config = current ? JSON.parse(current) : {};
   config.mcpServers ??= {};
   for (const [name, server] of Object.entries(servers)) {

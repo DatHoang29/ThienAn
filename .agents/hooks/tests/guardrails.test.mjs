@@ -182,6 +182,44 @@ test('Guardrails: Rule 19.58 & 19.91 - Chặn git reset --hard, git clean -fd v�
   assert.equal(allowedPush.status, 0);
 });
 
+test('Guardrails: Codex apply_patch - xét đường dẫn trong patch, không coi nội dung patch là lệnh shell', () => {
+  const runPatch = patch => spawnSync(process.execPath, [path.join(root, '.agents/hooks/guardrails.mjs')], {
+    input: JSON.stringify({ tool_name: 'apply_patch', tool_input: { command: patch } }),
+    encoding: 'utf8'
+  });
+
+  const blocked = runPatch('*** Begin Patch\n*** Add File: TA-ITS015-WEBVUE-V1.0/src/foo.test.ts\n+x\n*** End Patch\n');
+  assert.equal(blocked.status, 2);
+  assert.match(blocked.stderr, /rule-19.63-no-adhoc-tests/);
+
+  const allowedPatches = [
+    '*** Begin Patch\n*** Add File: tests/FE/views/sharedata/foo.test.ts\n+x\n*** End Patch\n',
+    '*** Begin Patch\n*** Update File: README.md\n@@\n-cũ\n+Chạy npm run build rồi git add . trước khi push\n*** End Patch\n'
+  ];
+  for (const patch of allowedPatches) {
+    const res = runPatch(patch);
+    assert.equal(res.status, 0, res.stderr);
+  }
+});
+
+test('Guardrails: Payload Gemini CLI (file_path tuyệt đối) và Kiro (path tương đối)', () => {
+  const cases = [
+    { tool_name: 'write_file', tool_input: { file_path: '/Users/dev/ThienAn/TA-ITS015-WEBVUE-V1.0/src/a.test.ts' }, status: 2 },
+    { tool_name: 'replace', tool_input: { file_path: '/Users/dev/ThienAn/tests/FE/views/a.test.ts' }, status: 0 },
+    { tool_name: 'run_shell_command', tool_input: { command: 'git add .' }, status: 2 },
+    { tool_name: 'fs_write', tool_input: { command: 'create', path: 'TA-ITS015-WEBVUE-V1.0/src/a.test.ts' }, status: 2 },
+    { tool_name: 'fs_write', tool_input: { command: 'create', path: 'tests/BE/Flows/ShareDataFlowTests.cs' }, status: 0 },
+    { tool_name: 'execute_bash', tool_input: { command: 'pnpm build' }, status: 2 }
+  ];
+  for (const { status, ...payload } of cases) {
+    const res = spawnSync(process.execPath, [path.join(root, '.agents/hooks/guardrails.mjs')], {
+      input: JSON.stringify(payload),
+      encoding: 'utf8'
+    });
+    assert.equal(res.status, status, `${payload.tool_name} ${JSON.stringify(payload.tool_input)}: ${res.stderr}`);
+  }
+});
+
 test('Prompt Submit Hook: Định hướng SSOT chuẩn JSON không chứa rule tĩnh', () => {
   const hookOutput = spawnSync(process.execPath, [path.join(root, '.agents/hooks/prompt-submit.mjs')], {
     encoding: 'utf8'
@@ -190,6 +228,18 @@ test('Prompt Submit Hook: Định hướng SSOT chuẩn JSON không chứa rule 
   const parsed = JSON.parse(hookOutput.stdout.trim());
   assert.equal(parsed.hookSpecificOutput?.hookEventName, 'UserPromptSubmit');
   assert.match(parsed.hookSpecificOutput?.additionalContext, /TUÂN THỦ SSOT TẠI \.agents/);
+});
+
+test('Prompt Submit Hook: --event đặt tên sự kiện (Gemini BeforeAgent), --text in chữ thường (Kiro)', () => {
+  const script = path.join(root, '.agents/hooks/prompt-submit.mjs');
+
+  const gemini = spawnSync(process.execPath, [script, '--event', 'BeforeAgent'], { encoding: 'utf8' });
+  assert.equal(gemini.status, 0);
+  assert.equal(JSON.parse(gemini.stdout).hookSpecificOutput?.hookEventName, 'BeforeAgent');
+
+  const kiro = spawnSync(process.execPath, [script, '--text'], { encoding: 'utf8' });
+  assert.equal(kiro.status, 0);
+  assert.match(kiro.stdout, /^TUÂN THỦ SSOT TẠI \.agents/);
 });
 
 test('Hooks: Hoạt động chính xác khi cwd là thư mục con với CLAUDE_PROJECT_DIR', () => {

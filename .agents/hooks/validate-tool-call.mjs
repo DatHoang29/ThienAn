@@ -78,7 +78,7 @@ async function main() {
   try {
     raw = await readStdin();
   } catch (error) {
-    console.error(`AG Kit hook warning: ${error.message}`);
+    console.error(`ThienAn hook warning: ${error.message}`);
     return 0;
   }
 
@@ -86,23 +86,21 @@ async function main() {
   try {
     payload = JSON.parse(raw || '{}');
   } catch {
-    console.error('AG Kit hook warning: Antigravity sent invalid JSON; allowing the call to avoid a runtime-wide lockout.');
+    console.error('ThienAn hook warning: invalid JSON payload; allowing the call to avoid a runtime-wide lockout.');
     return 0;
   }
 
+  // Cho qua thì không in gì ra stdout: Gemini CLI coi stdout không phải JSON là thông báo hệ thống, Kiro đưa stdout vào ngữ cảnh.
   const command = extractCommand(payload);
-  if (!command) {
-    console.log('AG Kit hook: no command payload detected; allowed.');
-    return 0;
-  }
+  if (!command) return 0;
 
   const result = evaluateCommand(command);
   if (!result.allowed) {
-    console.error(`BLOCKED by AG Kit (${result.rule}): ${result.reason}.`);
-    return 1;
+    console.error(`BLOCKED by ThienAn (${result.rule}): ${result.reason}.`);
+    // Exit code 2 chặn tool ở Claude Code, Codex, Gemini CLI, Kiro và Antigravity.
+    return 2;
   }
 
-  console.log('APPROVED by AG Kit: command passed the destructive-operation gate.');
   return 0;
 }
 

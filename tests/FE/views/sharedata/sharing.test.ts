@@ -30,6 +30,7 @@ const readMergedEnUs = () => ({
 const subscriptionTablePath = resolveWebVueSrc('views/sharedata/sharing/component/subscriptionTable.vue');
 const sharingIndexPath = resolveWebVueSrc('views/sharedata/sharing/index.vue');
 const editSubscriptionPath = resolveWebVueSrc('views/sharedata/sharing/component/editSubscription.vue');
+const tabPagePath = resolveWebVueSrc('views/tabPage/index.vue');
 const partnerValidatorPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData/Controllers/Partner/Validators/PartnerValidator.cs');
 
 test.describe('ShareData — Kiểm thử lỗi giao diện và logic (Sharing)', () => {
@@ -118,5 +119,20 @@ test.describe('ShareData — Kiểm thử lỗi giao diện và logic (Sharing)'
 				}
 			}
 		}
+	});
+
+	test('Bug — Chống lọt thông báo toast sang tab khác khi chuyển tab phân hệ (tabPage/index.vue)', async () => {
+		const tabPageContent = fs.readFileSync(tabPagePath, 'utf-8');
+
+		// 1. Phải import ElMessage từ element-plus
+		expect(tabPageContent).toMatch(/import\s*\{[^}]*ElMessage[^}]*\}\s*from\s*'element-plus'/);
+
+		// 2. Phải gọi ElMessage.closeAll() khi chuyển đổi activeTab
+		expect(tabPageContent).toContain('if (oldTab && newTab !== oldTab) ElMessage.closeAll()');
+
+		// 3. Phải dọn thông báo khi deactive hoặc unmount
+		expect(tabPageContent).toContain('onDeactivated(() => ElMessage.closeAll())');
+		expect(tabPageContent).toContain('onBeforeUnmount');
+		expect(tabPageContent).toMatch(/onBeforeUnmount\(\(\)\s*=>\s*\{[\s\S]*?ElMessage\.closeAll\(\)/);
 	});
 });
