@@ -36,8 +36,7 @@ DECLARE @ConfigTypeId NVARCHAR(64);
 
 SELECT @ConfigTypeId = ID
 FROM   dbo.SysConfigType
-WHERE  Code = N'sharedata_error_code'
-  AND  IsDelete IS NULL;
+WHERE  Code = N'sharedata_error_code';
 
 IF @ConfigTypeId IS NULL
 BEGIN

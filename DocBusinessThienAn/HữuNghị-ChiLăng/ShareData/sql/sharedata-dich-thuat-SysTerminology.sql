@@ -739,8 +739,8 @@ VALUES
      N'The cursor column formats its date/time in an unsortable way, so rows can be skipped. Use CONVERT(varchar(23), <time column>, 121).'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalCursorVariableMissing',
-     N'Câu có cột mốc nhưng không dùng biến mốc (nguồn Nối tiếp lần trước theo key) nên lượt nào cũng gửi lại cùng dữ liệu. So cột mốc với biến lastKey trong WHERE, hoặc bỏ cột mốc nếu muốn gửi toàn bộ.',
-     N'The query has a cursor column but uses no cursor variable (source: continue from last key), so every run resends the same data. Compare the cursor column with the lastKey variable in WHERE, or remove the cursor column to send everything.'),
+     N'Câu có cột mốc nhưng không dùng biến mốc (nguồn Theo Mốc đang chạy) nên lượt nào cũng gửi lại cùng dữ liệu. So cột mốc với biến lastKey trong WHERE, hoặc bỏ cột mốc nếu muốn gửi toàn bộ.',
+     N'The query has a cursor column but uses no cursor variable (source: From the running cursor), so every run resends the same data. Compare the cursor column with the lastKey variable in WHERE, or remove the cursor column to send everything.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalKeyFormulaInvalid',
      N'Cột mốc phải viết đúng công thức CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + ''_'' + ID, phần thời gian phải có CreateTime; viết khác thì có thể bỏ sót dòng.',

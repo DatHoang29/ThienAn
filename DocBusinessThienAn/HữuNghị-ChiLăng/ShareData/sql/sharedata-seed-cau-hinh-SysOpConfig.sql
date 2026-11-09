@@ -48,8 +48,6 @@ VALUES
      N'Chu kỳ vòng lặp quét nhận gói tin của Inbound Worker (giây, khoảng cho phép: 1–300).'),
     (N'tracking_poll_interval_sec', N'Chu kỳ quét Change Tracking (giây)', N'1', 12,
      N'Chu kỳ vòng lặp quét SQL Server Change Tracking của Tracking Worker (giây, khoảng cho phép: 1–60).'),
-    (N'outbound_max_pages_per_run', N'Số trang trích xuất tối đa mỗi lượt gửi', N'20', 20,
-     N'Số trang trích xuất tối đa mỗi lượt chạy của một đăng ký gửi (khoảng cho phép: 1–1000).'),
     (N'outbound_lock_budget_percent', N'Ngân sách thời gian giữ khóa gửi (%)', N'50', 21,
      N'Tỷ lệ ngân sách thời gian giữ khóa phân tán mỗi lượt gửi (%, khoảng cho phép: 10–90).'),
     (N'outbound_lock_min_sec', N'Thời gian giữ khóa gửi tối thiểu (giây)', N'300', 22,
@@ -163,7 +161,6 @@ OUTER APPLY (
     WHERE t.[Code] = N'sharedata_fe_config'
       AND d.[Code] = src.[Code]
       AND d.[IsDelete] IS NULL
-      AND t.[IsDelete] IS NULL
     ORDER BY d.[UpdateTime] DESC, d.[CreateTime] DESC
 ) oldFe
 WHERE NOT EXISTS (
