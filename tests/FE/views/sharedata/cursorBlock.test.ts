@@ -264,8 +264,10 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await blockRow(page, 'SHARED1').locator('.sd-cursor-set-btn').click();
         await expect(dialog).toBeVisible();
         await expect(dialog.locator('.el-dialog__header')).toContainText('Đặt Mốc đang chạy — Đối tác dùng mẫu chung');
+        await expect(dialog.locator('.el-dialog__footer .el-button')).toHaveCount(2);
+        await expect(dialog.locator('.el-dialog__footer')).not.toContainText('Đặt lại');
         await expect(dialog.locator('.sd-cursor-current')).toHaveText('Mốc đang chạy: 2026-10-28 08:00:00.000_k_1');
-        await expect(dialog.locator('.sd-cursor-start')).toContainText('để trống, gửi toàn bộ dữ liệu');
+        await expect(dialog.locator('.el-form-item')).toHaveCount(2);
         await expect(dialog.locator('.cvi-picker input')).toHaveValue('28/10/2026 08:00:00');
         await expect(confirmBtn).toBeDisabled();
         await expect(dialog.locator('.sd-cursor-effect')).toHaveCount(0);
@@ -399,6 +401,32 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
                 return [...new Set(texts.map((el) => getComputedStyle(el).color))];
             });
         expect(colors).toHaveLength(1);
+    });
+
+    /**
+     * Author: DatHQ
+     * Description: Hộp Đặt mốc với mốc đang chạy dài (ngày giờ kèm ID dạng GUID): mốc xuống dòng trong khung, đọc đủ chuỗi, hộp không có thanh cuộn ngang.
+     * Created date: 10/11/2026
+     */
+    test('8b. Hộp Đặt mốc: mốc dài (ngày giờ + GUID) xuống dòng trong khung, không cuộn ngang', async ({ page }) => {
+        const longKey = '2026-11-09 14:01:36.890_c29ede08-497b-4959-8ee9-88faf326c7dc';
+        await mockExtractSql(page, CURSOR_SQL);
+        await mockPartners(page, [{ partnerId: 'p_a', partnerCode: 'PC08', partnerName: 'Phòng Cảnh sát giao thông (PC08)', isCustom: false }]);
+        await mockVariables(page, (partnerId) => [pageSizeItem, keyItem(partnerId ? longKey : null)]);
+
+        await openSqlCenter(page, { width: 1366, height: 768 });
+        await blockRow(page, 'PC08').locator('.sd-cursor-set-btn').click({ timeout: 15_000 });
+        const dialog = page.locator('.sd-set-cursor-dialog');
+        await expect(dialog.locator('.sd-cursor-current')).toContainText(longKey);
+
+        const fit = await dialog.locator('.el-dialog__body').evaluate((body) => {
+            const tag = body.querySelector('.scd-tag-mono') as HTMLElement;
+            const bodyBox = body.getBoundingClientRect();
+            const tagBox = tag.getBoundingClientRect();
+            return { overflowX: body.scrollWidth - body.clientWidth, tagOutside: tagBox.right - bodyBox.right };
+        });
+        expect(fit.overflowX).toBeLessThanOrEqual(1);
+        expect(fit.tagOutside).toBeLessThanOrEqual(0);
     });
 
     /**

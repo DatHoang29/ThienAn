@@ -116,10 +116,6 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 			'lz.label.sharedataConnectionForm.bypassSsl',
 			'lz.label.sharedataConnectionForm.collapseAdvanced',
 			'lz.label.sharedataConnectionForm.collapseResponse',
-			'lz.label.sharedataConnectionForm.directoryPath',
-			'lz.label.sharedataConnectionForm.fileNamePattern',
-			'lz.label.sharedataConnectionForm.insertToken',
-			'lz.label.sharedataConnectionForm.samplePreview',
 			'lz.label.sharedataConnectionForm.remotePath',
 			'lz.label.sharedataConnectionForm.useSsl',
 			'lz.label.sharedataConnectionForm.bootstrapServers',
@@ -173,6 +169,14 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 			'lz.placeholder.sharedataConnectionForm.errorCodeField',
 			'lz.label.sharedataConnectionForm.ftpServerHint',
 			'lz.label.sharedataConnectionForm.enabled',
+			'lz.label.sharedataPartner.typeFile',
+			'lz.label.sharedataConnectionForm.directoryPath',
+			'lz.label.sharedataConnectionForm.directoryPathPlaceholder',
+			'lz.label.sharedataConnectionForm.fileNamePattern',
+			'lz.label.sharedataConnectionForm.fileNamePatternPlaceholder',
+			'lz.label.sharedataConnectionForm.insertToken',
+			'lz.label.sharedataConnectionForm.samplePreview',
+			'lz.label.sharedataConnectionForm.warnPatternMissingTokens',
 		];
 		for (const k of removedKeys) {
 			expect(viVn[k], `vi-vn.json không được còn key ${k}`).toBeUndefined();
@@ -371,12 +375,8 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		const connTypeSelect = dialog.locator('.el-form-item').filter({ hasText: 'Loại kênh kết nối' }).locator('.el-select');
 		await connTypeSelect.click();
 		const visibleOptions = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
-		await expect(visibleOptions).toHaveCount(4);
-		if (screenshotDir) {
-			await visibleOptions.filter({ hasText: 'Xuất tệp tin' }).click();
-			await dialog.screenshot({ path: path.join(screenshotDir, 'partner-file.png') });
-			await connTypeSelect.click();
-		}
+		// Dropdown Loại kênh kết nối có đúng 3 kênh: Dịch vụ WebAPI, Máy chủ FTP, Kafka
+		await expect(visibleOptions).toHaveText(['Dịch vụ WebAPI', 'Máy chủ FTP', 'Hàng đợi tin Kafka']);
 		await visibleOptions.filter({ hasText: 'Máy chủ FTP' }).click();
 
 		await expect(endpointInput).toBeHidden();

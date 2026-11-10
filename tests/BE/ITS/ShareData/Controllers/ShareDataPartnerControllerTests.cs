@@ -420,6 +420,48 @@ namespace Tests.ShareData.Controllers
             Assert.Null(inDb);
         }
 
+        /// <summary>
+        /// Description: Kênh tệp không cần địa chỉ, cổng nên thêm đối tác không nhập vẫn lưu; các kênh còn lại vẫn bắt buộc địa chỉ.
+        /// Created date: 10/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData(ConnectionType.File, true)]
+        [InlineData(ConnectionType.Api, false)]
+        [InlineData(ConnectionType.Ftp, false)]
+        [InlineData(ConnectionType.Kafka, false)]
+        public async Task AddPartner_WhenAddressAndPortEmpty_OnlyFileChannelSaves_Test(ConnectionType connectionType, bool expectSaved)
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var code = $"P_NOADDR_{unique}";
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = code,
+                Name = $"Partner {unique}",
+                ConnectionType = connectionType
+            };
+
+            // Act
+            var ex = await Record.ExceptionAsync(() => sp.CallApiAsync(input));
+
+            // Assert
+            var saved = await db.Queryable<ShareDataPartner>().FirstAsync(x => x.Code == code);
+            Assert.Equal(expectSaved, saved != null);
+            if (expectSaved)
+            {
+                Assert.Null(ex);
+                Assert.Null(saved!.Address);
+                Assert.Null(saved.Port);
+            }
+            else
+            {
+                var validation = Assert.IsType<ValidationException>(ex);
+                Assert.Contains(validation.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.Address));
+            }
+        }
+
         #endregion
     }
 }
