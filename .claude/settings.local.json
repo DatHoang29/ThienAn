@@ -21,6 +21,9 @@
       "mcp__mssql_test__describe_entities",
       "mcp__mssql_test__read_records",
       "mcp__mssql_test__aggregate_records",
+      "mcp__mssql_staging__describe_entities",
+      "mcp__mssql_staging__read_records",
+      "mcp__mssql_staging__aggregate_records",
       "Skill(update-config)",
       "Skill(update-config:*)"
     ],
