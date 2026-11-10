@@ -182,8 +182,8 @@ ORDER BY u.sortKey ASC
 
 Theo `bangiao/HUONG-DAN-CLONE-WORKER.md`.
 
-- [ ] **10.1** Tạo một dịch vụ `ShareDataWorker-A101`. **Thấy:** sau 1 phút vẫn `RUNNING`.
-- [ ] **10.2** Tạo đủ 4 dịch vụ chỉ gửi và 1 dịch vụ chỉ nhận. **Thấy:** cả 5 chạy ổn; đủ 4 đối tác có lượt gửi thành công, dữ liệu không lẫn nhau.
+- [ ] **10.1** Đăng ký và chạy 6 dịch vụ: `ShareDataWorker`, `ShareDataWorker_Inbound_1`, `ShareDataWorker_Outbound_1` đến `ShareDataWorker_Outbound_4`. **Thấy:** cả 6 `RUNNING`; trang **Giám sát dịch vụ** có 6 thẻ ShareData **Đang chạy**.
+- [ ] **10.2** Để các đăng ký gửi chạy. **Thấy:** các đối tác có lượt gửi thành công, dữ liệu không lẫn nhau; tệp đã gửi nằm trong `sharedata\send` của thư mục dịch vụ đã gửi.
 - [ ] **10.3** Khởi động lại một dịch vụ gửi. **Thấy:** gửi tiếp từ mốc, không gửi lại từ đầu.
 
 ## Không test tay được (đã có test tự động)

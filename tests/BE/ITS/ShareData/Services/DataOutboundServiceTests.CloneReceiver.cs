@@ -74,7 +74,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     p.Port = 80;
                     p.EndPointApiUrl = endpoint;
                 },
-                ConfigureSub = s => s.SendOnNewData = true
+                ConfigureSub = s =>
+                {
+                    s.SendOnNewData = true;
+                    s.SerialNbr = 1;
+                }
             };
             var (partner, outbound) = await SeedOutboundSubscription(db, seed);
 
@@ -338,8 +342,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var received = await ReceivedPacketsAsync(inboundDb, packet, partner);
                 var outbound = await db.Queryable<ShareDataSubscription>().InSingleAsync(partner.Outbound.ID);
                 var cursor = await GetCloneCursorAsync(db, packet, partner.Name);
+                var serials = received.Select(r => r.SerialNbr).Distinct().Count();
                 Assert.Equal(packet.RowCodes, rows);
                 Assert.Equal(3, received.Count);
+                Assert.Equal(3, serials);
                 Assert.All(received, r => Assert.Equal(BaseEnums.InboundProcessState.Done, r.ProcessState));
                 Assert.EndsWith(CursorEnd(packet, 5), cursor.LastKey);
                 Assert.Null(outbound.ProcessingUntil);

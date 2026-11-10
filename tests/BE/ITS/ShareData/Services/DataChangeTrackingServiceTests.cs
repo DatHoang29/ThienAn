@@ -1,11 +1,14 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using Tests.ShareData.Common;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
+using Modules.DataTransporter.Natsio.Infrastructure.Configuration;
+using Modules.DataTransporter.Natsio.Infrastructure.Handlers;
 using Modules.Integration.Delivery.Base.Helpers;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
@@ -2686,6 +2689,107 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
+        /// Author: DatHQ
+        /// Description: Dịch vụ khởi động lúc chưa nối được NATS (cổng NATS chưa mở): đăng ký lắng nghe vẫn được giữ lại.
+        ///              Khi NATS nối được thì tín hiệu có dữ liệu mới tới bên nhận và chạy luồng gửi thật, không phải khởi động lại dịch vụ.
+        /// Created date: 10/11/2026
+        /// </summary>
+        [Fact]
+        public async Task InitSubscribe_WhenNatsUnreachableAtStartup_ListensOnceNatsIsReachable_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+            var outboundLogger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
+            var natsLogger = scope.ServiceProvider.GetRequiredService<ILogger<DataNatsService>>();
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            const string packetCode = "103";
+            var eqId = $"EQ_LATE_{testId}";
+
+            await PrepareDatabase(db, outboundLogger, packetCode);
+            var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            var (_, sub) = await SeedOutboundSubscription(db, $"PTN_LATE_{testId}", $"SUB_LATE_{testId}", packetCode, s =>
+            {
+                s.SendOnNewData = true;
+                s.DebounceSec = null;
+                s.IntervalSeconds = 300;
+                s.LastTimeRun = now.AddMinutes(-5);
+                s.NextTimeRun = null;
+            });
+            var equipment = new TmsEquipment
+            {
+                ID = eqId,
+                Code = eqId,
+                KmNumber = 30,
+                MetNumber = 0
+            };
+            await db.Insertable(equipment).ExecuteCommandAsync();
+            var trafficRow = new TmsTrafficData
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                EquipmentId = eqId,
+                DetectTime = now,
+                Type = "BUS",
+                LicensePlate = $"29B-LT{testId}",
+                Speed = 60f,
+                Lane = "L1",
+                Direction = "EAST",
+                Location = $"KM30_{testId}",
+                CreateTime = now,
+                UpdateTime = now
+            };
+            await db.Insertable(trafficRow).ExecuteCommandAsync();
+
+            var brokerUrl = config["Nats:Url"];
+            var brokerUri = new Uri(brokerUrl!);
+            var relayPort = GetFreeTcpPort();
+            var uniqueSubject = $"ta.its.event.sharedata.newdata.late_{testId}";
+            var lateSettings = new Dictionary<string, string?>
+            {
+                ["Nats:Url"] = $"nats://127.0.0.1:{relayPort}",
+                ["Nats:RetryIntervalSeconds"] = "1",
+                ["Nats:NewDataSubject"] = uniqueSubject,
+                ["Nats:Subject"] = uniqueSubject
+            };
+            var lateConfig = new ConfigurationBuilder()
+                .AddConfiguration(config)
+                .AddInMemoryCollection(lateSettings)
+                .Build();
+            var hostNatsConfig = config.GetSection("Nats").Get<NatsRuntimeConfig>();
+            var outbound = CreateOutboundService(scope);
+            await NatsService.Instance.DisconnectAsync();
+            var transport = new TransportManager(lateConfig);
+            var listener = new DataNatsService(outbound, natsLogger, transport, lateConfig);
+            var connectTimeout = TimeSpan.FromSeconds(20);
+            var newDataSignal = new { PacketCode = packetCode };
+
+            // Act: dịch vụ khởi động khi cổng NATS chưa mở; sau đó cổng mở và có tín hiệu dữ liệu mới
+            await listener.InitSubscribe(CancellationToken.None);
+            var connectedAtStartup = transport.IsConnected;
+            var relay = new TcpRelay(relayPort, brokerUri.Host, brokerUri.Port);
+            var connectedAfterNatsUp = await WaitUntil(() => transport.IsConnected, connectTimeout);
+            var logs = new List<ShareDataActivityLog>();
+            var deadline = DateTime.UtcNow.AddSeconds(30);
+            while (transport.IsConnected && logs.Count == 0 && DateTime.UtcNow < deadline)
+            {
+                await transport.PublishAsync(uniqueSubject, newDataSignal);
+                await Task.Delay(500);
+                logs = await GetLogs(db, sub.ID);
+            }
+
+            // Trả kết nối NATS dùng chung của tiến trình test về broker thật trước khi kiểm tra kết quả
+            await transport.DisposeAsync();
+            relay.Dispose();
+            await NatsService.Instance.ConnectAsync(hostNatsConfig!);
+
+            // Assert
+            Assert.False(connectedAtStartup);
+            Assert.True(connectedAfterNatsUp);
+            Assert.Contains(logs, l => l.Success == BaseEnums.SuccessEnums.Success && l.RecordCount > 0);
+        }
+
+        /// <summary>
         /// Description: Kiểm thử cấu trúc bảng ShareDataSourceTable: Mỗi bảng nguồn có đúng 1 dòng cấu hình.
         ///              Hai lượt poll liên tiếp không sinh dòng mới, giữ nguyên ID và cập nhật UpdateTime.
         /// Created date: 27/09/2026
@@ -4420,6 +4524,61 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         #endregion
 
         #endregion
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Đường nối TCP từ một cổng cục bộ tới NATS broker thật, để dựng lại tình huống cổng NATS chưa mở lúc dịch vụ khởi động rồi mở sau.
+        /// Created date: 10/11/2026
+        /// </summary>
+        private sealed class TcpRelay : IDisposable
+        {
+            private readonly TcpListener _listener;
+            private readonly CancellationTokenSource _stop = new();
+            private readonly ConcurrentBag<TcpClient> _clients = new();
+
+            public TcpRelay(int port, string targetHost, int targetPort)
+            {
+                _listener = new TcpListener(IPAddress.Loopback, port);
+                _listener.Start();
+                _ = AcceptLoop(targetHost, targetPort);
+            }
+
+            private async Task AcceptLoop(string targetHost, int targetPort)
+            {
+                while (!_stop.IsCancellationRequested)
+                {
+                    var client = await _listener.AcceptTcpClientAsync(_stop.Token);
+                    var target = new TcpClient();
+                    _clients.Add(client);
+                    _clients.Add(target);
+                    await target.ConnectAsync(targetHost, targetPort, _stop.Token);
+                    var clientStream = client.GetStream();
+                    var targetStream = target.GetStream();
+                    _ = clientStream.CopyToAsync(targetStream, _stop.Token);
+                    _ = targetStream.CopyToAsync(clientStream, _stop.Token);
+                }
+            }
+
+            public void Dispose()
+            {
+                _stop.Cancel();
+                _listener.Stop();
+                foreach (var client in _clients)
+                {
+                    client.Dispose();
+                }
+            }
+        }
+
+        /// <summary>Cổng TCP cục bộ đang trống, chưa có tiến trình nào nghe.</summary>
+        private static int GetFreeTcpPort()
+        {
+            var probe = new TcpListener(IPAddress.Loopback, 0);
+            probe.Start();
+            var endpoint = (IPEndPoint)probe.LocalEndpoint;
+            probe.Stop();
+            return endpoint.Port;
+        }
 
         private static async Task<bool> WaitUntil(Func<bool> condition, TimeSpan timeout, int pollIntervalMs = 50)
         {

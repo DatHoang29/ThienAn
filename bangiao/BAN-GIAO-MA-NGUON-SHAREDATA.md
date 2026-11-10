@@ -2,8 +2,8 @@
 
 - **Bên giao:** Hoàng Quý Đạt, Nhân viên Phát triển phần mềm
 - **Bên nhận:** Trần Hồng Sơn, Phó phòng Phát triển Phần mềm
-- **Ngày lập:** 02/11/2026, cập nhật 05/11/2026
-- **Đối chiếu với:** Nhánh `fix/20261101-sharedata-ra-lai-tinh-nang` của `TA-ITS015-WEBAPI-V1.0` và `TA-ITS015-WEBVUE-V1.0`
+- **Ngày lập:** 02/11/2026, cập nhật 09/11/2026
+- **Đối chiếu với:** Nhánh `fix/20261106-sharedata-ra-lai-phan-he` của `TA-ITS015-WEBAPI-V1.0` và `TA-ITS015-WEBVUE-V1.0`
 - **Bản HTML:** [BAN-GIAO-MA-NGUON-SHAREDATA.html](BAN-GIAO-MA-NGUON-SHAREDATA.html)
 
 **Mục lục**
@@ -40,9 +40,9 @@
 ### Chạy và cấu hình Worker
 
 - **Chạy:** service `ShareDataWorker`. Khi phát triển dùng `dotnet run --project src/Services/ShareData/ShareDataWorker`.
-- **Tệp cấu hình:** `appsettings.json` gồm `ConnectionStrings:DefaultConnection`, `ConnectionStrings:InboundConnection`, `Nats:*`, `NasStorage:BasePath`. Tệp xác thực NATS: `Configuration/nats.creds`.
+- **Tệp cấu hình:** `appsettings.json` gồm `ConnectionStrings:DefaultConnection`, `ConnectionStrings:InboundConnection`, `Nats:*`, `FileStorage:BasePath`. Tệp xác thực NATS: `Configuration/nats.creds`.
 - **Tham số vận hành:** bảng `SysOpConfig` nhóm `sharedata_config`, xem [mục 8](#sd-cau-hinh).
-- **Chạy nhiều Worker:** `ShareData:Role` nhận `SendOnly`, `ReceiveOnly`, không khai thì chạy cả hai chiều. `ShareData:SelfPartnerCode` giới hạn Worker chỉ gửi đăng ký của đúng đối tác đó. Mỗi dịch vụ là một bản clone thư mục publish, khai riêng các khóa này trong `appsettings.json`.
+- **Chạy nhiều Worker:** `ShareData:Role` nhận `SendOnly`, `ReceiveOnly`, không khai thì chạy cả hai chiều. `ShareData:ServiceName` là tên dịch vụ Windows của từng bản, không khai thì `ShareDataWorker`. `ShareData:SelfPartnerCode` giới hạn Worker chỉ gửi đăng ký của đúng đối tác đó. Mỗi dịch vụ là một bản clone thư mục publish, khai riêng các khóa này cùng `Nats:ClientName`, `Heartbeat:Subject` trong `appsettings.json`; tệp đã gửi nằm trong thư mục của chính bản clone.
 
 <a id="sd-tong"></a>
 

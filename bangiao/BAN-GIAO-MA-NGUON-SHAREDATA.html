@@ -234,8 +234,8 @@ figcaption { margin-top: 10px; font-size: 14px; color: var(--muted); }
   <dl class="meta">
     <dt>Bên giao</dt><dd>Hoàng Quý Đạt, Nhân viên Phát triển phần mềm</dd>
     <dt>Bên nhận</dt><dd>Trần Hồng Sơn, Phó phòng Phát triển Phần mềm</dd>
-    <dt>Ngày lập</dt><dd>02/11/2026, cập nhật 06/11/2026</dd>
-    <dt>Đối chiếu với</dt><dd>Nhánh <code>fix/20261101-sharedata-ra-lai-tinh-nang</code> của <code>TA-ITS015-WEBAPI-V1.0</code> và <code>TA-ITS015-WEBVUE-V1.0</code></dd>
+    <dt>Ngày lập</dt><dd>02/11/2026, cập nhật 09/11/2026</dd>
+    <dt>Đối chiếu với</dt><dd>Nhánh <code>fix/20261106-sharedata-ra-lai-phan-he</code> của <code>TA-ITS015-WEBAPI-V1.0</code> và <code>TA-ITS015-WEBVUE-V1.0</code></dd>
   </dl>
 </header>
 
@@ -256,9 +256,9 @@ figcaption { margin-top: 10px; font-size: 14px; color: var(--muted); }
 <h3>Chạy và cấu hình Worker</h3>
 <ul>
   <li><strong>Chạy:</strong> service <code>ShareDataWorker</code>. Khi phát triển dùng <code>dotnet run --project src/Services/ShareData/ShareDataWorker</code>.</li>
-  <li><strong>Tệp cấu hình:</strong> <code>appsettings.json</code> gồm <code>ConnectionStrings:DefaultConnection</code>, <code>ConnectionStrings:InboundConnection</code>, <code>Nats:*</code>, <code>NasStorage:BasePath</code>. Tệp xác thực NATS: <code>Configuration/nats.creds</code>.</li>
+  <li><strong>Tệp cấu hình:</strong> <code>appsettings.json</code> gồm <code>ConnectionStrings:DefaultConnection</code>, <code>ConnectionStrings:InboundConnection</code>, <code>Nats:*</code>, <code>FileStorage:BasePath</code>. Tệp xác thực NATS: <code>Configuration/nats.creds</code>.</li>
   <li><strong>Tham số vận hành:</strong> bảng <code>SysOpConfig</code> nhóm <code>sharedata_config</code>, xem <a href="#sd-cau-hinh">mục 8</a>.</li>
-  <li><strong>Chạy nhiều Worker:</strong> <code>ShareData:Role</code> nhận <code>SendOnly</code>, <code>ReceiveOnly</code>, không khai thì chạy cả hai chiều. <code>ShareData:SelfPartnerCode</code> giới hạn Worker chỉ gửi đăng ký của đúng đối tác đó. Mỗi dịch vụ là một bản clone thư mục publish, khai riêng các khóa này trong <code>appsettings.json</code>.</li>
+  <li><strong>Chạy nhiều Worker:</strong> <code>ShareData:Role</code> nhận <code>SendOnly</code>, <code>ReceiveOnly</code>, không khai thì chạy cả hai chiều. <code>ShareData:ServiceName</code> là tên dịch vụ Windows của từng bản, không khai thì <code>ShareDataWorker</code>. <code>ShareData:SelfPartnerCode</code> giới hạn Worker chỉ gửi đăng ký của đúng đối tác đó. Mỗi dịch vụ là một bản clone thư mục publish, khai riêng các khóa này cùng <code>Nats:ClientName</code>, <code>Heartbeat:Subject</code> trong <code>appsettings.json</code>; tệp đã gửi nằm trong thư mục của chính bản clone.</li>
 </ul>
 </section>
 
@@ -702,7 +702,7 @@ ORDER BY __lastKey ASC</code></pre>
     <span class="eyebrow">Dành cho SuperAdmin · nhóm menu Chia sẻ dữ liệu</span>
     <h3>5.7 Vận hành trên giao diện</h3>
     <p class="prose muted">Xem mốc đang chạy, <span class="ui">Đặt mốc</span>, <span class="ui">Đặt lại</span> làm ở khối <span class="ui">4. Mốc đang chạy</span> của màn <span class="ui">Cấu hình gói tin</span> (chạy tệp seed menu số 13 một lần để gỡ tab Mốc gửi cũ).</p>
-    <p class="prose">Toàn bộ làm trên màn hình, không cần chạy tệp SQL. Lần đầu cấu hình một gói đi theo thứ tự các bước dưới đây. Các việc khi đã chạy (theo dõi, đặt mốc, sửa câu) nằm ở các mục sau.</p>
+    <p class="prose">Sau khi đã chạy các tệp seed theo thứ tự ở <code>DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql/README.md</code>, mọi thao tác cấu hình làm trên màn hình, không cần chạy thêm tệp SQL. Kịch bản test bằng tay từng bước: <code>DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/doc/03-kich-ban-test-noi-duoi.md</code>. Lần đầu cấu hình một gói đi theo thứ tự các bước dưới đây. Các việc khi đã chạy (theo dõi, đặt mốc, sửa câu) nằm ở các mục sau.</p>
 
     <div class="note">
       <h5>Thử trước trên một đối tác thử</h5>
@@ -1007,7 +1007,7 @@ ORDER BY u.sortKey ASC</code></pre>
 
     <h4>Rủi ro</h4>
     <ul class="tight prose">
-      <li>Dòng được ghi vào bảng nguồn với thời gian cũ hơn mốc (ví dụ mốc 10:00, lúc 10:05 ghi dòng có <code>UpdateTime</code> 09:30) không được gửi, vì câu chỉ lấy dòng lớn hơn mốc. Muốn gửi thì tắt đăng ký, vào khối <span class="ui">4. Mốc đang chạy</span> đặt mốc về trước thời gian của dòng đó; đối tác nhận lại từ đó trở đi.</li>
+      <li>Dòng được ghi vào bảng nguồn với thời gian cũ hơn mốc (ví dụ mốc 10:00, lúc 10:05 ghi dòng có <code>UpdateTime</code> 09:30) không được gửi, vì câu chỉ lấy dòng lớn hơn mốc. <code>UpdateTime</code> là giờ ghi nên dòng như vậy là dữ liệu sai; giữ nguyên cách xử lý này. Cần gửi thì tắt đăng ký, vào khối <span class="ui">4. Mốc đang chạy</span> đặt mốc về trước thời gian của dòng đó; đối tác nhận lại từ đó trở đi.</li>
       <li>Triển khai WebAPI trước Worker: các cột <code>CursorKey</code>, <code>CursorSignature</code> và chỉ mục 3 cột của <code>ShareDataLastSend</code> do WebAPI tạo khi khởi động.</li>
       <li>Lưu câu đổi công thức rồi bật lại ngay thì đối tác nhận lại dữ liệu từ Mốc bắt đầu. Dùng <span class="ui">Đặt mốc</span> trước khi bật, và nhắc phía nhận chống trùng. Câu đổi công thức bằng tệp <code>.sql</code> thì không có hộp xác nhận; chỉ có cảnh báo ESH-1308 sau khi Worker đã đặt lại mốc.</li>
       <li>Câu đã lưu từ trước khi có luật chặn <code>UpdateTime</code> trơn và khóa chỉ có ngày giờ vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình: dòng mới thêm chưa được gửi cho tới khi bấm <span class="ui">Sửa câu</span>. Sửa xong là đổi công thức cột mốc nên có hộp xác nhận, đối tác nhận lại từ Mốc bắt đầu nếu không <span class="ui">Đặt mốc</span> trước.</li>
@@ -1066,7 +1066,7 @@ ORDER BY u.sortKey ASC</code></pre>
           </tr>
           <tr>
             <td>PA1: ghép chuỗi trong câu SQL chính<span class="ref">B 04:09–05:46 · B 13:49–14:09</span></td>
-            <td><strong>Đang dùng.</strong> Câu SQL tự ghép thời gian và khóa thành một chuỗi <code>__lastKey</code>, dùng chuỗi đó ở cả <code>WHERE</code> và <code>ORDER BY</code>; Worker chỉ đọc chuỗi ở dòng cuối. 7 câu mẫu nối đuôi viết theo cách này. Đổi lại phải đọc cả bảng mỗi lượt, tối ưu để sau.</td>
+            <td><strong>Đang dùng.</strong> Câu SQL tự ghép thời gian và khóa thành một chuỗi <code>__lastKey</code>, dùng chuỗi đó ở cả <code>WHERE</code> và <code>ORDER BY</code>; Worker chỉ đọc chuỗi ở dòng cuối. 7 câu mẫu nối đuôi viết theo cách này. Đổi lại phải đọc cả bảng mỗi lượt.</td>
             <td><span class="tag ok">Đã chọn</span><span class="ref">sếp chốt 02/11</span></td>
           </tr>
           <tr>

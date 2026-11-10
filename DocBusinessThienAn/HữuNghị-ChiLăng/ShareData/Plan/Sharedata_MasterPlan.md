@@ -221,6 +221,7 @@
   - Chạy dạng dịch vụ Windows, `FileStorage:BasePath` tương đối tính theo thư mục chứa bản clone nên tệp đã gửi nằm trong `sharedata/send` của chính thư mục dịch vụ đó (`ProcessSubscriptions_WhenCloneRunsAsService_SavesFilesInsideCloneFolder_Test`).
   - 6 dịch vụ chạy cùng lúc, 5 dịch vụ cùng gửi và 2 dịch vụ cùng nhận: mỗi đối tác ghi đủ dòng đúng một lần (`ProcessSubscriptions_WhenBothServiceRunsWithInboundAndOutboundClones_EachPartnerRowsWrittenOnce_Test`). Hạn chế còn lại: hai dịch vụ cùng nhận thì thứ tự ghi giữa các gói của cùng một đối tác không được bảo đảm (xem SV-4), cần đúng thứ tự thì chỉ chạy một dịch vụ nhận.
   - Tên dịch vụ theo cấu hình: `UseConfiguredServiceName_WhenHostBuilt_SetsWindowsServiceNameFromConfiguration_Test` (`WorkerExtensionsTests`).
+  - NATS: bản giao nối NATS qua địa chỉ mạng nội bộ của máy chủ. Dịch vụ khởi động lúc chưa nối được NATS vẫn giữ đăng ký lắng nghe, nối được là tự nhận tín hiệu có dữ liệu mới, không phải khởi động lại dịch vụ (`InitSubscribe_WhenNatsUnreachableAtStartup_ListensOnceNatsIsReachable_Test` trong `DataChangeTrackingServiceTests`).
 - **Kết quả chạy 5 tiến trình thật:** Chưa chạy thực tế trên máy chủ Windows / CSDL dùng chung `10.10.8.30` trong đợt sửa mã ngày 02/11/2026 (môi trường phát triển macOS chỉ chạy bộ kiểm thử xUnit trên SQL Server local). Sẽ bổ sung kết quả sau khi dựng 5 service theo hướng dẫn trên.
 
 ### SV-6. Đo tải & rủi ro nghẽn CSDL — ⏸️ Chưa cần (chốt 02/11/2026)
