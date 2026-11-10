@@ -60,7 +60,7 @@ Kho tài liệu nghiệp vụ, đặc tả kỹ thuật và mapping gói tin c�
 | `sql/` | Kịch bản CSDL (`.sql`) nội bộ của phân hệ ShareData | Rule 16 |
 | `Plan/` | 🔴 `Sharedata_MasterPlan.md` — **sổ theo dõi task duy nhất** | rule 19.24 |
 | `Prompt/` | Prompt thực thi từng bước | rule 13 |
-| `KiemThu/` | 🧪 **Kiểm thử & nghiệm thu** — nhật ký lỗi của QA, biểu mẫu F16, ảnh chụp màn hình từng issue | ⛔ Tách bạch khỏi `doc/`, ⛔ không trộn vào Tier Table nghiệp vụ |
+| `KiemThu/` | 🧪 **Kiểm thử & nghiệm thu** — ảnh chụp màn hình từng issue của biểu mẫu F16 (bản chép chữ nhật ký lỗi đã xóa 09/11/2026, xem `KiemThu/README.md`) | ⛔ Tách bạch khỏi `doc/`, ⛔ không trộn vào Tier Table nghiệp vụ |
 | `_source/` | Bản gốc Tier C (xlsx, pdf) — 👤 human-only | rule 16 |
 
 📌 Điểm vào của `KiemThu/`: [`KiemThu/README.md`](KiemThu/README.md).

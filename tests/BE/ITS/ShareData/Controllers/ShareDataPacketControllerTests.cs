@@ -899,7 +899,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Status = BaseEnums.StatusEnum.Enable
         }).ExecuteCommandAsync();
 
-        // Lưu bộ biến: @pageSize có nguồn 'lastRunTime' (DataType = DateTime) bị Backend từ chối ngay
+        // Lưu bộ biến: @pageSize là giá trị nhập kiểu DateTime bị Backend từ chối ngay
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
         {
             PacketCode = packetCode,
@@ -909,8 +909,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
                 {
                     Code = "pageSize",
                     DataType = ShareDataConst.SqlVariableTypeDateTime,
-                    ValueKind = ShareDataConst.SqlVariableKindBuiltin,
-                    Value = ShareDataConst.SqlVariableSourceLastRunTime
+                    ValueKind = ShareDataConst.SqlVariableKindConst,
+                    Value = "2026-01-01"
                 }
             ]
         }));
@@ -1796,42 +1796,33 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             PacketCode = packet.Code!,
             Items =
             [
-                BuiltinVar("@since", "", "LASTRUNTIME"),
-                BuiltinVar("afterKey", ShareDataConst.SqlVariableTypeDateTime, "lastkey"),
-                BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, "startofyear"),
-                BuiltinVar("pc", "", "partnercode"),
+                BuiltinVar("@afterKey", ShareDataConst.SqlVariableTypeDateTime, "LASTKEY"),
                 ConstVar("@pageSize", "int", " 500 "),
                 ConstVar("minRate", "decimal", "1.25"),
                 ConstVar("tag", "string", "ACTIVE")
             ]
         });
 
-        Assert.Equal(["since", "afterKey", "yearStart", "pc", "pageSize", "minRate", "tag"], saved.Items.Select(i => i.Code).ToArray());
+        Assert.Equal(["afterKey", "pageSize", "minRate", "tag"], saved.Items.Select(i => i.Code).ToArray());
         Assert.All(saved.Items, i => Assert.Equal(ShareDataConst.SqlVariableScopeCommon, i.Scope));
         Assert.Equal(
             [
-                ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableKindBuiltin,
-                ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableKindBuiltin,
+                ShareDataConst.SqlVariableKindBuiltin,
                 ShareDataConst.SqlVariableKindConst, ShareDataConst.SqlVariableKindConst, ShareDataConst.SqlVariableKindConst
             ],
             saved.Items.Select(i => i.ValueKind).ToArray());
         Assert.Equal(
-            [
-                ShareDataConst.SqlVariableSourceLastRunTime, ShareDataConst.SqlVariableSourceLastKey,
-                ShareDataConst.SqlVariableSourceStartOfYear, ShareDataConst.SqlVariableSourcePartnerCode,
-                "500", "1.25", "ACTIVE"
-            ],
+            [ShareDataConst.SqlVariableSourceLastKey, "500", "1.25", "ACTIVE"],
             saved.Items.Select(i => i.Value ?? string.Empty).ToArray());
         Assert.Equal(
             [
-                ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableTypeString,
-                ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableTypeString,
+                ShareDataConst.SqlVariableTypeString,
                 ShareDataConst.SqlVariableTypeInt, ShareDataConst.SqlVariableTypeDecimal, ShareDataConst.SqlVariableTypeString
             ],
             saved.Items.Select(i => i.DataType).ToArray());
 
         var read = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code! });
-        Assert.Equal(7, read.Items.Count);
+        Assert.Equal(4, read.Items.Count);
     }
 
     /// <summary>
@@ -1843,7 +1834,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [Fact]
     public async Task PartnerSqlVariables_FollowPartnerSql_CopiedOnCreateIndependentAndRemovedOnReset_Test()
     {
-        // Arrange: mẫu chung có biến @yearStart
+        // Arrange: mẫu chung có biến @fromDate
         SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -1852,33 +1843,33 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
         {
             PacketCode = packet.Code!,
-            Items = [BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceStartOfYear)]
+            Items = [ConstVar("fromDate", ShareDataConst.SqlVariableTypeString, "2026-01-01")]
         });
 
-        // Act 1: tạo SQL riêng dùng @yearStart (chép từ mẫu chung)
+        // Act 1: tạo SQL riêng dùng @fromDate (chép từ mẫu chung)
         await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
         {
             PartnerId = partner.ID!,
             PacketCode = packet.Code!,
-            ExtractSql = "SELECT ID AS zoneId FROM TmsZone WHERE CreateTime >= @yearStart"
+            ExtractSql = "SELECT ID AS zoneId FROM TmsZone WHERE CreateTime >= @fromDate"
         });
 
         // Assert 1: đối tác có bộ biến riêng chép từ mẫu chung
         var partnerView = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partner.ID });
-        Assert.Equal(ShareDataConst.SqlVariableSourceStartOfYear, Assert.Single(partnerView.Items, i => i.Code == "yearStart").Value);
+        Assert.Equal("2026-01-01", Assert.Single(partnerView.Items, i => i.Code == "fromDate").Value);
         Assert.Single(await ShareDataSqlSeed.GetVariablesAsync(db, packet.ID, partner.ID));
 
-        // Act 2: đổi biến của đối tác sang nguồn khác (Lần chạy trước)
+        // Act 2: đổi giá trị biến của đối tác
         await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
         {
             PacketCode = packet.Code!,
             PartnerId = partner.ID,
-            Items = [BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceLastRunTime)]
+            Items = [ConstVar("fromDate", ShareDataConst.SqlVariableTypeString, "2027-01-01")]
         });
 
-        // Assert 2: mẫu chung giữ nguyên nguồn "Đầu năm"
+        // Assert 2: mẫu chung giữ nguyên giá trị cũ
         var common = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code! });
-        Assert.Equal(ShareDataConst.SqlVariableSourceStartOfYear, Assert.Single(common.Items).Value);
+        Assert.Equal("2026-01-01", Assert.Single(common.Items).Value);
 
         // Act 3: đối tác lưu SQL riêng không còn dùng biến, bộ biến rỗng gửi kèm câu (như Lưu & phân tích)
         await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
@@ -1913,7 +1904,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
 
-        var input = new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [BuiltinVar("since", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceLastRunTime)] };
+        var input = new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [ConstVar("since", ShareDataConst.SqlVariableTypeString, "2026-01-01")] };
         await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(input);
         await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [] });
         var again = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(input);
@@ -1922,24 +1913,28 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Description: Các dòng không hợp lệ đều bị từ chối: tên sai, nguồn lạ (kể cả now và lastTime đã bỏ) hoặc để trống, cách gán khác nguồn hệ thống (hằng số đã bỏ)
+    /// Description: Các dòng không hợp lệ đều bị từ chối: tên sai, nguồn lạ (kể cả now, lastTime, lastRunTime, startOfYear, partnerCode đã bỏ) hoặc để trống,
+    ///              cách gán khác nguồn hệ thống và giá trị nhập
     /// Created date: 24/10/2026
-    /// Modified date: 03/11/2026
+    /// Modified date: 09/11/2026
     /// </summary>
     [Theory]
-    [InlineData("1abc", "DateTime", "Builtin", "lastRunTime")]
+    [InlineData("1abc", "String", "Builtin", "lastKey")]
     [InlineData("since", "DateTime", "Builtin", "lastTime")]
-    [InlineData("from date", "DateTime", "Builtin", "lastRunTime")]
+    [InlineData("from date", "String", "Builtin", "lastKey")]
     [InlineData("yearStart", "DateTime", "Builtin", "tenant")]
     [InlineData("runAt", "DateTime", "Builtin", "now")]
     [InlineData("runAt", "DateTime", "Builtin", "")]
+    [InlineData("prevRun", "DateTime", "Builtin", "lastRunTime")]
+    [InlineData("yearStart", "DateTime", "Builtin", "startOfYear")]
+    [InlineData("pc", "String", "Builtin", "partnerCode")]
     [InlineData("pageSize", "Int", "Const", "abc")]
     [InlineData("pageSize", "Int", "Const", "0")]
-    [InlineData("pageSize", "DateTime", "Builtin", "lastRunTime")]
+    [InlineData("pageSize", "String", "Builtin", "lastKey")]
     [InlineData("rate", "Decimal", "Const", "not-a-decimal")]
     [InlineData("tag", "String", "Const", "   ")]
     [InlineData("dt", "DateTime", "Const", "2026-01-01")]
-    [InlineData("prevRun", "DateTime", "Manual", "lastRunTime")]
+    [InlineData("afterKey", "String", "Manual", "lastKey")]
     public async Task UpdateSqlVariables_WhenItemInvalid_ThrowsAndSavesNothing_Test(string code, string dataType, string valueKind, string value)
     {
         SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
@@ -1973,7 +1968,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
         {
             PacketCode = packet.Code!,
-            Items = [BuiltinVar("since", "DateTime", "startOfYear"), BuiltinVar("SINCE", "DateTime", "lastRunTime")]
+            Items = [ConstVar("since", "String", "2026-01-01"), ConstVar("SINCE", "String", "2027-01-01")]
         }));
     }
 
@@ -2020,7 +2015,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             {
                 PacketCode = packet.Code!,
                 PartnerId = declaredAt == "partner" ? partner.ID : null,
-                Items = [BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceStartOfYear)]
+                Items = [ConstVar("yearStart", ShareDataConst.SqlVariableTypeString, "2026-01-01")]
             });
         }
         const string sql = "SELECT ID AS zoneId FROM TmsZone WHERE CreateTime >= @yearStart";
@@ -4355,7 +4350,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
             {
                 PacketCode = packet.Code!,
-                Items = [BuiltinVar("since", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceLastRunTime)]
+                Items = [ConstVar("since", ShareDataConst.SqlVariableTypeString, "2026-01-01")]
             });
         }
         const string sql = "SELECT TOP 10 ID AS zoneId, UpdateTime AS dataTime FROM TmsZone WHERE @since IS NULL OR UpdateTime > @since";
@@ -4940,7 +4935,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         {
             PacketCode = packet.Code!,
             PartnerId = partnerId,
-            Items = [BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceStartOfYear)]
+            Items = [ConstVar("yearStart", ShareDataConst.SqlVariableTypeString, "2026-01-01")]
         });
 
         // Act
@@ -4980,7 +4975,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
         {
             PacketCode = packet.Code!,
-            Items = [BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceStartOfYear)]
+            Items = [ConstVar("yearStart", ShareDataConst.SqlVariableTypeString, "2026-01-01")]
         });
         await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
@@ -5165,9 +5160,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
                 new PacketSqlVariableItemInput
                 {
                     Code = "since",
-                    DataType = ShareDataConst.SqlVariableTypeDateTime,
-                    ValueKind = ShareDataConst.SqlVariableKindBuiltin,
-                    Value = ShareDataConst.SqlVariableSourceLastRunTime
+                    DataType = ShareDataConst.SqlVariableTypeString,
+                    ValueKind = ShareDataConst.SqlVariableKindConst,
+                    Value = "2026-01-01"
                 },
                 new PacketSqlVariableItemInput
                 {

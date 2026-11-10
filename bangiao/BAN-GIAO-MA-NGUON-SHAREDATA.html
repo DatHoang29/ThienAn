@@ -338,7 +338,7 @@ figcaption { margin-top: 10px; font-size: 14px; color: var(--muted); }
   <thead><tr><th>Bước</th><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
   <tbody>
     <tr><td class="step">1</td><td class="fn"><code>ProcessSubscriptions()</code></td><td class="file">DataOutboundService.cs</td><td>Chọn các đăng ký đến hạn. Có khai <code>ShareData:SelfPartnerCode</code> thì chỉ lấy đăng ký của đối tác đó.</td></tr>
-    <tr><td class="step">2</td><td class="fn"><code>ExportSubscription</code></td><td class="file">DataOutboundService.cs</td><td>Chiếm khóa qua <code>ProcessingUntil</code>, luôn nhả ở <code>ReleaseLock</code>. Câu nối đuôi có giới hạn dòng thì chạy nhiều trang một lượt, tối đa <code>OutboundMaxPagesPerRun</code>.</td></tr>
+    <tr><td class="step">2</td><td class="fn"><code>ExportSubscription</code></td><td class="file">DataOutboundService.cs</td><td>Chiếm khóa qua <code>ProcessingUntil</code>, luôn nhả ở <code>ReleaseLock</code>. Mỗi lượt gửi đúng một trang theo <code>@pageSize</code> (từ 08/11/2026), trang sau gửi ở lượt sau.</td></tr>
     <tr><td class="step">3</td><td class="fn"><code>GetExportConfig</code>, <code>ReadCursorSnapshot</code>, <code>GetLastSend</code>, <code>GetGroupCursors</code></td><td class="file">DataOutboundService.cs</td><td>Đọc cấu hình và mốc của lượt</td></tr>
     <tr><td class="step">4</td><td class="fn"><code>ExportPage</code></td><td class="file">DataOutboundService.cs</td><td>Một trang: trích xuất, ánh xạ, gửi, chốt mốc</td></tr>
     <tr><td class="step">5</td><td class="fn"><code>Extract</code>, <code>ExecuteDynamicQuery</code></td><td class="file">DataOutboundExtractionProcess.cs</td><td>Chạy câu SQL, đọc cột <code>__lastKey</code> của trang để làm mốc</td></tr>
@@ -597,9 +597,6 @@ ORDER BY __lastKey ASC</code></pre>
           <line class="d-line" x1="780" y1="300" x2="780" y2="348" marker-end="url(#ah)"></line>
           <text class="d-lab" x="788" y="328">mốc dòng cuối</text>
 
-          <path class="d-line" d="M660,262 H636 V178 H658" marker-end="url(#ah)"></path>
-          <text class="d-lab" x="628" y="220" text-anchor="middle" transform="rotate(-90 628 220)">trang kế</text>
-
           <path class="d-loop" d="M900,380 H926 V70 H902" marker-end="url(#ah)"></path>
           <text class="d-lab-acc" x="940" y="225" text-anchor="middle" transform="rotate(90 940 225)">lượt sau đọc lại</text>
         </svg>
@@ -614,7 +611,7 @@ ORDER BY __lastKey ASC</code></pre>
       <li>Tính chữ ký công thức cột mốc của câu đang chạy, riêng từng nhóm. Khác chữ ký đã lưu thì bỏ mốc cũ của nhóm đó, gửi lại từ Mốc bắt đầu và ghi cảnh báo ESH-1308.</li>
       <li>Chạy câu với <code>@lastKey</code>; mốc trống thì lấy Mốc bắt đầu của biến. Lấy một trang <code>TOP (@pageSize)</code>.</li>
       <li>Gửi trang cho đối tác. Thành công thì so mốc trong bảng với bản chụp: giống thì ghi mốc dòng cuối, trong giao dịch, chỉ cho mốc tiến; khác (người dùng vừa đặt mốc hay đặt lại) thì không ghi, dừng lượt.</li>
-      <li>Lặp trang kế cho tới khi hết dữ liệu, đủ <code>OutboundMaxPagesPerRun</code> trang hoặc hết thời gian khóa được cấp.</li>
+      <li>Nhả khóa, kết thúc lượt. Mỗi lượt chỉ gửi một trang (từ 08/11/2026); trang kế gửi ở lượt sau, từ mốc vừa ghi. Muốn gửi nhiều hơn mỗi lượt thì tăng <code>@pageSize</code>.</li>
     </ol>
   </section>
 
@@ -639,6 +636,7 @@ ORDER BY __lastKey ASC</code></pre>
   </tbody>
 </table></div>
 <p>Khi đổi giữa mẫu chung và cấu hình riêng (phải tắt đăng ký gửi của đối tác): mốc gắn với đối tác và gói, không gắn với câu SQL, nên tạo cấu hình riêng thì mốc cũ vẫn đi theo. Chỉ khi công thức cột mốc khác với câu đối tác đang chạy thì mốc mới bị xóa (<code>FindCursorResets</code>, <code>ResetCursor</code>). Khác công thức tính cả đổi bảng nguồn của cột mốc, kể cả khi công thức nằm trong câu con hoặc CTE (<code>GetCursorIdentity</code>).</p>
+<p>Giới hạn: phần so này chỉ chạy khi lưu qua giao diện hoặc API. Worker (<code>GetLastSend</code>, <code>GetGroupCursors</code>) chỉ so chữ ký lưu kèm mốc (<code>CursorSignature</code>). Câu nạp thẳng bằng tệp <code>.sql</code> hoặc sửa tay trong CSDL mà chỉ đổi bảng nguồn, hoặc đổi công thức trong câu con mà cột <code>__lastKey</code> ở <code>SELECT</code> ngoài cùng giữ nguyên chữ, thì Worker không nhận ra: đi tiếp với mốc cũ (có thể sót hoặc gửi lại dòng), không ghi ESH-1308. Cách xử lý: tắt đăng ký, rồi Đặt lại hoặc Đặt mốc ở khối 4. Mốc đang chạy.</p>
 <div class="table-wrap"><table>
   <thead><tr><th>Thao tác</th><th>Công thức cột mốc giống</th><th>Công thức cột mốc khác</th></tr></thead>
   <tbody>
@@ -665,7 +663,7 @@ ORDER BY __lastKey ASC</code></pre>
     <tr><td class="fn"><code>IsIncrementalSql</code>, <code>ValidateIncrementalStructure</code>, <code>ValidateDefaultCursor</code>, <code>ValidateCursorGroups</code>, <code>ValidateGroupOrder</code>, <code>ValidateCursorFilter</code>, <code>HasKeyFilter</code></td><td class="file">SqlValidatorHelper.cs</td><td>Từ chối câu chắc chắn làm mất dòng. Comment ở <code>ValidateCursorFilter</code> liệt kê đủ các dạng WHERE được chấp nhận, nên đọc trước khi sửa.</td></tr>
     <tr><td class="fn"><code>ValidateCursorTime</code>, <code>BareUpdateTimeCursor</code>, <code>UnsortableDateCursor</code>, <code>InvalidFormulaCursor</code>, <code>HasNonEmptyIdKey</code>, <code>HasRowSkippingOffset</code>, <code>SharesCursorAcrossSources</code>, <code>HasInnerTopOffCursor</code>, <code>InclusiveCursorColumn</code></td><td class="file">SqlValidatorHelper.cs</td><td>Chỉ gọi khi lưu qua API: từ chối cột mốc dùng <code>UpdateTime</code> trơn (trừ câu có nhánh <code>UpdateTime IS NULL</code> như mẫu hai nhóm), cột mốc chỉ có ngày giờ, ghép ngày giờ sai định dạng, khác công thức PA1, phần thời gian không có <code>CreateTime</code>, phần khóa không phải cột <code>ID</code> luôn có giá trị, có <code>OFFSET</code> khác 0, gộp <code>UNION</code> nhiều nguồn dùng chung một mốc, câu con có <code>TOP</code> sắp theo cột khác cột mốc, và so đúng biểu thức cột mốc bằng <code>&gt;=</code>. Câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình qua <code>FindCursorRisks</code>.</td></tr>
 <tr><td class="fn"><code>ValidateCursorColumnUsed</code></td><td class="file">SqlValidatorHelper.cs</td><td>Gọi khi lưu câu và khi đổi nguồn biến: từ chối câu có cột mốc mà không dùng biến mốc. Câu đã lưu từ trước vẫn gửi như câu gửi toàn bộ, không ghi mốc.</td></tr>
-    <tr><td class="fn"><code>GetCursorSignature</code>, <code>GetCursorIdentity</code></td><td class="file">SqlValidatorHelper.cs</td><td>Chữ ký công thức cột mốc, dùng để phát hiện đổi công thức. <code>GetCursorIdentity</code> chỉ dùng lúc lưu, thêm bảng nguồn, để đổi bảng nguồn hoặc đổi công thức trong câu con cũng bị hỏi xác nhận</td></tr>
+    <tr><td class="fn"><code>GetCursorSignature</code>, <code>GetCursorIdentity</code></td><td class="file">SqlValidatorHelper.cs</td><td>Chữ ký công thức cột mốc, dùng để phát hiện đổi công thức. <code>GetCursorIdentity</code> chỉ dùng lúc lưu, thêm bảng nguồn, để đổi bảng nguồn hoặc đổi công thức trong câu con cũng bị hỏi xác nhận. Worker chỉ so <code>GetCursorSignature</code>, xem giới hạn ở trên</td></tr>
     <tr><td class="fn"><code>HandleAsync(UpdatePacketSqlVariablesInput)</code></td><td class="file">PacketCommandHandler.cs</td><td>Lưu bảng tham số của câu SQL.</td></tr>
     <tr><td class="fn"><code>HandleAsync(SetLastSendInput)</code>, <code>ClearLastTimeRun</code>, <code>ResetCursor</code></td><td class="file">PacketCommandHandler.cs</td><td>Đặt mốc thủ công và xóa mốc, gọi từ khối 4 của Cấu hình gói tin. Mốc trống bị từ chối, bỏ mốc thì dùng Đặt lại</td></tr>
     <tr><td class="fn"><code>HandleAsync(ResetLastSendInput)</code></td><td class="file">PacketCommandHandler.cs</td><td>Đặt lại mốc của một đối tác, gọi từ khối 4 của Cấu hình gói tin.</td></tr>
@@ -679,7 +677,7 @@ ORDER BY __lastKey ASC</code></pre>
   <tbody>
     <tr><td class="fn"><code>ValidateIncrementalSqlAsync</code></td><td class="file">DataOutboundService.cs</td><td>Kiểm lại câu đang chạy trước khi đọc mốc, vì câu có thể đã sửa ngoài màn hình. Sai thì không gửi, giữ mốc, ghi ESH-1306</td></tr>
     <tr><td class="fn"><code>LogCursorRisks</code>, <code>FindCursorRisks</code>, <code>WriteCursorRiskAsync</code></td><td class="file">DataOutboundService.cs, SqlValidatorHelper.cs, ShareDataTransferLog.cs</td><td>Câu lưu từ trước khi có các luật chặn mà có rủi ro thì ghi vào Nhật ký cấu hình, mỗi đăng ký và mỗi câu SQL một lần, không dừng gói.</td></tr>
-    <tr><td class="fn"><code>ResolveCursor</code>, <code>BuildParameters</code></td><td class="file">SqlParameterHelper.cs</td><td>Gán biến đã khai. Nguồn hỗ trợ: <code>lastKey</code>, <code>lastRunTime</code>, <code>startOfYear</code>, <code>partnerCode</code>; giao diện chỉ cho chọn <code>lastKey</code> và giá trị nhập.</td></tr>
+    <tr><td class="fn"><code>ResolveCursor</code>, <code>BuildParameters</code></td><td class="file">SqlParameterHelper.cs</td><td>Gán biến đã khai. Nguồn chỉ còn <code>lastKey</code> (Theo Mốc đang chạy, gồm <code>@lastKey_&lt;nhóm&gt;</code>) và giá trị nhập (<code>Const</code>); <code>lastRunTime</code>, <code>startOfYear</code>, <code>partnerCode</code> đã gỡ ngày 09/11/2026. Bộ biến cũ còn nguồn đó: lưu bị từ chối, chạy thử và Worker coi biến như chưa khai, không gửi.</td></tr>
     <tr><td class="fn"><code>GetLastSend</code>, <code>WarnCursorFormulaChanged</code></td><td class="file">DataOutboundService.cs</td><td>Đã có mốc (<code>LastKey</code>) mà chữ ký khác câu đang chạy thì bỏ mốc cũ, ghi ESH-1308, gửi lại từ Mốc bắt đầu</td></tr>
     <tr><td class="fn"><code>ValidateCursor</code>, <code>IsTypedKey</code>, <code>IsKeyAfter</code></td><td class="file">DataOutboundService.cs</td><td><code>ValidateCursor</code> hủy trang trước khi gửi khi mốc dài quá cột <code>LastKey</code> (ESH-1304), nhiều dòng trùng giá trị cột mốc (ESH-1309) hoặc thiếu cột mốc (ESH-1202); <code>IsTypedKey</code>, <code>IsKeyAfter</code> so khóa số nguyên, GUID đúng kiểu khi ghi mốc</td></tr>
     <tr><td class="fn"><code>Extract</code>, <code>AskOneExtraRow</code>, <code>FindDuplicatedKey</code></td><td class="file">DataOutboundExtractionProcess.cs</td><td>Câu đặt số dòng bằng <code>TOP (@biến)</code> thì lấy dư một dòng để biết dòng đầu trang kế có trùng cột mốc với dòng cuối trang không; dòng dư không được gửi</td></tr>
@@ -1163,7 +1161,7 @@ ORDER BY u.sortKey ASC</code></pre>
 </table></div>
 
 <h2 id="sd-cau-hinh">8. Cấu hình vận hành của Worker</h2>
-<p>Lấy từ <code>SysOpConfig</code> nhóm <code>sharedata_config</code>, gồm 18 khóa, đổi không cần khởi động lại Worker. Khoảng hợp lệ và giá trị mặc định khai ở <code>ShareDataConst</code>.</p>
+<p>Lấy từ <code>SysOpConfig</code> nhóm <code>sharedata_config</code>, gồm 16 khóa (bỏ <code>outbound_max_pages_per_run</code> ngày 08/11/2026, <code>outbound_lock_budget_percent</code> ngày 09/11/2026), đổi không cần khởi động lại Worker. Khoảng hợp lệ và giá trị mặc định khai ở <code>ShareDataConst</code>.</p>
 <div class="table-wrap"><table>
   <thead><tr><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
   <tbody>

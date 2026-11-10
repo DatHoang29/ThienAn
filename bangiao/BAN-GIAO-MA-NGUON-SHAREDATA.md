@@ -105,7 +105,7 @@ Tệp chính là `DataOutboundService.cs`. Bắt đầu đọc từ `ExportSubsc
 | Bước | Hàm | Tệp | Ghi chú |
 | --- | --- | --- | --- |
 | 1 | `ProcessSubscriptions()` | DataOutboundService.cs | Chọn các đăng ký đến hạn. Có khai `ShareData:SelfPartnerCode` thì chỉ lấy đăng ký của đối tác đó. |
-| 2 | `ExportSubscription` | DataOutboundService.cs | Chiếm khóa qua `ProcessingUntil`, luôn nhả ở `ReleaseLock`. Câu nối đuôi có giới hạn dòng thì chạy nhiều trang một lượt, tối đa `OutboundMaxPagesPerRun`. |
+| 2 | `ExportSubscription` | DataOutboundService.cs | Chiếm khóa qua `ProcessingUntil`, luôn nhả ở `ReleaseLock`. Mỗi lượt gửi đúng một trang theo `@pageSize` (từ 08/11/2026), trang sau gửi ở lượt sau. |
 | 3 | `GetExportConfig`, `ReadCursorSnapshot`, `GetLastSend`, `GetGroupCursors` | DataOutboundService.cs | Đọc cấu hình và mốc của lượt |
 | 4 | `ExportPage` | DataOutboundService.cs | Một trang: trích xuất, ánh xạ, gửi, chốt mốc |
 | 5 | `Extract`, `ExecuteDynamicQuery` | DataOutboundExtractionProcess.cs | Chạy câu SQL, đọc cột `__lastKey` của trang để làm mốc |
@@ -220,6 +220,8 @@ Khi sửa ở tab Mẫu chung (phải tắt mọi đăng ký gửi của gói th
 
 Khi đổi giữa mẫu chung và cấu hình riêng (phải tắt đăng ký gửi của đối tác): mốc gắn với đối tác và gói, không gắn với câu SQL, nên tạo cấu hình riêng thì mốc cũ vẫn đi theo. Chỉ khi công thức cột mốc khác với câu đối tác đang chạy thì mốc mới bị xóa (`FindCursorResets`, `ResetCursor`). Khác công thức tính cả đổi bảng nguồn của cột mốc, kể cả khi công thức nằm trong câu con hoặc CTE (`GetCursorIdentity`).
 
+Giới hạn: phần so này chỉ chạy khi lưu qua giao diện hoặc API. Worker (`GetLastSend`, `GetGroupCursors`) chỉ so chữ ký lưu kèm mốc (`CursorSignature`). Câu nạp thẳng bằng tệp `.sql` hoặc sửa tay trong CSDL mà chỉ đổi bảng nguồn, hoặc đổi công thức trong câu con mà cột `__lastKey` ở `SELECT` ngoài cùng giữ nguyên chữ, thì Worker không nhận ra: đi tiếp với mốc cũ (có thể sót hoặc gửi lại dòng), không ghi ESH-1308. Cách xử lý: tắt đăng ký, rồi Đặt lại hoặc Đặt mốc ở khối 4. Mốc đang chạy.
+
 | Thao tác | Công thức cột mốc giống | Công thức cột mốc khác |
 | --- | --- | --- |
 | Tạo cấu hình riêng, chép từ mẫu chung | Mốc đi theo, gửi tiếp từ mốc cũ | Không xảy ra, vì chép nguyên câu mẫu chung |
@@ -245,7 +247,7 @@ Cấu hình riêng giữ bản chép bộ tham số lúc tạo, gồm cả Mốc
 | `IsIncrementalSql`, `ValidateIncrementalStructure`, `ValidateDefaultCursor`, `ValidateCursorGroups`, `ValidateGroupOrder`, `ValidateCursorFilter`, `HasKeyFilter` | SqlValidatorHelper.cs | Từ chối câu chắc chắn làm mất dòng. Comment ở `ValidateCursorFilter` liệt kê đủ các dạng WHERE được chấp nhận, nên đọc trước khi sửa. |
 | `ValidateCursorTime`, `BareUpdateTimeCursor`, `UnsortableDateCursor`, `InvalidFormulaCursor`, `HasNonEmptyIdKey`, `HasRowSkippingOffset`, `SharesCursorAcrossSources`, `HasInnerTopOffCursor`, `InclusiveCursorColumn` | SqlValidatorHelper.cs | Chỉ gọi khi lưu qua API: từ chối cột mốc dùng `UpdateTime` trơn (trừ câu có nhánh `UpdateTime IS NULL` như mẫu hai nhóm), cột mốc chỉ có ngày giờ, ghép ngày giờ sai định dạng, khác công thức PA1, phần thời gian không có `CreateTime`, phần khóa không phải cột `ID` luôn có giá trị, có `OFFSET` khác 0, gộp `UNION` nhiều nguồn dùng chung một mốc, câu con có `TOP` sắp theo cột khác cột mốc, và so đúng biểu thức cột mốc bằng `>=`. Câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình qua `FindCursorRisks`. |
 | `ValidateCursorColumnUsed` | SqlValidatorHelper.cs | Gọi khi lưu câu và khi đổi nguồn biến: từ chối câu có cột mốc mà không dùng biến mốc. Câu đã lưu từ trước vẫn gửi như câu gửi toàn bộ, không ghi mốc. |
-| `GetCursorSignature`, `GetCursorIdentity` | SqlValidatorHelper.cs | Chữ ký công thức cột mốc, dùng để phát hiện đổi công thức. `GetCursorIdentity` chỉ dùng lúc lưu, thêm bảng nguồn, để đổi bảng nguồn hoặc đổi công thức trong câu con cũng bị hỏi xác nhận |
+| `GetCursorSignature`, `GetCursorIdentity` | SqlValidatorHelper.cs | Chữ ký công thức cột mốc, dùng để phát hiện đổi công thức. `GetCursorIdentity` chỉ dùng lúc lưu, thêm bảng nguồn, để đổi bảng nguồn hoặc đổi công thức trong câu con cũng bị hỏi xác nhận. Worker chỉ so `GetCursorSignature`, xem giới hạn ở trên |
 | `HandleAsync(UpdatePacketSqlVariablesInput)` | PacketCommandHandler.cs | Lưu bảng tham số của câu SQL. |
 | `HandleAsync(SetLastSendInput)`, `ClearLastTimeRun`, `ResetCursor` | PacketCommandHandler.cs | Đặt mốc thủ công và xóa mốc, gọi từ khối 4 của Cấu hình gói tin. Mốc trống bị từ chối, bỏ mốc thì dùng Đặt lại |
 | `HandleAsync(ResetLastSendInput)` | PacketCommandHandler.cs | Đặt lại mốc của một đối tác, gọi từ khối 4 của Cấu hình gói tin. |
@@ -258,7 +260,7 @@ Cấu hình riêng giữ bản chép bộ tham số lúc tạo, gồm cả Mốc
 | --- | --- | --- |
 | `ValidateIncrementalSqlAsync` | DataOutboundService.cs | Kiểm lại câu đang chạy trước khi đọc mốc, vì câu có thể đã sửa ngoài màn hình. Sai thì không gửi, giữ mốc, ghi ESH-1306 |
 | `LogCursorRisks`, `FindCursorRisks`, `WriteCursorRiskAsync` | DataOutboundService.cs, SqlValidatorHelper.cs, ShareDataTransferLog.cs | Câu lưu từ trước khi có các luật chặn mà có rủi ro thì ghi vào Nhật ký cấu hình, mỗi đăng ký và mỗi câu SQL một lần, không dừng gói. |
-| `ResolveCursor`, `BuildParameters` | SqlParameterHelper.cs | Gán biến đã khai. Nguồn hỗ trợ: `lastKey`, `lastRunTime`, `startOfYear`, `partnerCode`; giao diện chỉ cho chọn `lastKey` và giá trị nhập. |
+| `ResolveCursor`, `BuildParameters` | SqlParameterHelper.cs | Gán biến đã khai. Nguồn chỉ còn `lastKey` (Theo Mốc đang chạy, gồm `@lastKey_<nhóm>`) và giá trị nhập (`Const`); `lastRunTime`, `startOfYear`, `partnerCode` đã gỡ ngày 09/11/2026. Bộ biến cũ còn nguồn đó: lưu bị từ chối, chạy thử và Worker coi biến như chưa khai, không gửi. |
 | `GetLastSend`, `WarnCursorFormulaChanged` | DataOutboundService.cs | Đã có mốc (`LastKey`) mà chữ ký khác câu đang chạy thì bỏ mốc cũ, ghi ESH-1308, gửi lại từ Mốc bắt đầu |
 | `ValidateCursor`, `IsTypedKey`, `IsKeyAfter` | DataOutboundService.cs | `ValidateCursor` hủy trang trước khi gửi khi mốc dài quá cột `LastKey` (ESH-1304), nhiều dòng trùng giá trị cột mốc (ESH-1309) hoặc thiếu cột mốc (ESH-1202); `IsTypedKey`, `IsKeyAfter` so khóa số nguyên, GUID đúng kiểu khi ghi mốc |
 | `Extract`, `AskOneExtraRow`, `FindDuplicatedKey` | DataOutboundExtractionProcess.cs | Câu đặt số dòng bằng `TOP (@biến)` thì lấy dư một dòng để biết dòng đầu trang kế có trùng cột mốc với dòng cuối trang không; dòng dư không được gửi |
@@ -315,7 +317,7 @@ Màn phức tạp nhất là **Cấu hình nguồn dữ liệu** (`views/shareda
 
 ## 8. Cấu hình vận hành của Worker
 
-Lấy từ `SysOpConfig` nhóm `sharedata_config`, gồm 18 khóa, đổi không cần khởi động lại Worker. Khoảng hợp lệ và giá trị mặc định khai ở `ShareDataConst`.
+Lấy từ `SysOpConfig` nhóm `sharedata_config`, gồm 16 khóa (bỏ `outbound_max_pages_per_run` ngày 08/11/2026, `outbound_lock_budget_percent` ngày 09/11/2026), đổi không cần khởi động lại Worker. Khoảng hợp lệ và giá trị mặc định khai ở `ShareDataConst`.
 
 | Hàm | Tệp | Ghi chú |
 | --- | --- | --- |

@@ -25,10 +25,11 @@ Thư mục này chứa **tài liệu kiểm thử và nghiệm thu** của phân
 
 | Tệp | Nội dung | Nguồn gốc |
 |---|---|---|
-| [`F16-nhat-ky-loi-issue-20260929.md`](F16-nhat-ky-loi-issue-20260929.md) | **33 issue** do TuyenHTN ghi nhận 26/09–06/10/2026 — **20 Passed**, **8 Pending** (đã sửa nhưng kiểm thử lại chưa đạt/lộ lỗi mới), **5 issue mới** (29–33) còn `Chờ phản hồi`. Mỗi issue kèm **nội dung ảnh chụp đã chép thành chữ** — trong đó có **12 mã lỗi thật** mà phần chữ của biểu mẫu không ghi | `F16.TAC-CN01-HNCL_ITS-KICH BAN KIEM THU - Issue - ShareData.pdf` (4 trang, cập nhật lần 2 ngày 07/10/2026) |
-| [`images/`](images/) | 40 ảnh chụp màn hình bóc từ PDF, đặt tên theo số issue (`issue-NN.png`, issue có 2 ảnh thì `-a`/`-b`) | bóc từ PDF trên |
+| [`images/`](images/) | 40 ảnh chụp màn hình bóc từ PDF biểu mẫu F16 (`F16.TAC-CN01-HNCL_ITS-KICH BAN KIEM THU - Issue - ShareData.pdf`, cập nhật lần 2 ngày 07/10/2026), đặt tên theo số issue (`issue-NN.png`, issue có 2 ảnh thì `-a`/`-b`) | bóc từ PDF trên |
 
-📌 Ảnh là **Tier C** (human-only, rule 16) — ⛔ AI không nạp mặc định. Toàn bộ thông tin cần thiết **đã được chép thành chữ** trong tệp `.md`; chỉ mở ảnh khi cần đối chiếu trực quan.
+📌 Bản chép chữ `F16-nhat-ky-loi-issue-20260929.md` (33 issue do TuyenHTN ghi nhận 26/09–06/10/2026, F16 đã nghiệm thu Passed) đã xóa ngày 09/11/2026. Xem lại bằng `git show d94312a4^:"DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/KiemThu/F16-nhat-ky-loi-issue-20260929.md"`.
+
+📌 Ảnh là **Tier C** (human-only, rule 16) — ⛔ AI không nạp mặc định. Nội dung chữ của ảnh nằm trong bản chép chữ đã xóa nói trên; chỉ mở ảnh khi cần đối chiếu trực quan.
 
 ---
 
@@ -38,7 +39,7 @@ Phần chữ của biểu mẫu F16 phần lớn chỉ ghi *"thông báo lỗi g
 
 ⛔ **Không nhúng base64 vào `.md`**: mô hình đọc ảnh qua kênh hình ảnh, ⛔ không giải mã base64 từ văn bản — nhúng vào chỉ làm phình tệp hàng MB mà **không ai đọc được thêm gì**. Cách đúng là **chép nội dung thành chữ** (tệp `.md` rẻ, đọc là hiểu) và **giữ PNG rời** làm bản gốc đối chiếu.
 
-📌 Quy trình bóc tách chi tiết (lệnh, thư viện, cách gán ảnh ↔ issue) ghi ở mục *Ghi chú chuyển thể* cuối tệp `.md`.
+📌 Quy trình bóc tách chi tiết (lệnh, thư viện, cách gán ảnh ↔ issue) ghi ở mục *Ghi chú chuyển thể* cuối bản chép chữ F16 đã xóa (xem lệnh `git show` ở trên).
 
 ---
 

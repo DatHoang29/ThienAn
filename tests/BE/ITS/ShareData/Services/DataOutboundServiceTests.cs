@@ -6012,33 +6012,34 @@ ORDER BY __lastKey ASC";
         #region 10. Biến ở bảng tham số câu truy vấn (ShareDataSql.VariablesJson) khi Worker gửi
 
         /// <summary>
-        /// Câu SQL dùng đủ 4 nguồn "Lấy từ" (mã đối tác, đầu năm, lần chạy trước, mốc lần trước)
-        /// và hằng số "Giá trị nhập" (String, Int, Decimal).
+        /// Câu SQL dùng hai nguồn "Lấy từ": mốc đang chạy (@afterKey) và "Giá trị nhập" (String, Int, Decimal).
         /// Không dùng tên @lastKey: chế độ nối đuôi nhận ra qua @afterKey. Mã gói và mã đối tác viết thẳng trong câu
-        /// nên @pc chỉ khớp khi lấy đúng từ nguồn "Mã đối tác".
+        /// nên @pc chỉ khớp khi bộ biến được dùng gán đúng mã đối tác.
         /// </summary>
         private static string AllSourcesSql(string packetId, string partnerCode) =>
             "SELECT TOP (@pageSize) CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
             + $"WHERE ID = '{packetId}' AND @pc = '{partnerCode}' AND @constTag = 'ACTIVE' AND @minRate <= 1.5 "
-            + "AND UpdateTime <= GETDATE() AND @yearStart <= GETDATE() "
-            + "AND (@prevRun IS NULL OR @prevRun < GETDATE()) "
+            + "AND UpdateTime <= GETDATE() "
             + "AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @afterKey "
             + "ORDER BY __lastKey ASC";
 
         /// <summary>
-        /// Description: Một lượt ProcessSubscriptions với câu SQL dùng đủ nguồn giá trị của bảng tham số (không còn hằng số):
+        /// Description: Một lượt ProcessSubscriptions với câu SQL dùng biến mốc và biến giá trị nhập của bảng tham số:
         ///              - common-all-sources: bộ biến mẫu chung đúng hết → gửi đúng dòng, nhận là nối đuôi nên mốc ShareDataLastSend tiến tới dòng vừa gửi.
-        ///              - common-wrong-source: @pc lấy nhầm nguồn (mốc khóa = rỗng) → không gửi, mốc giữ nguyên (chứng minh giá trị biến gắn đúng theo nguồn).
-        ///              - partner-own-set: mẫu chung lấy nhầm nguồn, đối tác có SQL riêng với bộ biến riêng lấy đúng "Mã đối tác" → gửi được
+        ///              - common-wrong-value: @pc gán nhầm giá trị → không gửi, mốc giữ nguyên, không cảnh báo (giá trị biến gắn đúng theo bộ biến).
+        ///              - partner-own-set: mẫu chung gán nhầm, đối tác có SQL riêng với bộ biến riêng gán đúng mã đối tác → gửi được
         ///                (Worker dùng bộ biến của SQL riêng).
+        ///              - removed-source: bộ biến cũ nạp thẳng vào CSDL còn @pc lấy từ nguồn "Mã đối tác" đã gỡ → coi như biến chưa khai:
+        ///                không gửi, mốc giữ nguyên, có cảnh báo.
         /// Created date: 25/10/2026
-        /// Modified date: 03/11/2026
+        /// Modified date: 09/11/2026
         /// </summary>
         [Theory]
-        [InlineData("common-all-sources", true)]
-        [InlineData("common-wrong-source", false)]
-        [InlineData("partner-own-set", true)]
-        public async Task ProcessSubscriptions_WhenSqlUsesDeclaredVariables_BindsEverySource_Test(string scenario, bool expectSent)
+        [InlineData("common-all-sources", true, false)]
+        [InlineData("common-wrong-value", false, false)]
+        [InlineData("partner-own-set", true, false)]
+        [InlineData("removed-source", false, true)]
+        public async Task ProcessSubscriptions_WhenSqlUsesDeclaredVariables_BindsEverySource_Test(string scenario, bool expectSent, bool expectAlert)
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -6070,16 +6071,20 @@ ORDER BY __lastKey ASC";
                 PartnerCode = partnerCode,
                 SubCode = $"SUB_VAR_{unique}",
                 DatatypeId = packetId,
-                MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } },
-                ConfigureSub = s => s.LastTimeRun = initialLastTime
+                MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } }
             });
 
-            var commonPcSource = scenario == "common-all-sources" ? ShareDataConst.SqlVariableSourcePartnerCode : ShareDataConst.SqlVariableSourceLastKey;
-            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, BuildVariableSet(commonPcSource));
+            var (commonPcKind, commonPcValue) = scenario switch
+            {
+                "common-all-sources" => (ShareDataConst.SqlVariableKindConst, partnerCode),
+                "removed-source" => (ShareDataConst.SqlVariableKindBuiltin, "partnerCode"),
+                _ => (ShareDataConst.SqlVariableKindConst, $"OTHER_{unique}")
+            };
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, BuildVariableSet(commonPcKind, commonPcValue));
             if (scenario == "partner-own-set")
             {
                 await ShareDataSqlSeed.SetPartnerAsync(db, packetId, partner.ID, sql);
-                await ShareDataSqlSeed.SetVariablesAsync(db, packetId, partner.ID, BuildVariableSet(ShareDataConst.SqlVariableSourcePartnerCode));
+                await ShareDataSqlSeed.SetVariablesAsync(db, packetId, partner.ID, BuildVariableSet(ShareDataConst.SqlVariableKindConst, partnerCode));
             }
 
             await db.Insertable(new ShareDataLastSend
@@ -6109,33 +6114,26 @@ ORDER BY __lastKey ASC";
             {
                 Assert.Equal(0, received);
                 Assert.True(string.IsNullOrEmpty(lastSend.LastKey), $"Mốc phải giữ nguyên, nhận {lastSend.LastKey}");
-                Assert.Empty(alerts);
+                Assert.Equal(expectAlert, alerts.Count > 0);
             }
         }
 
-        /// <summary>Bộ biến cho AllSourcesSql của một câu SQL (partnerId trống = mẫu chung); @pc lấy từ nguồn chỉ định.</summary>
-        private static List<SqlVariableItem> BuildVariableSet(string pcSource)
+        /// <summary>Bộ biến cho AllSourcesSql của một câu SQL (partnerId trống = mẫu chung); @pc gán theo cách gán và giá trị chỉ định.</summary>
+        private static List<SqlVariableItem> BuildVariableSet(string pcKind, string pcValue)
         {
-            SqlVariableItem Builtin(string code, string source, int order) => new()
+            SqlVariableItem Item(string code, string dataType, string kind, string value, int order) => new()
             {
                 Code = code,
-                DataType = ShareDataConst.SqlVariableBuiltinTypes[source], ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
-            };
-            SqlVariableItem Const(string code, string dataType, string value, int order) => new()
-            {
-                Code = code,
-                DataType = dataType, ValueKind = ShareDataConst.SqlVariableKindConst, Value = value, OrderNo = order
+                DataType = dataType, ValueKind = kind, Value = value, OrderNo = order
             };
 
             return
             [
-                Builtin("pc", pcSource, 1),
-                Builtin("yearStart", ShareDataConst.SqlVariableSourceStartOfYear, 3),
-                Builtin("prevRun", ShareDataConst.SqlVariableSourceLastRunTime, 4),
-                Builtin("afterKey", ShareDataConst.SqlVariableSourceLastKey, 6),
-                Const("pageSize", ShareDataConst.SqlVariableTypeInt, "100", 7),
-                Const("constTag", ShareDataConst.SqlVariableTypeString, "ACTIVE", 8),
-                Const("minRate", ShareDataConst.SqlVariableTypeDecimal, "1.25", 9)
+                Item("pc", ShareDataConst.SqlVariableTypeString, pcKind, pcValue, 1),
+                Item("afterKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastKey, 6),
+                Item("pageSize", ShareDataConst.SqlVariableTypeInt, ShareDataConst.SqlVariableKindConst, "100", 7),
+                Item("constTag", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableKindConst, "ACTIVE", 8),
+                Item("minRate", ShareDataConst.SqlVariableTypeDecimal, ShareDataConst.SqlVariableKindConst, "1.25", 9)
             ];
         }
 

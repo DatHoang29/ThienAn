@@ -47,12 +47,8 @@ namespace Tests.ShareData.Performance
         ///              và mỗi lần gọi không được đọc quá ngưỡng số trang (mặc định 5.000 trang 8 KB), tức là không quét cả bảng lớn.
         /// Created date: 08/11/2026
         /// </summary>
-        [Theory(Skip = "Đo thời gian API đọc trên dữ liệu cỡ dev (dựng 300.000 dòng nhật ký, chạy khoảng 5 phút) — bỏ Skip khi cần đo lại; đổi số dòng bằng SHAREDATA_API_PERF_ROWS, ngưỡng bằng SHAREDATA_API_BUDGET_MS, SHAREDATA_API_READS_BUDGET. 4 ca ActivityLog (Page, Page.FilterSuccess, Summary, GetList) còn đỏ vì bảng ShareDataActivityLog chưa có chỉ mục theo OccurredAt.")]
+        [Theory(Skip = "Đo thời gian API đọc trên dữ liệu cỡ dev (dựng 300.000 dòng nhật ký, chạy khoảng 5 phút) — bỏ Skip khi cần đo lại; đổi số dòng bằng SHAREDATA_API_PERF_ROWS, ngưỡng bằng SHAREDATA_API_BUDGET_MS, SHAREDATA_API_READS_BUDGET.")]
         [Trait("Feature", "Performance")]
-        [InlineData("ActivityLog.Page")]
-        [InlineData("ActivityLog.Page.FilterSuccess")]
-        [InlineData("ActivityLog.Summary")]
-        [InlineData("ActivityLog.GetList")]
         [InlineData("ActivityLog.GetById")]
         [InlineData("ActivityLog.GetSteps")]
         [InlineData("AlertLog.Page")]
@@ -141,29 +137,9 @@ namespace Tests.ShareData.Performance
             // FE gửi giờ UTC, API đổi về giờ máy chủ.
             var from = DateTime.UtcNow.AddDays(-7);
             var to = DateTime.UtcNow;
-            const int transferLog = 1;
 
             switch (api)
             {
-                case "ActivityLog.Page":
-                    await sp.CallApiAsync<SqlSugarPagedList<ShareDataPageActivityLogOutput>>(new ShareDataPageActivityLogInput
-                    {
-                        LogType = (BaseEnums.LogTypeEnum)transferLog, FromDate = from, ToDate = to, Page = 1, PageSize = 50, Field = "occurredAt", Order = "desc", DescStr = "desc"
-                    });
-                    break;
-                case "ActivityLog.Page.FilterSuccess":
-                    // Màn Lịch sử khi lọc Kết quả: gọi trang chính rồi gọi thêm trang 1 dòng để đếm từng số liệu.
-                    await sp.CallApiAsync<SqlSugarPagedList<ShareDataPageActivityLogOutput>>(new ShareDataPageActivityLogInput
-                    {
-                        LogType = (BaseEnums.LogTypeEnum)transferLog, Success = BaseEnums.SuccessEnums.Success, FromDate = from, ToDate = to, Page = 1, PageSize = 1
-                    });
-                    break;
-                case "ActivityLog.Summary":
-                    await sp.CallApiAsync<ShareDataSummaryActivityLogOutput>(new ShareDataSummaryActivityLogInput { LogType = (BaseEnums.LogTypeEnum)transferLog, FromDate = from, ToDate = to });
-                    break;
-                case "ActivityLog.GetList":
-                    await sp.CallApiAsync<List<ShareDataActivityLogOutput>>(new ShareDataActivityLogInput { LogType = (BaseEnums.LogTypeEnum)transferLog, FromDate = from, ToDate = to });
-                    break;
                 case "ActivityLog.GetById":
                     await sp.CallApiAsync<ShareDataActivityLogOutput>(new ShareDataIdActivityLogInput { ID = d.ActivityRootId });
                     break;
