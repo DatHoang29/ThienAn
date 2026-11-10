@@ -135,7 +135,7 @@ public partial class Host : IAsyncLifetime
     {
 #if HAS_SHAREDATAWORKER
         // Dựng đường dẫn ĐÚNG như bên ghi dựng (ExportPathHelper.SaveFile) để hai bên không lệch
-        // nhau khi ai đó cấu hình NasStorage:BasePath.
+        // nhau khi ai đó cấu hình FileStorage:BasePath.
         var configuration = _host?.Services.GetService<IConfiguration>();
         var basePath = configuration?.GetValue<string>(Modules.Integration.Delivery.Base.Helpers.ExportPathHelper.BasePathConfigKey)
             ?? Modules.Integration.Delivery.Base.Helpers.ExportPathHelper.DefaultBasePath;

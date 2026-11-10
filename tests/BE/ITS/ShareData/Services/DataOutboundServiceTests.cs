@@ -4222,7 +4222,7 @@ ORDER BY __lastKey ASC";
         }
 
         /// <summary>
-        /// Description: Cấu hình NasStorage:BasePath trỏ vào một TỆP đang tồn tại,
+        /// Description: Cấu hình FileStorage:BasePath trỏ vào một TỆP đang tồn tại,
         ///              nên Directory.CreateDirectory hoặc File.WriteAllBytes ném IOException — lỗi ghi tệp thật.
         ///              Bên gọi phải xoá BlockerPath trong khối finally.
         /// Created date: 29/09/2026
@@ -4233,7 +4233,7 @@ ORDER BY __lastKey ASC";
             File.WriteAllText(blockerPath, "block");
 
             var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { ["NasStorage:BasePath"] = blockerPath })
+                .AddInMemoryCollection(new Dictionary<string, string?> { [ExportPathHelper.BasePathConfigKey] = blockerPath })
                 .Build();
 
             return (config, blockerPath);

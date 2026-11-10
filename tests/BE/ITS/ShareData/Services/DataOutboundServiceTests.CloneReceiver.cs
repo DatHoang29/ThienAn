@@ -170,6 +170,20 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Author: DatHQ
+        /// Description: Chiều nhận của một dịch vụ khác chạy cùng lúc: bản DataInboundService riêng như một tiến trình riêng, không dùng chung với dịch vụ chỉ nhận.
+        /// Created date: 10/11/2026
+        /// </summary>
+        private static DataInboundService CreateInboundService(IServiceScope scope)
+        {
+            var services = scope.ServiceProvider;
+            var scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
+            var logger = services.GetRequiredService<ILogger<DataInboundService>>();
+            var workerConfig = services.GetRequiredService<DataWorkerConfigService>();
+            return new DataInboundService(scopeFactory, logger, workerConfig);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
         /// Description: Một lượt vận hành: các bản gửi và bản nhận (khi đang chạy) chạy cùng lúc như các dịch vụ thật, xong lượt thì cho các đăng ký gửi đến hạn lại.
         /// Created date: 10/11/2026
         /// </summary>
@@ -277,6 +291,61 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             }
 
             Assert.Equal(senderCount * packet.RowCodes.Count, totalWritten);
+            Assert.Empty(alerts);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Bản giao 6 dịch vụ chạy cùng lúc trên chung CSDL: 1 dịch vụ chạy cả hai chiều, 1 dịch vụ chỉ nhận và 4 dịch vụ chỉ gửi,
+        ///              theo chu kỳ lẫn theo tín hiệu có dữ liệu mới. Năm dịch vụ cùng gửi, hai dịch vụ cùng nhận nhưng khóa đăng ký và khóa gói giữ cho
+        ///              mỗi đối tác được ghi đủ mọi dòng đúng một lần, mỗi trang là một gói nhận Done, mốc gửi tới dòng cuối, khóa được nhả và không có cảnh báo.
+        /// Created date: 10/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ProcessSubscriptions_WhenBothServiceRunsWithInboundAndOutboundClones_EachPartnerRowsWrittenOnce_Test(bool byEvent)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            using var receiverScope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var inboundDb = InboundDb(db);
+            var packet = await SeedClonePacketAsync(db, rowCount: 5, pageSize: 2);
+            var markerCode = await SetMarkerWriteSqlAsync(db, packet);
+            var partners = await SeedReceiverPartnersAsync(db, packet, FourNames);
+            var senders = Enumerable.Range(0, 5).Select(_ => CreateReceiverClone(scope, null)).ToList();
+            var inboundOnly = receiverScope.ServiceProvider.GetRequiredService<DataInboundService>();
+            var bothService = CreateInboundService(scope);
+
+            // Act: 4 dịch vụ chỉ gửi và chiều gửi của dịch vụ hai chiều là 5 bản gửi; chiều nhận của dịch vụ hai chiều chạy cùng lúc với dịch vụ chỉ nhận
+            for (var round = 0; round < 4; round++)
+            {
+                var bothReceive = bothService.ProcessPendingPackets(CancellationToken.None);
+                await RunRoundAsync(db, senders, inboundOnly, packet, byEvent, partners);
+                await bothReceive;
+            }
+
+            await inboundOnly.ProcessPendingPackets(CancellationToken.None);
+
+            // Assert
+            var partnerIds = partners.Select(p => p.Partner.ID).ToList();
+            var alerts = await db.Queryable<ShareDataAlertLog>().Where(a => partnerIds.Contains(a.PartnerId)).ToListAsync();
+            var totalWritten = await CountWrittenAsync(inboundDb, markerCode);
+            foreach (var partner in partners)
+            {
+                var rows = await WrittenRowsAsync(inboundDb, markerCode, partner);
+                var received = await ReceivedPacketsAsync(inboundDb, packet, partner);
+                var outbound = await db.Queryable<ShareDataSubscription>().InSingleAsync(partner.Outbound.ID);
+                var cursor = await GetCloneCursorAsync(db, packet, partner.Name);
+                Assert.Equal(packet.RowCodes, rows);
+                Assert.Equal(3, received.Count);
+                Assert.All(received, r => Assert.Equal(BaseEnums.InboundProcessState.Done, r.ProcessState));
+                Assert.EndsWith(CursorEnd(packet, 5), cursor.LastKey);
+                Assert.Null(outbound.ProcessingUntil);
+            }
+
+            Assert.Equal(FourNames.Length * packet.RowCodes.Count, totalWritten);
             Assert.Empty(alerts);
         }
 

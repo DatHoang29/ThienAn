@@ -1,8 +1,11 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Module.ShareData.Core.Constants;
 using Module.ShareData.Core.Entities;
+using Modules.Integration.Delivery.Base.Helpers;
+using ShareDataWorker.Extensions;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.WorkerConfig;
@@ -109,7 +112,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             if (storagePath != null)
             {
-                settings["NasStorage:BasePath"] = storagePath;
+                settings[ExportPathHelper.BasePathConfigKey] = storagePath;
             }
 
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
@@ -242,6 +245,58 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Directory.Delete(storagePath, recursive: true);
                 }
             }
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Bản clone chạy dạng dịch vụ Windows (net start): thư mục gốc của host là thư mục chứa bản clone, không phải thư mục hiện hành.
+        ///              FileStorage:BasePath để tương đối hoặc để trống thì tệp lưu của lượt gửi nằm trong chính thư mục bản clone (sharedata/send);
+        ///              khai đường dẫn tuyệt đối thì tệp nằm đúng thư mục đã khai.
+        /// Created date: 10/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData("sharedata/send", false)]
+        [InlineData(null, false)]
+        [InlineData("   ", false)]
+        [InlineData(null, true)]
+        public async Task ProcessSubscriptions_WhenCloneRunsAsService_SavesFilesInsideCloneFolder_Test(string? relativePath, bool absolute)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 2);
+            var (_, sub) = await SeedClonePartnerAsync(db, packet, "A101");
+            var partnerCode = ClonePartnerCode(packet, "A101");
+            var cloneFolder = Directory.CreateTempSubdirectory("ShareDataWorker_Outbound_1-").FullName;
+            var sharedFolder = Path.Combine(cloneFolder, "kho-chung");
+            var settings = new Dictionary<string, string?>
+            {
+                ["ShareData:SelfPartnerCode"] = partnerCode,
+                [ExportPathHelper.BasePathConfigKey] = absolute ? sharedFolder : relativePath
+            };
+            var builder = new HostBuilder()
+                .UseContentRoot(cloneFolder)
+                .ConfigureAppConfiguration(config => config.AddInMemoryCollection(settings))
+                .UseContentRootStoragePath();
+            using var serviceHost = builder.Build();
+            var configuration = serviceHost.Services.GetRequiredService<IConfiguration>();
+            var clone = CreateWorker(scope, configuration: configuration);
+
+            // Act
+            await clone.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var logs = await GetLogs(db, sub.ID);
+            var savedFiles = logs.Where(l => !string.IsNullOrEmpty(l.FilePath)).Select(l => l.FilePath!).Distinct().ToList();
+            var filesInCloneFolder = Directory.GetFiles(cloneFolder, "*", SearchOption.AllDirectories);
+            var savedFile = Assert.Single(savedFiles);
+            var fileOnDisk = Assert.Single(filesInCloneFolder);
+            var expectedRoot = absolute ? sharedFolder : Path.Combine(cloneFolder, "sharedata", "send");
+            var expectedPath = Path.Combine(expectedRoot, savedFile);
+            var expectedFile = Path.GetFullPath(expectedPath);
+            var actualFile = Path.GetFullPath(fileOnDisk);
+            Assert.Equal(expectedFile, actualFile);
+            Directory.Delete(cloneFolder, recursive: true);
         }
 
         /// <summary>

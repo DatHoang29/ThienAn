@@ -87,7 +87,7 @@ namespace Tests.ShareData.Services
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["NasStorage:BasePath"] = tempExportDir
+                    [ExportPathHelper.BasePathConfigKey] = tempExportDir
                 })
                 .Build();
 
@@ -343,7 +343,7 @@ namespace Tests.ShareData.Services
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["NasStorage:BasePath"] = tempExportDir
+                    [ExportPathHelper.BasePathConfigKey] = tempExportDir
                 })
                 .Build();
 
@@ -568,7 +568,7 @@ namespace Tests.ShareData.Services
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["NasStorage:BasePath"] = tempExportDir
+                    [ExportPathHelper.BasePathConfigKey] = tempExportDir
                 })
                 .Build();
 

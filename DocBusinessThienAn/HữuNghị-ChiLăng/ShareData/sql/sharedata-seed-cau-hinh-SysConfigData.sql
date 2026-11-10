@@ -8,7 +8,7 @@
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 08/11/2026 (mô tả ESH-1308 dùng thuật ngữ Mốc bắt đầu); 05/11/2026 (thêm ESH-1309); 03/11/2026 (mô tả ESH-1306; DB đã có mã thì giữ mô tả cũ vì tệp chỉ thêm mã chưa có); 31/10/2026 (thêm ESH-1308)
+-- CẬP NHẬT LẦN CUỐI: 10/11/2026 (gợi ý ESH-1402 theo khóa cấu hình FileStorage:BasePath); 08/11/2026 (mô tả ESH-1308 dùng thuật ngữ Mốc bắt đầu); 05/11/2026 (thêm ESH-1309); 03/11/2026 (mô tả ESH-1306; DB đã có mã thì giữ mô tả cũ vì tệp chỉ thêm mã chưa có); 31/10/2026 (thêm ESH-1308)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -86,7 +86,7 @@ VALUES
     (N'ESH-1401', N'Gửi HTTP REST trực tiếp tới đối tác thất bại — file đã ghi vẫn coi là thành công', N'outbound', N'warning', 1401,
      N'Kiểm tra kết nối mạng và endpoint của đối tác.'),
     (N'ESH-1402', N'Lưu đệm payload/bằng chứng thất bại, hủy gửi và giữ nguyên mốc', N'outbound', N'danger', 1402,
-     N'Kiểm tra quyền ghi thư mục NasStorage:BasePath hoặc dung lượng ổ đĩa lưu trữ bằng chứng.'),
+     N'Kiểm tra quyền ghi thư mục FileStorage:BasePath hoặc dung lượng ổ đĩa lưu trữ bằng chứng.'),
     (N'ESH-1403', N'Giá trị cấu hình kết nối không hợp lệ bị bỏ qua hoặc thay bằng mặc định', N'outbound', N'warning', 1403,
      N'Kiểm tra lại cấu hình kết nối ConnectionConfig của đối tác.'),
 
