@@ -13,8 +13,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
     /// <summary>
     /// Author: DatHQ
-    /// Description: Các ca làm mất dòng hoặc gửi lại khi vận hành: xóa rồi tạo lại đối tác, gói tin cùng mã; JOIN nhân dòng làm trùng giá trị cột mốc.
+    /// Description: Các ca làm mất dòng hoặc gửi lại khi vận hành: xóa rồi tạo lại đối tác, gói tin cùng mã; JOIN nhân dòng làm trùng giá trị cột mốc;
+    ///              dòng trùng giờ có ID dạng GUID chia trang.
     /// Created date: 05/11/2026
+    /// Modified date: 10/11/2026
     /// </summary>
     public partial class DataOutboundServiceTests
     {
@@ -412,6 +414,79 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Empty(ReceivedRows(packet, "A101"));
             Assert.Equal(0, groupCursors);
             Assert.Equal(1, alertCount);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Khóa ghép "thời gian_ID" với ID dạng chuỗi GUID: các dòng trùng giờ tới mili giây xếp theo ID (thứ tự chuỗi khác thứ tự thêm vào,
+        ///              chữ hoa lẫn chữ thường) vẫn chia trang không sót, không gửi lặp vì WHERE, ORDER BY và việc ghi mốc cùng một cách so chuỗi;
+        ///              dòng thêm sau có giờ muộn hơn được gửi dù ID nhỏ hơn mọi ID đã gửi.
+        /// Created date: 10/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData("f3d2", "0a9b", "7c1e", "b4a8")]
+        [InlineData("D4f3", "b2d1", "C3e2", "a1c0")]
+        public async Task ProcessSubscriptions_WhenSameTimeRowsHaveGuidIds_SendsEachRowOnceIncludingLaterSmallerId_Test(string id1, string id2, string id3, string id4)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-gid-{unique}";
+            var packetCode = $"PKT_GID_{unique}";
+            var rowPrefix = $"ZC_GID_{unique}_";
+            var sameTime = new DateTime(2026, 10, 27, 9, 0, 0, 123);
+            var laterTime = sameTime.AddSeconds(1);
+            const string laterId = "0000";
+            string[] sameTimeIds = [id1, id2, id3, id4];
+            foreach (var id in sameTimeIds)
+            {
+                await SeedZoneRowAsync(db, rowPrefix, unique, id, sameTime);
+            }
+
+            await db.Insertable(new ShareDataPacket { ID = packetId, Code = packetCode, Name = $"Packet {packetCode}", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
+            var variables = ZoneVariables(2, rowPrefix, null);
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, variables);
+            var sql = ZoneCursorSql();
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql);
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_GID_{unique}",
+                SubCode = $"SUB_GID_{unique}",
+                DatatypeId = packetId,
+                MappingShape = RowCodeShape,
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/gid-{unique}"
+            });
+            var worker = CreateWorker(scope);
+
+            // Act: 4 dòng cùng giờ gửi qua 2 lượt (mỗi lượt 2 dòng), lượt thứ ba không còn gì; thêm dòng giờ muộn hơn có ID nhỏ nhất rồi chạy thêm 2 lượt
+            for (var run = 0; run < 3; run++)
+            {
+                await worker.ProcessSubscriptions(CancellationToken.None);
+                await MakeSubscriptionDue(db, sub.ID);
+            }
+            await SeedZoneRowAsync(db, rowPrefix, unique, laterId, laterTime);
+            for (var run = 0; run < 2; run++)
+            {
+                await worker.ProcessSubscriptions(CancellationToken.None);
+                await MakeSubscriptionDue(db, sub.ID);
+            }
+
+            // Assert
+            var bodies = PartnerBodies($"gid-{unique}");
+            var sentPerRow = sameTimeIds
+                .Append(laterId)
+                .ToDictionary(id => id, id => bodies.Count(b => b.Contains($"\"{rowPrefix}{id}\"")));
+            var sentPairs = sentPerRow.Select(p => $"{p.Key}={p.Value}");
+            var sentSummary = string.Join(", ", sentPairs);
+            var cursor = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partner.Code && c.PacketCode == packetCode && c.CursorKey == null)
+                .FirstAsync();
+            var alertCount = await db.Queryable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).CountAsync();
+            Assert.True(sentPerRow.Values.All(n => n == 1), $"Mỗi dòng phải gửi đúng một lần: {sentSummary}");
+            Assert.Equal(3, bodies.Count);
+            Assert.Equal($"{laterTime:yyyy-MM-dd HH:mm:ss.fff}_{laterId}_{unique}", cursor.LastKey);
+            Assert.Equal(0, alertCount);
         }
     }
 }
