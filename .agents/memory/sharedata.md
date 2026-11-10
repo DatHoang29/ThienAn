@@ -268,6 +268,13 @@ Yêu cầu từ họp 16/09/2026, nhắc lại 02/11/2026: clone Worker, 4 con c
 
 **Cập nhật 05/11/2026:** tôi tự viết script PowerShell cài dịch vụ, người dùng bác: cách làm là clone thư mục publish thành nhiều dịch vụ, mỗi bản sửa `appsettings.json` riêng; đã gỡ script. Các bước ở `bangiao/HUONG-DAN-CLONE-WORKER.md` của repo ThienAn (người dùng yêu cầu đưa vào đó). Người dùng bác cả tệp SQL kiểm tra chạy tay: ca biên phải nằm ở test tự động (`DataOutboundServiceTests.Clones.cs`), test đạt là đủ. Phần Windows (`sc.exe`, `ServiceName` đặt cứng) chưa chạy thật. Quên khai `ShareData:Role` thì bản clone chạy cả hai chiều. Lúc chạy thử trên máy này, kết nối NATS `ITS_SHAREDATA_WORKER` là Worker người dùng đang chạy, đừng tắt; dòng lỗi "bảng giám sát rỗng" là do DB test không có danh mục bảng nguồn.
 
+**Cập nhật 10/11/2026:**
+- Test 4 gửi + 1 nhận đi qua đúng controller nhận của WebAPI nằm ở `DataOutboundServiceTests.CloneReceiver.cs` (ca chính và 6 ca biên).
+- Bản giao anh Sơn là zip clone sẵn 5 thư mục `inbound`, `outbound_1` … `outbound_4` (bản gửi khai mã đối tác `A101` … `A104`, dịch vụ `ShareDataWorker_<thư mục>`). `appsettings.json` khai sẵn vai trò, đã bỏ `appsettings.Development.json`, để anh Sơn chỉ việc tạo và start dịch vụ. Người dùng bác kiểu zip một bản build kèm hướng dẫn, và chốt tên thư mục ngắn như trên.
+- Chạy dạng dịch vụ Windows: `Program.cs` đặt thư mục hiện hành về thư mục chứa mã (bản publish là thư mục exe, bản build trong bin là thư mục project), để `NasStorage:BasePath` tương đối không rơi vào System32 hay `bin/Debug`.
+- PR vào `dev` do anh Sơn merge, tài khoản người dùng không có quyền merge. PR chỉ chứa tệp thuộc sharedata; tệp dùng chung (`useGridPager`, `tabPage`, `baseEnum`) trả về như `dev`, hàm sharedata cần thì để ở `utils/sharedata/`.
+- Người dùng chốt bỏ kênh Xuất tệp tin khỏi giao diện đối tác (chỉ còn WebAPI, FTP, Kafka); BE giữ nguyên kênh tệp, "chưa đi sâu tới delivery".
+
 ## Quy chuẩn Giao diện Nguồn dữ liệu ShareData (Đối chiếu Wireframe W0.2 - Chốt 27/10/2026)
 
   1. Bố cục tổng thể: Giữ nguyên 3 khối dọc phân tách rõ ràng của hệ thống (Khối 1: SQL, Khối 2: Trường dữ liệu, Khối 3: Tham số).

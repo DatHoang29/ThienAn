@@ -214,7 +214,9 @@
      - `ShareDataAlertLog` không phát sinh mã `ESH-15xx` mới.
   - ⚠️ **Lưu ý giám sát:** Tất cả các con gửi cùng phát heartbeat lên một subject `ta.its.heartbeat.sharedata`, nên màn hình giám sát không phân biệt được riêng từng con nào còn sống.
 - **Tệp thực thi (05/11/2026):** `bangiao/HUONG-DAN-CLONE-WORKER.md` gom các bước clone. Các ca biên khi chạy nhiều Worker có test tự động ở `tests/BE/ITS/ShareData/Services/DataOutboundServiceTests.Clones.cs`.
-- **Gửi về máy nhận của mình (10/11/2026):** `ProcessSubscriptions_WhenSendOnlyClonesSendToOwnReceiver_ReceiverWritesEachPartnerRowsOnce_Test` (3 và 5 con) cho các con chỉ gửi gửi kênh API vào đúng controller nhận của WebAPI chạy trong tiến trình test, một con chỉ nhận ghi CSDL nhận: mỗi đối tác ghi đủ dòng đúng một lần dưới mã của nó, gói đều `Done`, hết dữ liệu thì không gửi thêm, không có cảnh báo.
+- **Gửi về máy nhận của mình (10/11/2026):** `tests/BE/ITS/ShareData/Services/DataOutboundServiceTests.CloneReceiver.cs`, các con chỉ gửi gửi kênh API vào đúng controller nhận của WebAPI chạy trong tiến trình test, một con chỉ nhận ghi CSDL nhận.
+  - Ca chính 4 gửi + 1 nhận (thêm 3, 5 con và gửi theo tín hiệu): mỗi đối tác ghi đủ dòng đúng một lần dưới mã của nó, gói `Done`, mốc tới dòng cuối, không có cảnh báo.
+  - Ca biên: con nhận dừng rồi chạy lại; một đối tác sai đường dẫn nhận rồi sửa; quên tắt Worker cũ chạy hai chiều; con gửi khởi động lại; có dữ liệu mới sau khi gửi hết; mỗi cặp đối tác gửi một gói khác nhau.
 - **Kết quả chạy 5 tiến trình thật:** Chưa chạy thực tế trên máy chủ Windows / CSDL dùng chung `10.10.8.30` trong đợt sửa mã ngày 02/11/2026 (môi trường phát triển macOS chỉ chạy bộ kiểm thử xUnit trên SQL Server local). Sẽ bổ sung kết quả sau khi dựng 5 service theo hướng dẫn trên.
 
 ### SV-6. Đo tải & rủi ro nghẽn CSDL — ⏸️ Chưa cần (chốt 02/11/2026)

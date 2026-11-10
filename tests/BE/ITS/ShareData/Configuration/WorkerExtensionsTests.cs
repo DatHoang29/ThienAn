@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Modules.Integration.Delivery.Base.Helpers;
 using Services.Shared.Messaging;
 using ShareDataWorker.Extensions;
 using ShareDataWorker.Infrastructure.Services.DataInbound;
@@ -114,5 +115,38 @@ public class WorkerExtensionsTests
     {
         // Act & Assert
         Assert.Throws<InvalidOperationException>(() => BuildServicesWithRole(invalidRole));
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: NasStorage:BasePath tương đối hoặc để trống được tính theo ContentRoot của host (dịch vụ Windows đặt ContentRoot là thư mục chứa exe),
+    ///              không theo thư mục hiện hành; đường dẫn tuyệt đối giữ nguyên.
+    /// Created date: 10/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("sharedata/send", false)]
+    [InlineData(null, false)]
+    [InlineData("   ", false)]
+    [InlineData("sharedata/send", true)]
+    public void UseContentRootStoragePath_WhenHostBuilt_ResolvesBasePathFromContentRoot_Test(string? relativePath, bool absolute)
+    {
+        // Arrange
+        var contentRoot = Directory.CreateTempSubdirectory("sharedata-root-").FullName;
+        var absolutePath = Path.Combine(Path.GetTempPath(), "sharedata-shared", "send");
+        var configured = absolute ? absolutePath : relativePath;
+        var settings = new Dictionary<string, string?> { [ExportPathHelper.BasePathConfigKey] = configured };
+        var builder = new HostBuilder()
+            .UseContentRoot(contentRoot)
+            .ConfigureAppConfiguration(config => config.AddInMemoryCollection(settings))
+            .UseContentRootStoragePath();
+
+        // Act
+        using var host = builder.Build();
+        var configuration = host.Services.GetRequiredService<IConfiguration>();
+        var resolved = configuration[ExportPathHelper.BasePathConfigKey];
+
+        // Assert
+        var expected = absolute ? absolutePath : Path.Combine(contentRoot, ExportPathHelper.DefaultBasePath);
+        Assert.Equal(expected, resolved);
     }
 }
