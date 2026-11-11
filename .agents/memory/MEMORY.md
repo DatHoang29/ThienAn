@@ -6,7 +6,7 @@
 
 ## Người dùng & cách làm việc
 - [User profile](user-profile.md) — backend dev TA-ITS015 (ITS/C2C ISO 14827); viết, trả lời tiếng Việt
-- [Cách làm việc với AI](workflow-ai.md) — prompt-first, commit gọn, review local, test đỏ trước, subagent khảo sát tránh phình context
+- [Cách làm việc với AI](workflow-ai.md) — prompt-first, subagent tránh phình context, đổi account cấm chat tiếp phiên cũ, làm xong chốt memory
 - [Test theo luồng, có giá trị](feedback_test-flow-value.md) — chỉ test qua điểm vào luồng; cấm unit test helper, FE so chuỗi; [Theory]/[InlineData]
 
 ## Database / MCP

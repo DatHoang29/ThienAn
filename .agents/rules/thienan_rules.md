@@ -47,7 +47,7 @@ description: Single Source of Truth for ThienAn project — P0 safeguards; domai
 | **69** | **Test cho cơ chế mới** (19.109) | Thêm tính năng, cơ chế mới phải có test toàn trình qua API xác nhận dữ liệu ghi đúng CSDL, DI/Wolverine thông suốt. testing §1.6, backend §4.29 |
 | **70** | **Dấu `_` trong tên nhánh** (19.110) | `_` chỉ khi có TaskCode/Issue (`...-[TaskCode]_[mô-tả]`); nhánh thường dùng `-` kèm tiền tố module. git §2 |
 | **71** | **Entity thêm cột thì bật tạo bảng khi test** (19.111) | Bật `TableSettings.EnableInitTable = true` đúng ConfigId trong `tests/BE/appsettings.Test.json`, giữ `EnableIncreTable = false`; ⛔ `ALTER TABLE` tay, sửa `Database.json`. testing §2 |
-| **72** | **Kế thừa phiên AI** (19.112) | Tiếp quản phiên trước: đọc memory `.agents/memory/` và log phiên gần nhất; ⛔ suy đoán, làm ngược quyết định đã chốt. core-protocol §4 |
+| **72** | **Kế thừa phiên & đổi account** (19.112) | Đọc `.agents/memory/` và MasterPlan; đổi account Claude cấm chat tiếp phiên cũ (tránh Auto-Fork cạn quota); làm xong việc bắt buộc chốt vào memory. core-protocol §4 |
 | **73** | **Cấm nới bộ kiểm để test xanh** (19.113) | ⛔ Nới Validator, Guard đang chặn nguy cơ mất/lặp dữ liệu; test cũ sai chuẩn thì sửa test (`AssertRejectedWith`). backend §4.30, testing §2.8 |
 | **74** | **Bảo toàn tệp SSOT** (19.114) | Tài liệu đã gom một nguồn: ⛔ tạo lại, khôi phục, sửa tệp cũ đã xóa; bổ sung ghi vào tệp SSOT đang sống. documentation §1.4 |
 | **75** | **Giữ khế ước dữ liệu khi sửa UI** (20.32) | Sửa UI chỉ ở template/CSS; ⛔ đổi payload API trừ khi có yêu cầu; trường mới phải tương thích ngược, không gửi thừa/null. frontend §11 |

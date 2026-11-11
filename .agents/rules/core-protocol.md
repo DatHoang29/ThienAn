@@ -21,11 +21,13 @@ trigger: always_on
 ## 3. Memory
 
 - Memory duy nhất ở `.agents/memory/`: mục lục `MEMORY.md` nạp sẵn qua `AGENTS.md` (Codex, Antigravity nạp qua hook SessionStart). Ghi nhớ mới ghi vào đó, không ghi kho riêng của công cụ.
+- **Làm xong là cập nhật memory:** Mọi việc khi hoàn tất (tính năng, sửa lỗi, đổi cấu hình, chốt thiết kế) bắt buộc cập nhật tóm tắt vào `.agents/memory/` (và MasterPlan) để phiên sau kế thừa ngay.
 - Bản đồ `.agents/`: [`.agents/README.md`](../README.md).
 
 ## 4. Kế thừa phiên (Rule 19.112)
 
 Ngoài P0 STT 72, 73: từ log phiên gần nhất (`.jsonl`) nắm việc dở dang, test đỏ và chỉ đạo riêng của người dùng (gộp tệp, quy ước SSOT, chặn lỗi).
+- **Đổi tài khoản Claude: cấm chat tiếp phiên cũ:** Chuyển account/token thì tuyệt đối KHÔNG chat tiếp vào phiên cũ (tránh Claude Code tự động fork nhân bản toàn bộ transcript hàng trăm ngàn tokens làm cạn kiệt quota của account mới). Bắt buộc mở phiên mới tinh (`/clear`), tiếp tục qua MasterPlan và memory.
 
 ## 5. Ngôn ngữ
 

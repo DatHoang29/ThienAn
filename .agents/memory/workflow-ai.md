@@ -270,3 +270,30 @@ Khi cần rà soát codebase, grep/search toàn repo, hoặc đọc nhiều tệ
 - Tác vụ khảo sát / đọc nhiều tệp: gọi subagent (subagent chạy trong context riêng, tự giải phóng khi xong).
 - Yêu cầu subagent: *"Chỉ trả về tóm tắt ngắn gọn: danh sách tệp/hàm liên quan, điểm mấu chốt và phát hiện chính; không in toàn bộ nội dung tệp"*.
 - Phiên chính chỉ nhận kết quả tinh gọn, giữ context luôn nhẹ (dưới 50K-100K tokens), triệt tiêu hoàn toàn nguy cơ bùng nổ token.
+
+## Đổi Account Claude: Cấm chat tiếp phiên cũ (Tránh bẫy Auto-Fork cạn quota)
+
+> Khi chuyển sang tài khoản Claude mới (hoặc đổi Organization/Token), tuyệt đối KHÔNG bấm vào phiên cũ để chat tiếp. Bắt buộc tạo phiên mới tinh (/clear), tiếp tục qua MasterPlan và memory.
+
+Khi bạn đổi tài khoản Claude (ví dụ Account 1 chạm giới hạn 5 giờ, đổi sang Account 2) và bấm vào phiên cũ để chat tiếp:
+1. Claude Code phát hiện đổi tài khoản sở hữu nên **tự động nhân bản (Auto-Fork)** toàn bộ lịch sử sang phiên mới cho Account 2.
+2. Qua nhiều lần đổi account sinh ra nhiều đời `(fork) (fork)...`, tích tụ đến hàng trăm ngàn tokens (ví dụ ngày 11/11/2026 phiên 4 đời fork tích tụ 851.000 tokens / 24 MB transcript).
+3. **Máy chủ Anthropic của Account mới hoàn toàn chưa có cache của khối dữ liệu này**, nên ngay tin nhắn đầu tiên (hoặc khi gõ `/compact`), Account mới bị phạt nạp toàn bộ 851.000 tokens từ đầu, cạn ngay 16% - 25% hạn ngạch 5-giờ trong 1 câu duy nhất.
+
+**Why:** Người dùng ngày 11/11/2026 chia sẻ thực tế: "fork này là khi tôi đổi account claude và chat tiếp session đó nó tự fork... gõ /compact lần đầu tốn hết 16%".
+
+**How to apply:**
+- Khi đổi sang Account Claude mới: gõ `/clear` hoặc mở tab/session mới tinh.
+- Nhập 1 câu prompt ngắn: *"Tiếp tục công việc theo kế hoạch tại `<PhânHệ>_MasterPlan.md`..."*.
+- Phiên mới chỉ tốn đúng ~5.000 tokens (< 0.1% quota) để nạp `AGENTS.md` và MasterPlan, giữ trọn vẹn 100% quota cho Account mới.
+- Hook Idle Guard (`.agents/hooks/idle-guard.mjs`) tự động chặn nếu phiên bị idle ≥ 45 phút và context ≥ 100k tokens.
+
+## Làm xong việc là cập nhật Memory
+
+> Mọi công việc khi hoàn tất (tính năng mới, sửa lỗi, đổi cấu hình, chốt quyết định kiến trúc) bắt buộc cập nhật ngay tóm tắt vào `.agents/memory/` (và MasterPlan) để phiên sau kế thừa tức thì.
+
+**Why:** Ngày 11/11/2026 người dùng chỉ đạo: "thêm rule là mốt làm gì xong cứ thêm vô memory". Khi thông tin được chốt vào memory và MasterPlan, bất kỳ phiên mới nào hoặc account mới nào cũng nắm được toàn bộ hiện trạng mà không cần cõng lịch sử chat cũ.
+
+**How to apply:**
+- Trước khi kết thúc phiên hoặc chuyển sang việc khác: cập nhật tóm tắt vào tệp memory tương ứng trong `.agents/memory/` (và ghi nhận vào `_MasterPlan.md`).
+- Mục lục `MEMORY.md`: nếu thêm dòng mới, mỗi dòng phải ≤ 150 ký tự (theo harness test).
