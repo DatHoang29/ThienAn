@@ -697,6 +697,64 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Author: DatHQ
+        /// Description: Hai bản clone cùng nhận một tín hiệu có dữ liệu mới và dùng chung mọi đối tác. Bản thứ nhất còn đang gửi cho một đối tác thì bản thứ hai
+        ///              gửi xong đối tác còn lại; bản thứ nhất tới đối tác đó sau, với số thứ tự gói đã đọc từ đầu lượt.
+        ///              Mỗi đối tác không được nhận hai gói cùng một số thứ tự.
+        /// Created date: 11/11/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenCloneReachesSubscriptionAfterAnotherCloneSent_SerialNbrIsNotReused_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var packet = await SeedClonePacketAsync(db, rowCount: 5, pageSize: 2);
+            var names = new[] { "A101", "A102" };
+            foreach (var name in names)
+            {
+                await SeedClonePartnerAsync(db, packet, name, configureSub: s => s.SerialNbr = 5);
+            }
+
+            var slowClone = CreateClone(scope, null);
+            var fastClone = CreateClone(scope, null);
+            var waitLimit = TimeSpan.FromSeconds(30);
+            using var firstRequestArrived = new ManualResetEventSlim(false);
+            using var releaseFirstRequest = new ManualResetEventSlim(false);
+            var blockedOnce = 0;
+            _host.PartnerServer.Responder = (_, request) =>
+            {
+                var isFirstCloneRequest = request.Path.Contains(packet.Unique) && Interlocked.Exchange(ref blockedOnce, 1) == 0;
+                if (isFirstCloneRequest)
+                {
+                    firstRequestArrived.Set();
+                    releaseFirstRequest.Wait(waitLimit);
+                }
+
+                return null;
+            };
+
+            // Act: bản chậm bị giữ ở yêu cầu đầu tiên, bản nhanh chạy trọn lượt, rồi bản chậm đi tiếp sang đối tác còn lại
+            var slowRun = slowClone.ProcessSubscriptions(packet.PacketCode, CancellationToken.None);
+            var arrived = firstRequestArrived.Wait(waitLimit);
+            await fastClone.ProcessSubscriptions(packet.PacketCode, CancellationToken.None);
+            releaseFirstRequest.Set();
+            await slowRun;
+            _host.PartnerServer.Responder = null;
+
+            // Assert
+            Assert.True(arrived);
+            foreach (var name in names)
+            {
+                var clonePath = ClonePath(packet, name);
+                var serials = _host.PartnerServer.ReceivedRequests.Where(r => r.Path.Contains(clonePath)).Select(r => r.Headers["SerialNbr"]).ToList();
+                var distinctCount = serials.Distinct().Count();
+                Assert.NotEmpty(serials);
+                Assert.Equal(serials.Count, distinctCount);
+            }
+        }
+
+        /// <summary>
+        /// Author: DatHQ
         /// Description: Thêm đối tác và bản clone sau khi các bản cũ đã gửi xong: đối tác mới nhận từ đầu theo mốc riêng, đối tác cũ không nhận lại dòng nào.
         /// Created date: 05/11/2026
         /// </summary>

@@ -33,3 +33,4 @@ description: Phân loại yêu cầu và định tuyến quy chuẩn theo miền
 Áp P0 STT 24 khi prompt có từ 2 task trở lên hoặc nhiều message liên tiếp:
 - **Nhận diện:** danh sách đánh số (`1.`, `2.`…), gạch đầu dòng, nhiều tệp `@prompt-*.md`, hoặc các phần ngăn bởi `---`/`===`.
 - **Tiết kiệm ngữ cảnh:** subagent thường nạp lại toàn bộ rule; khảo sát, tìm kiếm thì dùng subagent Explore; yêu cầu subagent trả tóm tắt ngắn.
+- **Khảo sát / đọc nhiều tệp:** Bắt buộc giao cho subagent (`explorer-agent` hoặc subagent khảo sát) chạy trong ngữ cảnh riêng để tránh làm bẩn và phình to context phiên chính (chặn nguy cơ bùng nổ token khi phiên kéo dài); subagent đọc/quét trong phòng riêng và chỉ báo cáo tóm tắt phát hiện về phiên chính.

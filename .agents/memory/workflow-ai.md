@@ -257,3 +257,16 @@ Ngày 01/11/2026 người dùng yêu cầu dọn `.agents/` ("còn xoá được
 **Why:** gom từ memory Codex 13–14/10/2026: người dùng phản đối "trùng lặp P2 P2 rồi P1 P1"; review từng báo xong khi Playwright còn lỗi; prompt từng bị báo thiếu vì chưa track. 09/11/2026 người dùng chốt memory một nguồn `.agents/memory/`.
 
 **How to apply:** áp cho mọi báo cáo review và báo trạng thái.
+
+## Khảo sát / đọc nhiều tệp: Giao cho Subagent để tránh bẩn context
+
+> Khi cần khảo sát, tìm kiếm diện rộng hoặc đọc nhiều tệp (từ 3 tệp trở lên), phải giao cho subagent chạy độc lập; subagent chỉ trả kết quả tóm tắt ngắn gọn, không để output tràn vào phiên chính làm phình token
+
+Khi cần rà soát codebase, grep/search toàn repo, hoặc đọc nhiều tệp mã nguồn/tài liệu để khảo sát, KHÔNG đọc trực tiếp hàng loạt trong phiên chính. Phải giao cho subagent (vd: subagent `explorer-agent` hoặc subagent khảo sát) chạy trong không gian riêng và chỉ trả về bản tóm tắt phát hiện súc tích.
+
+**Why:** Ngày 11/11/2026, phiên kéo dài tích lũy context lên 904.000 tokens do hàng trăm kết quả search/read của Gortex và lệnh Bash nằm nguyên trong lịch sử chat. Chỉ trong 6 phút cuối với 25 tool calls liên tiếp, mỗi call phải gửi lại 900K tokens, ngốn tới hơn 22 triệu tokens và đẩy Session limit (5hr) chạm 93%.
+
+**How to apply:**
+- Tác vụ khảo sát / đọc nhiều tệp: gọi subagent (subagent chạy trong context riêng, tự giải phóng khi xong).
+- Yêu cầu subagent: *"Chỉ trả về tóm tắt ngắn gọn: danh sách tệp/hàm liên quan, điểm mấu chốt và phát hiện chính; không in toàn bộ nội dung tệp"*.
+- Phiên chính chỉ nhận kết quả tinh gọn, giữ context luôn nhẹ (dưới 50K-100K tokens), triệt tiêu hoàn toàn nguy cơ bùng nổ token.

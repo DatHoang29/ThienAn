@@ -74,30 +74,6 @@
         ]
       }
     ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
-            "timeout": 3000,
-            "statusMessage": "Loading Gortex graph orientation..."
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
-            "timeout": 5000,
-            "statusMessage": "Running Gortex post-task diagnostics..."
-          }
-        ]
-      }
-    ],
     "SubagentStart": [
       {
         "hooks": [
@@ -118,18 +94,6 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
             "timeout": 3000,
             "statusMessage": "Clearing Gortex subagent turn state..."
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
-            "timeout": 3000,
-            "statusMessage": "Surfacing relevant Gortex symbols..."
           }
         ]
       }
