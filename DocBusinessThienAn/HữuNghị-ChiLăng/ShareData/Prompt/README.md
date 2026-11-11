@@ -23,7 +23,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | # | Prompt | Task | Phạm vi & Trạng thái |
 |---|---|---|---|
-| 1 | [`sharedata-log-truy-vet-kiem-tai-be-prompt.md`](sharedata-log-truy-vet-kiem-tai-be-prompt.md) | Kiểm tải 50 đối tác (seed `sql/kiem-tai/`) | ⏸️ **Tạm hoãn (11/11/2026): người dùng ưu tiên chạy seed kiểm tải trước, prompt làm sau; khi làm cần chốt 3 điểm.** BE: ghi nhật ký khi WebAPI từ chối gói, đưa câu lỗi SQL thật vào `DetailJson`, log tiến trình theo từng dịch vụ Worker, thoát vòng gửi trùng `SerialNbr` khi mất khóa lúc ghi nhận trang, nối cảnh báo với lượt gửi, tách lỗi không tới được máy chủ khỏi lỗi hết thời gian chờ. |
+| 1 | [`sharedata-log-truy-vet-kiem-tai-be-prompt.md`](sharedata-log-truy-vet-kiem-tai-be-prompt.md) | Kiểm tải 50 đối tác (seed `sql/kiem-tai/`) | ⏸️ **Tạm hoãn (11/11/2026): người dùng ưu tiên chạy seed kiểm tải trước, prompt làm sau; khi làm cần chốt 3 điểm.** FE: thu gọn dòng "N đối tác đang dùng gói", thanh tab đối tác câu riêng hiện đủ (26 tab bị che từ KT035). BE: ghi nhật ký khi WebAPI từ chối gói, đưa câu lỗi SQL thật vào `DetailJson`, log tiến trình theo từng dịch vụ Worker, thoát vòng gửi trùng `SerialNbr` khi mất khóa lúc ghi nhận trang, nối cảnh báo với lượt gửi, tách lỗi không tới được máy chủ khỏi lỗi hết thời gian chờ. |
 
 ### 🟠 Đợt 02/11/2026 — Chạy nhiều Worker để kiểm thử gửi nhận
 

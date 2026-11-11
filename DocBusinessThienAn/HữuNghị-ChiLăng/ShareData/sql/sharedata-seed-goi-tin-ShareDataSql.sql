@@ -15,7 +15,7 @@
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
+-- CẬP NHẬT LẦN CUỐI: 11/11/2026 (câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -1154,10 +1154,10 @@ WHEN MATCHED THEN
                t.UpdateUId      = @operator
 WHEN NOT MATCHED THEN
     INSERT (ID, Code, Name, EventTypeId, StartDate, KmNumber, MetNumber, Location, InfluenceScope,
-            InjuredNumber, VehicleNumber, State, Description, Source, TenantId, CreateTime, CreateUId)
+            InjuredNumber, VehicleNumber, State, Description, Source, ProcessMode, TenantId, CreateTime, CreateUId)
     VALUES (CONVERT(nvarchar(64), NEWID()), s.incidentCode, s.incidentName, s.eventTypeId, s.occurredTime,
             s.locationKm, s.locationMet, s.locationRoute, s.direction, s.injuredCount, s.vehicleCount,
-            s.incidentState, s.description, s.source, @tenantId, @now, @operator)
+            s.incidentState, s.description, s.source, N''manual'', @tenantId, @now, @operator)
 OUTPUT $action;');
 
 -- Gói 108: VmsInfo (2 bảng)
