@@ -30,6 +30,16 @@ async function openSqlCenter(page: Page) {
     await page.waitForTimeout(1500);
 }
 
+/** Chọn phạm vi SQL (Mẫu chung hoặc đối tác có cấu hình riêng) qua ô el-select.partner-tab-jump ở tab Chiều gửi. */
+async function selectPartnerScope(page: Page, labelOrCode: string) {
+    const select = page.locator('.partner-tab-jump');
+    await expect(select).toBeVisible({ timeout: 10_000 });
+    await select.click();
+    const option = page.locator('.partner-tab-jump-popper:visible .el-select-dropdown__item', { hasText: labelOrCode }).first();
+    await expect(option).toBeVisible({ timeout: 5_000 });
+    await option.click();
+}
+
 /** Xóa sạch nội dung khung soạn thảo (một dòng) bằng phím, rồi gõ lại văn bản. */
 async function retypeSql(page: Page, text: string, delay = 150) {
     await page.locator('.sql-monaco-editor .view-lines').first().click();
@@ -253,7 +263,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         await expect.poll(() => saved?.extractSql, { timeout: 10_000 }).toBe(SQL_ONE_COLUMN);
         expect(saved.partnerId).toBe('P1');
-        await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-DAT');
+        await expect(page.locator('.partner-tab-jump')).toContainText('DT-DAT');
     });
 
     /**
@@ -311,8 +321,10 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         expect(saved.partnerId).toBe('P1');
         // Lần gửi đầu không kèm force: máy chủ cần bỏ mốc đang chạy thì trả về để hỏi trước (ca 11c)
         expect(saved.force).toBeFalsy();
-        await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-DAT');
-        await expect(page.locator('.sql-partner-tabs .el-tabs__item').last()).toContainText('DT-DAT');
+        await expect(page.locator('.partner-tab-jump')).toContainText('DT-DAT');
+        await page.locator('.partner-tab-jump').click();
+        await expect(page.locator('.partner-tab-jump-popper:visible .el-select-dropdown__item').last()).toContainText('DT-DAT');
+        await page.keyboard.press('Escape');
     });
 
     /**
@@ -396,7 +408,9 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         expect(saveBodies).toHaveLength(1);
         expect(saveBodies[0].force).toBeFalsy();
         expect(variableWrites).toHaveLength(0);
-        await expect(page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-DAT' })).toHaveCount(0);
+        await page.locator('.partner-tab-jump').click();
+        await expect(page.locator('.partner-tab-jump-popper:visible .el-select-dropdown__item', { hasText: 'DT-DAT' })).toHaveCount(0);
+        await page.keyboard.press('Escape');
 
         // Đồng ý: gửi lại với force, bộ biến của VDOT đi kèm câu SQL trong cùng lần lưu
         await createFromVdot();
@@ -409,7 +423,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             expect.objectContaining({ code: 'pageSize', valueKind: 'Const', value: '50' }),
         ]);
         expect(variableWrites).toHaveLength(0);
-        await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-DAT');
+        await expect(page.locator('.partner-tab-jump')).toContainText('DT-DAT');
     });
 
     test('12. Đối tác đã có SQL riêng: hiện tab đối tác, nút Lưu khóa cho tới khi sửa, bảng trường hiện cột So mẫu chung', async ({ page }) => {
@@ -437,7 +451,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             )
         );
         await openSqlCenter(page);
-        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-DAT' }).click();
+        await selectPartnerScope(page, 'DT-DAT');
 
         const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
         await expect(save).toContainText('Lưu & phân tích');
@@ -515,7 +529,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await compareDialog.locator('.el-dialog__headerbtn').click();
         await expect(compareDialog).toBeHidden();
 
-        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-A' }).click();
+        await selectPartnerScope(page, 'DT-A');
         await page.locator('.sql-toolbar-bar .el-button', { hasText: 'Dùng lại mẫu chung' }).click();
         await page.locator('.el-message-box .el-button--primary').click();
         await expect.poll(() => resetIds, { timeout: 10_000 }).toEqual(['P1']);
@@ -548,12 +562,12 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             );
         });
         await openSqlCenter(page);
-        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-A' }).click();
+        await selectPartnerScope(page, 'DT-A');
         const resetButton = page.locator('.sql-toolbar-bar .el-button', { hasText: 'Dùng lại mẫu chung' });
         const firstBox = page.locator('.el-message-box', { hasText: 'Dùng lại' }).or(page.locator('.lost-keys-confirm-box')).first();
         const cursorBox = page.locator('.el-message-box', { has: page.locator('.cursor-reset-confirm') });
 
-        // Hủy ở hộp xác nhận xóa mốc: không gửi lại, vẫn ở tab đối tác
+        // Hủy ở hộp xác nhận xóa mốc: không gửi lại, vẫn ở phạm vi đối tác
         await resetButton.click();
         await firstBox.locator('.el-button--primary').click();
         await expect(cursorBox).toContainText('Đối tác A', { timeout: 10_000 });
@@ -562,7 +576,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await cursorBox.locator('.el-message-box__btns .el-button').first().click();
         await expect(cursorBox).toBeHidden();
         expect(resetBodies).toHaveLength(1);
-        await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-A');
+        await expect(page.locator('.partner-tab-jump')).toContainText('DT-A');
 
         // Đồng ý: gửi lại với force
         await resetButton.click();
@@ -611,24 +625,46 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
                 r.fulfill(json({ code: 200, result: { items: [{ code: 'lane', valueKind: 'Const', dataType: 'String', value: 'L1' }] } }))
             );
             await openSqlCenter(page);
-            if (c.tab) await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: c.tab }).click();
+            if (c.tab) await selectPartnerScope(page, c.tab);
             await page.waitForTimeout(800);
 
             const alert = page.locator('.send-regions-wrapper .el-alert--warning');
             const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+            const sqlSection = page.locator('.sql-section');
+            const textarea = sqlSection.locator('.sql-raw-textarea-fallback textarea');
+            const fieldsSection = page.locator('.fields-section');
+            const fieldEditBtn = fieldsSection.locator('.field-edit-btn').first();
+            const svpCard = page.locator('.sql-variable-panel .svp-card').first();
             const sourceSelect = page.locator('.sql-variable-panel .svp-source-select .el-select__wrapper').first();
-            await page.locator('.sql-section .sql-raw-textarea-fallback textarea').fill(`${LOCK_SQL} AND 2 = 2`);
-            // Khung soạn đẩy nội dung lên trang sau 450ms kể từ lần gõ cuối
-            await page.waitForTimeout(600);
+            const constInput = page.locator('.sql-variable-panel .svp-const-input input').first();
 
             if (c.locked) {
                 await expect(alert).toContainText('Đối tác B');
-                await expect(save).toBeDisabled();
+                await expect(sqlSection).toHaveClass(/is-scope-locked/);
+                await expect(sqlSection.locator('.sql-editor-container')).toHaveClass(/is-readonly/);
+                await expect(sqlSection.locator('.sql-monaco-section')).toHaveClass(/is-readonly/);
+                await expect(textarea).toBeDisabled();
+                await expect(fieldsSection).toHaveClass(/is-scope-locked/);
+                await expect(fieldEditBtn).toBeDisabled();
+                await expect(svpCard).toHaveClass(/is-scope-locked/);
                 await expect(sourceSelect).toHaveClass(/is-disabled/);
+                await expect(constInput).toBeDisabled();
+                await expect(save).toBeDisabled();
             } else {
                 await expect(alert).toHaveCount(0);
-                await expect(save).toBeEnabled();
+                await expect(sqlSection).not.toHaveClass(/is-scope-locked/);
+                await expect(sqlSection.locator('.sql-editor-container')).not.toHaveClass(/is-readonly/);
+                await expect(sqlSection.locator('.sql-monaco-section')).not.toHaveClass(/is-readonly/);
+                await expect(textarea).toBeEnabled();
+                await expect(fieldsSection).not.toHaveClass(/is-scope-locked/);
+                await expect(fieldEditBtn).toBeEnabled();
+                await expect(svpCard).not.toHaveClass(/is-scope-locked/);
                 await expect(sourceSelect).not.toHaveClass(/is-disabled/);
+                await expect(constInput).toBeEnabled();
+                await textarea.fill(`${LOCK_SQL} AND 2 = 2`);
+                // Khung soạn đẩy nội dung lên trang sau 450ms kể từ lần gõ cuối
+                await page.waitForTimeout(600);
+                await expect(save).toBeEnabled();
             }
             if (c.tab) {
                 const resetButton = page.locator('.sql-toolbar-bar .el-button', { hasText: 'Dùng lại mẫu chung' });
@@ -699,9 +735,9 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(page.locator('.packet-col .vxe-table--main-wrapper .vxe-header--column', { hasText: 'Nguồn SQL' })).toBeVisible();
         await expect(rows.nth(0)).toContainText('Cấu hình riêng');
         await expect(rows.nth(1)).toContainText('Dùng chung');
-        // Tải chậm (27/10): không tự chọn gói; bấm gói có SQL riêng thì mở thẳng tab SQL của đối tác đang lọc
+        // Tải chậm (27/10): không tự chọn gói; bấm gói có SQL riêng thì mở thẳng phạm vi SQL của đối tác đang lọc
         await rows.nth(0).click();
-        await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-E', { timeout: 15_000 });
+        await expect(page.locator('.partner-tab-jump')).toContainText('DT-E', { timeout: 15_000 });
 
         // Xóa ô lọc đối tác: thứ tự sắp xếp mặc định (orderNo asc) được bảo toàn, không bị xáo trộn
         await page.locator('.packet-partner-filter .el-select').hover();
@@ -975,16 +1011,26 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             await page.locator('.direction-tabs .el-tabs__item', { hasText: 'Nhận về' }).click();
             const panel = page.locator('.write-sql-panel');
             await expect(panel).toBeVisible();
-            await panel.getByRole('button', { name: 'Chèn mẫu MERGE' }).click();
-            await expect(panel.locator('.wsp-detected-tag')).toContainText('dbo.TmsTrafficData', { timeout: 10_000 });
 
+            const wspEditor = panel.locator('.wsp-editor');
+            const mergeBtn = panel.getByRole('button', { name: 'Chèn mẫu MERGE' });
             const save = panel.locator('.wsp-save-btn');
             const alert = panel.locator('.el-alert--warning');
             if (c.locked) {
                 await expect(alert).toContainText('Đối tác B');
+                await expect(wspEditor).toHaveClass(/is-scope-locked/);
+                await expect(wspEditor.locator('.sql-editor-container')).toHaveClass(/is-readonly/);
+                await expect(wspEditor.locator('.sql-raw-textarea-fallback textarea')).toBeDisabled();
+                await expect(mergeBtn).toBeDisabled();
                 await expect(save).toBeDisabled();
             } else {
                 await expect(alert).toHaveCount(0);
+                await expect(wspEditor).not.toHaveClass(/is-scope-locked/);
+                await expect(wspEditor.locator('.sql-editor-container')).not.toHaveClass(/is-readonly/);
+                await expect(wspEditor.locator('.sql-raw-textarea-fallback textarea')).toBeEnabled();
+                await expect(mergeBtn).toBeEnabled();
+                await mergeBtn.click();
+                await expect(panel.locator('.wsp-detected-tag')).toContainText('dbo.TmsTrafficData', { timeout: 10_000 });
                 await expect(save).toBeEnabled({ timeout: 10_000 });
             }
         });
@@ -1140,8 +1186,8 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(fieldsGrid.locator('.vxe-header--column', { hasText: 'Trường dữ liệu' })).toBeVisible();
         await expect(fieldsGrid.locator('.vxe-header--column', { hasText: 'Tên hiển thị' })).toBeVisible();
 
-        // Chuyển sang tab VDOT
-        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'VDOT' }).click();
+        // Chuyển sang đối tác VDOT
+        await selectPartnerScope(page, 'VDOT');
 
         // Toolbar bên trái hiện thông tin đối tác và chip phiên bản mẫu
         const toolbarLeft = page.locator('.sql-toolbar-left');
@@ -1261,24 +1307,37 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
     }
 
     /**
-     * Description: Tab Mẫu chung / đối tác có hiệu ứng trượt thanh gạch dưới khi bấm đổi tab;
-     *              chỉ tạm tắt hiệu ứng ngay lúc quay lại tab Chiều gửi (tránh trượt từ Mẫu chung sang tab đang chọn).
+     * Description: Ô chọn phạm vi SQL (Mẫu chung / đối tác) đồng bộ ở cả Chiều gửi (.partner-tab-jump) và Chiều nhận (.wsp-scope-select),
+     *              thay thế hoàn toàn thanh tab ngang (.sql-partner-tabs / .wsp-scope-tabs).
      * Created date: 27/10/2026
+     * Modified date: 11/11/2026
      */
-    test('39. Tab đối tác có hiệu ứng trượt; quay lại Chiều gửi thì tạm tắt rồi bật lại', async ({ page }) => {
+    test('39. Ô chọn phạm vi SQL (Mẫu chung / đối tác) đồng bộ ở cả Chiều gửi và Chiều nhận, không còn thanh tab đối tác ngang', async ({ page }) => {
         await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
             r.fulfill(json({ code: 200, result: [{ partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt', isCustom: true }] }))
         );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (r) =>
+            r.fulfill(json({ code: 200, result: { partnerId: 'P1', packetCode: '101_commonData', standardSql: SQL_ONE_COLUMN, customSql: `${SQL_ONE_COLUMN} WHERE 1 = 1`, isCustom: true, fields: SAVED_FIELDS, commonFields: SAVED_FIELDS } }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerwritesqllist*', (r) =>
+            r.fulfill(json({ code: 200, result: [{ partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt', isCustom: true }] }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerwritesql*', (r) =>
+            r.fulfill(json({ code: 200, result: { packetCode: '101_commonData', isCustom: true, customWriteSql: 'MERGE dbo.TmsTrafficData AS t USING (SELECT 1 AS id) s ON t.ID = s.id OUTPUT $action;', standardWriteSql: '' } }))
+        );
         await openSqlCenter(page);
-        const tabs = page.locator('.sql-partner-tabs').first();
-        const barDuration = () => tabs.locator('.el-tabs__active-bar').evaluate((el) => getComputedStyle(el).transitionDuration);
-        await expect.poll(barDuration).not.toBe('0s');
+        await expect(page.locator('.sql-partner-tabs')).toHaveCount(0);
+        await expect(page.locator('.partner-tab-jump')).toContainText('Mẫu chung');
+        await selectPartnerScope(page, 'DT-DAT');
+        await expect(page.locator('.partner-tab-jump')).toContainText('DT-DAT');
 
         await page.locator('.direction-tabs .el-tabs__item').nth(1).click();
-        await page.locator('.direction-tabs .el-tabs__item').nth(0).click();
-        await expect(tabs).toHaveClass(/no-bar-anim/);
-        await expect.poll(barDuration, { timeout: 3000 }).not.toBe('0s');
-        await expect(tabs).not.toHaveClass(/no-bar-anim/);
+        await expect(page.locator('.wsp-scope-tabs')).toHaveCount(0);
+        const wspSelect = page.locator('.wsp-scope-select');
+        await expect(wspSelect).toContainText('Mẫu chung');
+        await wspSelect.click();
+        await page.locator('.wsp-scope-select-popper:visible .el-select-dropdown__item', { hasText: 'DT-DAT' }).first().click();
+        await expect(wspSelect).toContainText('DT-DAT');
     });
 
 
@@ -1388,7 +1447,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             )
         );
         await openSqlCenter(page);
-        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-DAT' }).click();
+        await selectPartnerScope(page, 'DT-DAT');
 
         const fieldsSection = page.locator('.fields-section');
         await expect(fieldsSection.locator('.fields-badge-count')).toHaveText('0', { timeout: 10_000 });
@@ -1479,7 +1538,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             );
         });
         await openSqlCenter(page);
-        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-A' }).click();
+        await selectPartnerScope(page, 'DT-A');
         const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
         await expect(save).toBeDisabled({ timeout: 15_000 });
         await page.locator('.sql-section .sql-raw-textarea-fallback textarea').fill(`${SQL_ONE_COLUMN} WHERE 2 = 2`);

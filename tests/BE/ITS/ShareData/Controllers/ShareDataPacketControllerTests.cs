@@ -4071,6 +4071,59 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
+    /// Description: Gói catalog còn sống chỉ còn dòng mẫu chung đã xóa mềm (như gói 105 trên staging): chỉ mục duy nhất chặn thêm dòng mới nên bước 0.5
+    ///              của tệp seed khôi phục đúng dòng đó, xóa trắng nội dung cũ, rồi bước 1 nạp câu mẫu chuẩn; gói vẫn chỉ có một dòng mẫu chung.
+    ///              Chạy đúng khối lệnh trong tệp, trong giao dịch rồi hoàn tác.
+    /// Created date: 11/11/2026
+    /// </summary>
+    [Fact]
+    public async Task SeedSqlScript_WhenCommonRowSoftDeleted_RestoresRowAndLoadsStandardSql_Test()
+    {
+        // Arrange
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var restoreBatch = SeedScriptReader.ReadSqlSeedBatch("-- 0.5 KHÔI PHỤC DÒNG MẪU CHUNG ĐÃ XÓA MỀM CỦA GÓI 101 - 111");
+        var loadBatch = SeedScriptReader.ReadSqlSeedBatch("-- 1. NẠP CÂU MẪU CHUNG (ShareDataSql) CHO GÓI 101 - 111");
+        var packetId = Guid.NewGuid().ToString("N");
+        var rowId = Guid.NewGuid().ToString("N");
+        var deletedAt = DateTime.Now.AddDays(-2);
+        await db.Ado.BeginTranAsync();
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = packetId,
+            Code = $"105_SEED_{unique}",
+            Name = $"Seed 105 {unique}",
+            PacketVersion = "1.0",
+            Status = BaseEnums.StatusEnum.Disable
+        }).ExecuteCommandAsync();
+        await db.Insertable(new ShareDataSql
+        {
+            ID = rowId,
+            PacketId = packetId,
+            ExtractSql = "SELECT 1 AS oldSql",
+            WriteSql = "SELECT 'INSERT'",
+            FieldsJson = "[]"
+        }).ExecuteCommandAsync();
+        await db.Updateable<ShareDataSql>().SetColumns(s => s.IsDelete == deletedAt).Where(s => s.ID == rowId).ExecuteCommandAsync();
+
+        // Act
+        await db.Ado.ExecuteCommandAsync(restoreBatch);
+        await db.Ado.ExecuteCommandAsync(loadBatch);
+        var rows = await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packetId && s.PartnerId == null).ToListAsync();
+        await db.Ado.RollbackTranAsync();
+
+        // Assert
+        var row = Assert.Single(rows);
+        Assert.Equal(rowId, row.ID);
+        Assert.Null(row.IsDelete);
+        Assert.Equal(SeedScriptReader.GetExtractSql("105"), row.ExtractSql);
+        Assert.Null(row.WriteSql);
+        Assert.Null(row.FieldsJson);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
     /// Description: Chỉ lưu bảng tham số, đổi biến mốc sang giá trị cố định trong khi câu đang lưu còn cột mốc: câu thành gửi toàn bộ nên bị từ chối, bộ biến cũ còn nguyên.
     /// Created date: 05/11/2026
     /// </summary>

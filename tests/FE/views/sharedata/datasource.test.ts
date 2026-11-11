@@ -1,4 +1,4 @@
-import { test, expect, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockAuth } from '../../setup';
 
 /**
@@ -9,6 +9,16 @@ import { mockAuth } from '../../setup';
 
 /** Lỗi của khung layout dùng chung (layout/main/defaults.vue gọi layoutMainScrollbarRef khi chưa gắn) nằm ngoài ShareData: không tính vào lỗi trang. */
 const isSharedLayoutError = (message: string) => message.includes('layoutMainScrollbarRef');
+
+/** Chọn phạm vi SQL (Mẫu chung hoặc đối tác có cấu hình riêng) qua ô el-select.partner-tab-jump. */
+const selectPartnerScope = async (page: Page, labelOrCode: string) => {
+    const select = page.locator('.partner-tab-jump');
+    await expect(select).toBeVisible({ timeout: 10_000 });
+    await select.click();
+    const option = page.locator('.partner-tab-jump-popper:visible .el-select-dropdown__item', { hasText: labelOrCode }).first();
+    await expect(option).toBeVisible({ timeout: 5_000 });
+    await option.click();
+};
 
 test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) @sharedata', () => {
 
@@ -775,10 +785,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(mainTable.locator('.cvi-from')).toHaveText('Đối tác chưa có mốc: từ');
         await expect(mainTable.locator('.cvi-prefix-label')).toHaveCount(0);
 
-        // 2. Chuyển sang tab Đối tác riêng CSGT: bảng tham số thêm cột So mẫu chung (4 cột)
-        const partnerTab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'CSGT' }).first();
-        await expect(partnerTab).toBeVisible();
-        await partnerTab.click();
+        // 2. Chuyển sang phạm vi Đối tác riêng CSGT: bảng tham số thêm cột So mẫu chung (4 cột)
+        await selectPartnerScope(page, 'CSGT');
 
         await expect(mainTable.locator('thead th')).toHaveCount(4);
         // Bảng đủ 4 cột vẫn không phải cuộn ngang
@@ -844,22 +852,57 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             await expect(firstRow).toBeVisible({ timeout: 30_000 });
             await firstRow.click();
 
+            const sqlSection = page.locator('.sql-section');
+            const fieldsSection = page.locator('.fields-section');
+            const fieldEditBtn = page.locator('.field-edit-btn').first();
             const panel = page.locator('.sql-variable-panel');
+            const svpCard = panel.locator('.svp-card').first();
             const mainTable = panel.locator('.svp-table').first();
+            const pageSizeInput = mainTable.locator('.svp-page-size-input input');
             const picker = mainTable.locator('.cvi-picker input');
             const editBtn = mainTable.locator('.cvi-edit');
 
-            // Tab Mẫu chung: chỉ đặt mốc bắt đầu, để trống là gửi toàn bộ dữ liệu
-            await expect(picker).toBeEnabled({ timeout: 10_000 });
+            // Tab Mẫu chung: chỉ đặt mốc bắt đầu, để trống là gửi toàn bộ dữ liệu; khi đăng ký gửi đang bật thì cả 3 mục 1, 2, 3 khóa mờ và vô hiệu hóa thao tác
+            if (c.locked) {
+                await expect(picker).toBeDisabled({ timeout: 10_000 });
+                await expect(pageSizeInput).toBeDisabled();
+                await expect(sqlSection).toHaveClass(/is-scope-locked/);
+                await expect(sqlSection.locator('.sql-editor-container')).toHaveClass(/is-readonly/);
+                await expect(sqlSection.locator('.sql-monaco-section')).toHaveClass(/is-readonly/);
+                await expect(fieldsSection).toHaveClass(/is-scope-locked/);
+                await expect(fieldEditBtn).toBeDisabled();
+                await expect(svpCard).toHaveClass(/is-scope-locked/);
+            } else {
+                await expect(picker).toBeEnabled({ timeout: 10_000 });
+                await expect(pageSizeInput).toBeEnabled();
+                await expect(sqlSection).not.toHaveClass(/is-scope-locked/);
+                await expect(sqlSection.locator('.sql-editor-container')).not.toHaveClass(/is-readonly/);
+                await expect(sqlSection.locator('.sql-monaco-section')).not.toHaveClass(/is-readonly/);
+                await expect(fieldsSection).not.toHaveClass(/is-scope-locked/);
+                await expect(fieldEditBtn).toBeEnabled();
+                await expect(svpCard).not.toHaveClass(/is-scope-locked/);
+            }
             await expect(picker).toHaveValue('');
             await expect(picker).toHaveAttribute('placeholder', 'Đối tác chưa có mốc: gửi toàn bộ');
             await expect(editBtn).toHaveCount(0);
             await expect(mainTable.locator('.cvi-modes')).toHaveCount(0);
             await expect(mainTable.locator('.cvi-info')).toHaveCount(0);
 
-            const partnerTab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'CSGT' }).first();
-            await partnerTab.click();
+            await selectPartnerScope(page, 'CSGT');
             await expect(mainTable.locator('thead th')).toHaveCount(4);
+            if (c.locked) {
+                await expect(sqlSection).toHaveClass(/is-scope-locked/);
+                await expect(fieldsSection).toHaveClass(/is-scope-locked/);
+                await expect(fieldEditBtn).toBeDisabled();
+                await expect(svpCard).toHaveClass(/is-scope-locked/);
+                await expect(pageSizeInput).toBeDisabled();
+            } else {
+                await expect(sqlSection).not.toHaveClass(/is-scope-locked/);
+                await expect(fieldsSection).not.toHaveClass(/is-scope-locked/);
+                await expect(fieldEditBtn).toBeEnabled();
+                await expect(svpCard).not.toHaveClass(/is-scope-locked/);
+                await expect(pageSizeInput).toBeEnabled();
+            }
 
             // Tiêu đề So mẫu chung nằm trên một dòng như cột Tham số, không bị cắt chữ
             const headCells = mainTable.locator('thead th .cell');
@@ -950,26 +993,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const table = page.locator('.sql-variable-panel .svp-table').first();
         const picker = table.locator('.cvi-picker input');
         const paramCodes = table.locator('.svp-param-code');
-        const partnerTab = (code: string) => page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: code }).first();
-        const expectHasCursorTab = async () => {
-            await expect(paramCodes).toHaveText(['@pageSize', '@lastKey'], { timeout: 10_000 });
-            await expect(table.locator('.el-input-number input')).toHaveValue('5');
-            await expect(picker).toBeDisabled();
-            await expect(picker).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
-            expect(variablePartners.at(-1)).toBe('p_a');
-        };
-        const expectNoCursorTab = async () => {
-            await expect(paramCodes).toHaveText(['@lastKey'], { timeout: 10_000 });
-            await expect(picker).toBeEnabled();
-            await expect(picker).toHaveAttribute('placeholder', 'Gửi toàn bộ dữ liệu');
-            expect(variablePartners.at(-1)).toBe('p_b');
-        };
-
-        await partnerTab('CSGT').click();
+        await selectPartnerScope(page, 'CSGT');
         await expectHasCursorTab();
-        await partnerTab('VETC').click();
+        await selectPartnerScope(page, 'VETC');
         await expectNoCursorTab();
-        await partnerTab('CSGT').click();
+        await selectPartnerScope(page, 'CSGT');
         await expectHasCursorTab();
     });
 
@@ -1393,12 +1421,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await packetRow.click();
         await page.waitForTimeout(600);
 
-        // Chờ tab Mẫu chung và tab DDLT-2 hiển thị
-        const standardTab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'Mẫu chung' }).first();
-        const ddlt2Tab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'DDLT-2' }).first();
-        await expect(standardTab).toBeVisible({ timeout: 10_000 });
-        await expect(ddlt2Tab).toBeVisible({ timeout: 10_000 });
-        await expect(standardTab).toHaveClass(/is-active/);
+        // Chờ ô chọn phạm vi SQL hiển thị Mẫu chung
+        const scopeSelect = page.locator('.partner-tab-jump');
+        await expect(scopeSelect).toBeVisible({ timeout: 10_000 });
+        await expect(scopeSelect).toContainText('Mẫu chung');
 
         // 1. Sửa tham số để tạo trạng thái chưa lưu (dirty)
         const paramInput = page.locator('.sql-variable-panel .el-table__body .svp-const-input input').first();
@@ -1420,13 +1446,15 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await paramInput.fill('200');
         await page.waitForTimeout(300);
 
-        // 2. Bấm vào tab DDLT-2 -> Phải chặn ngay từ đầu, KHÔNG đổi tab DDLT-2 thành active
-        await ddlt2Tab.click();
+        // 2. Chọn sang đối tác DDLT-2 -> Phải chặn ngay từ đầu, hỏi cảnh báo
+        await scopeSelect.click();
+        const ddlt2Option = page.locator('.partner-tab-jump-popper:visible .el-select-dropdown__item', { hasText: 'DDLT-2' }).first();
+        await expect(ddlt2Option).toBeVisible({ timeout: 5000 });
+        await ddlt2Option.click();
         await page.waitForTimeout(300);
 
-        // Khẳng định: Tab hiện tại VẪN LÀ Mẫu chung (chưa nhảy sang DDLT-2)
-        await expect(standardTab).toHaveClass(/is-active/);
-        await expect(ddlt2Tab).not.toHaveClass(/is-active/);
+        // Khẳng định: Phạm vi hiện tại VẪN LÀ Mẫu chung (chưa nhảy sang DDLT-2)
+        await expect(scopeSelect).toContainText('Mẫu chung');
 
         // Hộp thoại confirm cảnh báo chuyển tab xuất hiện
         const tabLeaveConfirmBox = page.locator('.lost-keys-confirm-box');
@@ -1440,12 +1468,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(tabTitle).toHaveCSS('justify-content', 'flex-start');
         await expect(tabLeaveConfirmBox.locator('.el-message-box__container > .el-message-box__status')).toHaveCount(0);
 
-        // Bấm nút Bỏ qua -> Hộp thoại đóng, tab vẫn ở Mẫu chung (không nhảy sang DDLT-2)
+        // Bấm nút Bỏ qua -> Hộp thoại đóng, phạm vi vẫn ở Mẫu chung (không nhảy sang DDLT-2)
         const cancelTabBtn = tabLeaveConfirmBox.locator('.el-message-box__btns button').first();
         await cancelTabBtn.click();
         await expect(tabLeaveConfirmBox).toBeHidden({ timeout: 3000 });
-        await expect(standardTab).toHaveClass(/is-active/);
-        await expect(ddlt2Tab).not.toHaveClass(/is-active/);
+        await expect(scopeSelect).toContainText('Mẫu chung');
 
         // 3. Thay đổi câu SQL và bấm Lưu & phân tích -> nhận lỗi SQL kèm tên trường 'Name' (không bị cụt dấu ':')
         await page.locator('.monaco-editor').first().click();
@@ -1492,13 +1519,14 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     /**
-     * Description: Điều tra hiện tượng giật width của thanh active-bar (.el-tabs__active-bar) khi chuyển tab đối tác:
-     *              - Bấm từ "Mẫu chung" sang tab đối tác "ddlt";
-     *              - Quan sát biến thiên width và transform của thanh gạch dưới (.el-tabs__active-bar);
-     *              - Phát hiện nguyên nhân giật (nhiều lần thay đổi width đột ngột hoặc animation bị đứt gãy).
+     * Description: Chuyển đổi qua lại giữa Mẫu chung và các đối tác qua ô Chọn đối tác (.partner-tab-jump):
+     *              - Bấm chọn đối tác ddlt: nạp đúng câu SQL riêng của đối tác;
+     *              - Bấm chọn đối tác DDTL-2: nạp đúng câu SQL riêng của DDTL-2;
+     *              - Bấm chọn lại Mẫu chung: nạp lại câu SQL mẫu chung.
      * Created date: 28/10/2026
+     * Modified date: 11/11/2026
      */
-    test('53. Điều tra hiện tượng giật width của thanh active-bar khi chuyển tab đối tác', async ({ page }) => {
+    test('53. Chuyển đổi qua lại giữa Mẫu chung và các đối tác qua ô Chọn đối tác', async ({ page }) => {
         const compositeSql =
             "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey " +
             "FROM TmsZone WHERE (CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
@@ -1537,8 +1565,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         );
 
         await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', async (route) => {
-            // Giả lập độ trễ mạng thực tế 250ms như trên server
-            await new Promise((resolve) => setTimeout(resolve, 250));
+            const url = new URL(route.request().url());
+            const partnerId = url.searchParams.get('PartnerId') ?? url.searchParams.get('partnerId');
+            const customSql = partnerId === 'p_ddlt' ? `${compositeSql} -- ddlt` : `${compositeSql} -- DDTL-2`;
             await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
@@ -1546,7 +1575,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                     code: 200,
                     result: {
                         isCustom: true,
-                        customSql: compositeSql,
+                        customSql,
                         standardSql: compositeSql,
                         fields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }],
                         commonFields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }],
@@ -1562,171 +1591,23 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(firstRow).toBeVisible({ timeout: 30_000 });
         await firstRow.click();
 
-        const partnerTabs = page.locator('.sql-partner-tabs');
-        await expect(partnerTabs).toBeVisible({ timeout: 10_000 });
+        const scopeSelect = page.locator('.partner-tab-jump');
+        await expect(scopeSelect).toBeVisible({ timeout: 10_000 });
+        await expect(scopeSelect).toContainText('Mẫu chung');
 
-        const ddltTab = partnerTabs.locator('.el-tabs__item').filter({ hasText: 'ddlt' }).first();
-        await expect(ddltTab).toBeVisible({ timeout: 10_000 });
+        // Bấm ddlt
+        await selectPartnerScope(page, 'ddlt');
+        await expect(scopeSelect).toContainText('ddlt');
+        await expect(page.locator('.sql-editor-section .monaco-editor').first()).toContainText('ddlt', { timeout: 10_000 });
 
-        const ddtl2Tab = partnerTabs.locator('.el-tabs__item').filter({ hasText: 'DDTL-2' }).first();
-        const stdTab = partnerTabs.locator('.el-tabs__item').filter({ hasText: 'Mẫu chung' }).first();
+        // Bấm DDTL-2
+        await selectPartnerScope(page, 'DDTL-2');
+        await expect(scopeSelect).toContainText('DDTL-2');
+        await expect(page.locator('.sql-editor-section .monaco-editor').first()).toContainText('DDTL-2', { timeout: 10_000 });
 
-        // Cài đặt bộ theo dõi (monitor) ghi lại hình học và style của active-bar và tabs
-        const logHandle = await page.evaluateHandle(() => {
-            const records: any[] = [];
-            const styleMutations: any[] = [];
-            (window as any).__barRecords = records;
-            (window as any).__styleMutations = styleMutations;
-
-            const tabs = document.querySelector('.sql-partner-tabs');
-            const bar = tabs?.querySelector('.el-tabs__active-bar') as HTMLElement;
-            const items = () => Array.from(tabs?.querySelectorAll('.el-tabs__item') || []) as HTMLElement[];
-
-            // Mốc giờ lấy theo khung hình (đối số của requestAnimationFrame) vì hiệu ứng CSS tính theo giờ khung hình;
-            // performance.now() lúc hàm chạy lệch khỏi giờ khung hình khi máy bận nên phóng đại bước nhảy
-            let start: number | null = null;
-            let recording = true;
-
-            // MutationObserver theo dõi mọi lần style của bar bị ghi đè
-            if (bar) {
-                const mo = new MutationObserver((mutations) => {
-                    for (const m of mutations) {
-                        if (m.type === 'attributes' && m.attributeName === 'style') {
-                            const now = performance.now() - (start ?? performance.now());
-                            styleMutations.push({
-                                t: Math.round(now),
-                                widthStyle: bar.style.width,
-                                transformStyle: bar.style.transform,
-                                rectWidth: Math.round(bar.getBoundingClientRect().width * 100) / 100,
-                                rectLeft: Math.round(bar.getBoundingClientRect().left * 100) / 100,
-                            });
-                        }
-                    }
-                });
-                mo.observe(bar, { attributes: true, attributeFilter: ['style'] });
-            }
-
-            const capture = (frameTime: number) => {
-                if (!recording) return;
-                if (start === null) start = frameTime;
-                const now = frameTime - start;
-                const barRect = bar ? bar.getBoundingClientRect() : null;
-                const csBar = bar ? window.getComputedStyle(bar) : null;
-                const itemSnapshots = items().map((it) => {
-                    const cs = window.getComputedStyle(it);
-                    return {
-                        id: it.id,
-                        text: it.textContent?.trim(),
-                        isActive: it.classList.contains('is-active'),
-                        clientWidth: it.clientWidth,
-                        scrollWidth: it.scrollWidth,
-                        paddingLeft: cs.paddingLeft,
-                        paddingRight: cs.paddingRight,
-                        rectWidth: Math.round(it.getBoundingClientRect().width * 100) / 100,
-                    };
-                });
-
-                records.push({
-                    t: Math.round(now),
-                    barWidthStyle: bar?.style.width,
-                    barTransformStyle: bar?.style.transform,
-                    computedWidth: csBar?.width,
-                    rectWidth: barRect ? Math.round(barRect.width * 100) / 100 : null,
-                    rectLeft: barRect ? Math.round(barRect.left * 100) / 100 : null,
-                    items: itemSnapshots,
-                });
-                requestAnimationFrame(capture);
-            };
-            requestAnimationFrame(capture);
-
-            return {
-                stop() {
-                    recording = false;
-                    return records;
-                },
-            };
-        });
-
-        console.log('--- Bấm ddlt ---');
-        await ddltTab.click();
-        await page.waitForTimeout(600);
-
-        console.log('--- Bấm DDTL-2 ---');
-        await ddtl2Tab.click();
-        await page.waitForTimeout(600);
-
-        console.log('--- Bấm Mẫu chung ---');
-        await stdTab.click();
-        await page.waitForTimeout(600);
-        // Chờ thanh dừng hẳn ở tab Mẫu chung rồi mới chốt số liệu, không dựa vào thời gian chờ cố định
-        await expect
-            .poll(() => partnerTabs.locator('.el-tabs__active-bar').evaluate((el) => (el as HTMLElement).style.width), { timeout: 10_000 })
-            .toBe('67px');
-
-        // Lấy toàn bộ records và mutations
-        const { records, mutations } = await logHandle.evaluate((m) => {
-            const recs = m.stop();
-            return {
-                records: recs,
-                mutations: (window as any).__styleMutations || [],
-            };
-        });
-
-        console.log('=== MUTATION OBSERVER STYLE ASSIGNMENTS ===');
-        console.log('Total style mutations:', mutations.length);
-        console.log('Mutations:', mutations);
-
-        console.log('=== ITEMS COMPUTED PADDING & WIDTH ===');
-        console.log('Initial items:', JSON.stringify(records[0]?.items, null, 2));
-        console.log('Final items:', JSON.stringify(records[records.length - 1]?.items, null, 2));
-
-        console.log('=== TỔNG HỢP CÁC LẦN BAR.STYLE THAY ĐỔI ===');
-        const styleChanges: any[] = [];
-        let prevWidthStyle = '';
-        let prevTransformStyle = '';
-        for (const r of records) {
-            if (r.barWidthStyle !== prevWidthStyle || r.barTransformStyle !== prevTransformStyle) {
-                styleChanges.push({
-                    t: r.t,
-                    barWStyle: r.barWidthStyle,
-                    barTrStyle: r.barTransformStyle,
-                    rectWidth: r.rectWidth,
-                    rectLeft: r.rectLeft,
-                });
-                prevWidthStyle = r.barWidthStyle;
-                prevTransformStyle = r.barTransformStyle;
-            }
-        }
-        console.log('Style changes:', styleChanges);
-
-        console.log('=== PHÂN TÍCH ĐỘ MƯỢT CỦA WIDTH (DELTA QUA CÁC FRAME) ===');
-        const deltas: { t: number; fromW: number; toW: number; delta: number; dt: number }[] = [];
-        for (let i = 1; i < records.length; i++) {
-            const prev = records[i - 1];
-            const curr = records[i];
-            const dW = Math.abs((curr.rectWidth || 0) - (prev.rectWidth || 0));
-            const dt = curr.t - prev.t;
-            if (dW > 0.1) {
-                deltas.push({
-                    t: curr.t,
-                    fromW: prev.rectWidth,
-                    toW: curr.rectWidth,
-                    delta: Math.round(dW * 100) / 100,
-                    dt,
-                });
-            }
-        }
-        console.log('Deltas có thay đổi width:', deltas);
-        // Quy về một khung hình 16,7ms: máy bận rớt khung thì delta cộng dồn, không phải cú giật của thanh
-        const maxDelta = deltas.reduce((m, d) => Math.max(m, (d.delta * 16.7) / Math.max(d.dt, 16.7)), 0);
-        console.log('Max delta width trong 1 frame:', maxDelta);
-
-        // Khẳng định: không còn cú giật width đột ngột (> 10px / frame do nghẽn main thread)
-        expect(maxDelta).toBeLessThan(10);
-
-        // Khẳng định: kích thước dừng ổn định của thanh active-bar khớp chính xác với tab đang chọn
-        const lastRecord = records[records.length - 1];
-        expect(lastRecord.barWidthStyle).toBe('67px');
+        // Bấm Mẫu chung
+        await selectPartnerScope(page, 'Mẫu chung');
+        await expect(scopeSelect).toContainText('Mẫu chung');
     });
 
     /**
@@ -2245,10 +2126,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(firstRow).toBeVisible();
         await firstRow.click();
 
-        // Kiểm tra thanh tab: Mẫu chung đang active
-        const stdTab = page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'Mẫu chung' });
-        await expect(stdTab).toBeVisible();
-        await expect(stdTab).toHaveClass(/is-active/);
+        // Kiểm tra ô chọn phạm vi: Mẫu chung đang được chọn
+        const scopeSelect = page.locator('.partner-tab-jump');
+        await expect(scopeSelect).toBeVisible();
+        await expect(scopeSelect).toContainText('Mẫu chung');
 
         // Tiêu đề câu truy vấn là Mẫu chung, KHÔNG được hiện tiêu đề riêng của TTCSDL
         const editorTitle = page.locator('.sql-section .sql-editor-title');
@@ -2256,23 +2137,21 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(editorTitle).toContainText(/mẫu chung/i);
         await expect(editorTitle).not.toContainText('TTCSDL');
 
-        // Đối tác có isCustom = true (DDTL-2) có tab riêng
-        const ddtl2Tab = page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DDTL-2' });
-        await expect(ddtl2Tab).toBeVisible();
+        // Mở dropdown kiểm tra: DDTL-2 có mặt, TTCSDL KHÔNG có mặt (vì dùng chung)
+        await scopeSelect.click();
+        const ddlt2Opt = page.locator('.partner-tab-jump-popper:visible .el-select-dropdown__item', { hasText: 'DDTL-2' });
+        const ttcsdlOpt = page.locator('.partner-tab-jump-popper:visible .el-select-dropdown__item', { hasText: 'TTCSDL' });
+        await expect(ddlt2Opt).toBeVisible();
+        await expect(ttcsdlOpt).toHaveCount(0);
 
-        // Đối tác dùng chung (TTCSDL) KHÔNG có tab riêng
-        const ttcsdlTab = page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'TTCSDL' });
-        await expect(ttcsdlTab).toHaveCount(0);
-
-        // Chuyển sang tab DDTL-2: Tiêu đề chuyển sang riêng của DDTL-2, tab TTCSDL vẫn không bao giờ xuất hiện
-        await ddtl2Tab.click();
-        await expect(ddtl2Tab).toHaveClass(/is-active/);
+        // Chuyển sang DDTL-2: Tiêu đề chuyển sang riêng của DDTL-2
+        await ddlt2Opt.click();
+        await expect(scopeSelect).toContainText('DDTL-2');
         await expect(editorTitle).toContainText('DDTL-2');
-        await expect(ttcsdlTab).toHaveCount(0);
 
         // Quay lại Mẫu chung
-        await stdTab.click();
-        await expect(stdTab).toHaveClass(/is-active/);
+        await selectPartnerScope(page, 'Mẫu chung');
+        await expect(scopeSelect).toContainText('Mẫu chung');
         await expect(editorTitle).toContainText(/mẫu chung/i);
 
         // Không có bất kỳ lỗi JavaScript / pageerror nào
@@ -2343,12 +2222,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const sendRegionsWrapper = page.locator('.send-regions-wrapper');
         await expect(sendRegionsWrapper).toBeVisible();
 
-        // Chuyển sang tab DDTL-2
-        const ddtl2Tab = page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DDTL-2' });
-        await expect(ddtl2Tab).toBeVisible();
-
-        // Click tab đối tác DDTL-2 và kiểm tra trạng thái loading che phủ
-        await ddtl2Tab.click();
+        // Chuyển sang đối tác DDTL-2 và kiểm tra trạng thái loading che phủ
+        await selectPartnerScope(page, 'DDTL-2');
 
         // Khi đang nạp dữ liệu: wrapper phải có lớp is-scope-loading và mask che phủ
         await expect(sendRegionsWrapper).toHaveClass(/is-scope-loading/, { timeout: 1000 });
@@ -2677,7 +2552,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
         await expect(firstRow).toBeVisible({ timeout: 30_000 });
         await firstRow.click();
-        await page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'PC08' }).first().click();
+        await selectPartnerScope(page, 'PC08');
 
         const panel = page.locator('.sql-variable-panel');
         const lead = panel.locator('.svp-check-lead');
@@ -3000,5 +2875,231 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(rows.nth(2)).toContainText('test');
         // Chỉ kiểm tra ngầm đúng 1 gói mới, không quét lại 2 gói cũ đã biết trạng thái
         expect(mappingCallsAfterAdd).toBeLessThanOrEqual(1);
+    });
+
+    /**
+     * Description: Dữ liệu gói nhiều đối tác (tái hiện kiểm tải 52 đối tác trên staging), tự sinh mỗi lần chạy qua API giả lập, mã không trùng giữa các lần chạy:
+     *              một gói, 30 đối tác, 15 đối tác có cấu hình riêng xen kẽ đối tác dùng chung; câu riêng của mỗi đối tác mang mã đối tác đó.
+     * Created date: 11/11/2026
+     */
+    const seedManyPartnerPacket = async (page: Page) => {
+        const runId = Date.now().toString(36).toUpperCase();
+        const packetCode = `KT_${runId}`;
+        const standardSql = 'SELECT TOP 100 z.Code AS zoneCode FROM TmsZone z';
+        const fields = [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực' }];
+        const partners = Array.from({ length: 30 }, (_, i) => {
+            const no = String(i + 1).padStart(3, '0');
+            return {
+                partnerId: `P_${runId}_${no}`,
+                partnerCode: `KT${no}-${runId.slice(-4)}`,
+                partnerName: `Kiểm tải ${no}`,
+                isCustom: i % 2 === 1,
+                updateTime: new Date(Date.UTC(2026, 10, 11, 8, i)).toISOString(),
+            };
+        });
+        const json = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+
+        await page.route('**/api/sharedata/sharedatapacket/page*', (route) =>
+            route.fulfill(
+                json({
+                    records: [
+                        {
+                            id: `PKT_${runId}`,
+                            code: packetCode,
+                            name: `Gói kiểm tải ${runId}`,
+                            status: 1,
+                            partnerCount: partners.length,
+                            partnerNames: partners.map((p) => p.partnerCode),
+                        },
+                    ],
+                    total: 1,
+                })
+            )
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            route.fulfill(
+                json({
+                    extract: { extractSql: standardSql, status: 1, fields },
+                    variables: { items: [] },
+                    write: { packetCode, writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                })
+            )
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (route) => route.fulfill(json(partners)));
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (route) => {
+            const partnerId = new URL(route.request().url()).searchParams.get('PartnerId');
+            const partner = partners.find((p) => p.partnerId === partnerId);
+            const customSql = `SELECT TOP 100 z.Code AS zoneCode, N'${partner?.partnerCode}' AS partnerTag FROM TmsZone z`;
+            return route.fulfill(json({ isCustom: true, customSql, standardSql, fields, commonFields: fields }));
+        });
+
+        return { partners, customPartners: partners.filter((p) => p.isCustom) };
+    };
+
+    /**
+     * Description: Dòng "Đối tác dùng gói" của gói nhiều đối tác không đẩy Vùng 1, 2, 3 xuống: mặc định chỉ hiện tóm tắt
+     *              và 10 thẻ đầu (cấu hình riêng xếp trước), "Xem tất cả" hiện đủ, "Thu gọn" về như cũ.
+     * Created date: 11/11/2026
+     */
+    test('79a. Gói nhiều đối tác: dòng Đối tác dùng gói mặc định chỉ hiện tóm tắt và 10 thẻ (cấu hình riêng trước), Xem tất cả hiện đủ, Thu gọn trở lại', async ({ page }) => {
+        const pageErrors: string[] = [];
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
+
+        // BƯỚC 1: Setup — một gói 30 đối tác, 15 đối tác có cấu hình riêng, cả 30 đối tác đều đang bật đăng ký gửi
+        const { partners, customPartners } = await seedManyPartnerPacket(page);
+        const sharedCount = partners.length - customPartners.length;
+        await page.route('**/api/sharedata/sharedatasubscription/list*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: partners.map((p, idx) => ({
+                        id: `SUB_${idx + 1}`,
+                        partnerId: p.partnerId,
+                        partnerCode: p.partnerCode,
+                        partnerName: p.partnerName,
+                        direction: 0,
+                        status: 1,
+                    })),
+                }),
+            })
+        );
+
+        // BƯỚC 2: Navigate — mở màn Cấu hình gói tin, chọn gói
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+        await firstRow.click();
+
+        const usage = page.locator('.packet-partner-usage');
+        const tags = usage.locator('.el-tag');
+        const toggle = usage.locator('.partner-usage-toggle');
+
+        // BƯỚC 4: Mặc định — tóm tắt đủ số, chỉ 10 thẻ và đều là đối tác cấu hình riêng (xếp trước), nút Xem tất cả kèm tổng số đối tác
+        await expect(usage.locator('.usage-summary')).toHaveText(`${customPartners.length} cấu hình riêng · ${sharedCount} dùng chung`, { timeout: 15_000 });
+        await expect(tags).toHaveCount(10);
+        await expect(tags.filter({ hasText: 'Dùng chung' })).toHaveCount(0);
+        await expect(tags.first()).toContainText(customPartners[0].partnerCode);
+        await expect(toggle).toHaveText(`Xem tất cả (${partners.length})`);
+
+        // BƯỚC 3: Bấm Xem tất cả — hiện đủ 30 thẻ, nút đổi thành Thu gọn
+        await toggle.click();
+        await expect(tags).toHaveCount(partners.length);
+        await expect(tags.filter({ hasText: 'Dùng chung' })).toHaveCount(sharedCount);
+        await expect(toggle).toHaveText('Thu gọn');
+
+        // Bấm Thu gọn — về lại 10 thẻ như lúc đầu
+        await toggle.click();
+        await expect(tags).toHaveCount(10);
+        await expect(toggle).toHaveText(`Xem tất cả (${partners.length})`);
+
+        // Hộp cảnh báo khoá câu SQL (khi nhiều đối tác bật đăng ký): mặc định thu gọn 5 đối tác đầu + Xem tất cả (30), bấm mở rộng hiện đủ 30 đối tác rồi Thu gọn lại
+        const lockAlert = page.locator('.send-direction-container .sql-lock-alert');
+        const lockToggle = lockAlert.locator('.sql-lock-toggle');
+        const lastPartnerName = partners[partners.length - 1].partnerName;
+        await expect(lockAlert).toBeVisible();
+        await expect(lockAlert).toContainText(partners[0].partnerName);
+        await expect(lockAlert).toContainText(partners[4].partnerName);
+        await expect(lockAlert).not.toContainText(lastPartnerName);
+        await expect(lockToggle).toHaveText(`Xem tất cả (${partners.length})`);
+
+        await lockToggle.click();
+        await expect(lockAlert).toContainText(lastPartnerName);
+        await expect(lockToggle).toHaveText('Thu gọn');
+
+        await lockToggle.click();
+        await expect(lockAlert).not.toContainText(lastPartnerName);
+        await expect(lockToggle).toHaveText(`Xem tất cả (${partners.length})`);
+
+        // Tooltip cột Đối tác của bảng Gói tin: có min-width và giới hạn bề rộng theo tỷ lệ màn hình (<= 28vw), không tràn ngang toàn màn hình
+        const partnerCountTag = firstRow.locator('.partner-count-tag');
+        await partnerCountTag.hover();
+        const partnerTooltip = page.locator('.el-popper.partner-count-tooltip');
+        await expect(partnerTooltip).toBeVisible();
+        const tooltipBox = (await partnerTooltip.boundingBox())!;
+        expect(tooltipBox.width).toBeGreaterThanOrEqual(160);
+        expect(tooltipBox.width).toBeLessThanOrEqual(Math.ceil(1600 * 0.28) + 2);
+        expect(pageErrors).toEqual([]);
+    });
+
+    /**
+     * Description: Gói nhiều đối tác có cấu hình riêng chọn phạm vi SQL bằng ô chọn "Chọn đối tác:" (Mẫu chung + từng đối tác), ô hẹp 180px,
+     *              rê chuột hiện tooltip tên đầy đủ; tìm và chọn được đối tác cuối, mở đúng câu riêng; đang sửa dở thì hỏi, bấm Hủy thì ở lại.
+     *              Ô chọn, nút Tạo cấu hình riêng và nút Lưu & phân tích nằm trọn trong khung nhìn.
+     * Created date: 11/11/2026
+     */
+    test('79b. Gói nhiều đối tác: ô Chọn đối tác có nhãn, hẹp, tooltip tên đầy đủ, chọn được đối tác cuối và vẫn hỏi khi đang sửa dở', async ({ page }) => {
+        const pageErrors: string[] = [];
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
+
+        // BƯỚC 1: Setup — một gói 30 đối tác, 15 đối tác có cấu hình riêng
+        const { customPartners } = await seedManyPartnerPacket(page);
+        const firstCustom = customPartners[0];
+        const lastCustom = customPartners[customPartners.length - 1];
+
+        // BƯỚC 2: Navigate — mở màn Cấu hình gói tin, chọn gói
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+        await firstRow.click();
+
+        const jumpSelect = page.locator('.partner-tab-jump');
+        const jumpOption = (text: string) => page.locator('.partner-tab-jump-popper .el-select-dropdown__item', { hasText: text });
+        const toolbarCode = page.locator('.sql-toolbar-left .partner-toolbar-code');
+        const editorLines = page.locator('.sql-editor-section .sql-monaco-editor .view-lines');
+        const addPartnerBtn = page.locator('.add-partner-tab-btn');
+
+        // BƯỚC 4: Ô chọn và các nút nằm trọn trong khung nhìn
+        await expect(jumpSelect).toBeVisible({ timeout: 15_000 });
+        await expect(jumpSelect).toBeInViewport({ ratio: 1 });
+        await expect(addPartnerBtn).toBeInViewport({ ratio: 1 });
+        await expect(page.locator('.sql-toolbar-right button').filter({ hasText: 'Lưu & phân tích' })).toBeInViewport({ ratio: 1 });
+        const jumpBox = (await jumpSelect.boundingBox())!;
+        expect(Math.round(jumpBox.width)).toBe(220);
+
+        // BƯỚC 3: Mở ô chọn — có Mẫu chung và đủ đối tác cấu hình riêng; gõ tìm rồi chọn đối tác cuối
+        await jumpSelect.click();
+        await expect(page.locator('.partner-tab-jump-popper .el-select-dropdown__item')).toHaveCount(customPartners.length + 1);
+        await page.keyboard.type(lastCustom.partnerCode);
+        await jumpOption(lastCustom.partnerCode).click();
+
+        // BƯỚC 4: Mở đúng câu riêng của đối tác cuối; rê chuột ô chọn hiện tooltip tên đầy đủ
+        await expect(toolbarCode).toHaveText(lastCustom.partnerCode);
+        await expect(editorLines).toContainText(lastCustom.partnerCode, { timeout: 10_000 });
+        await jumpSelect.hover();
+        const scopeTooltip = page.locator('.el-popper.is-dark', { hasText: lastCustom.partnerCode });
+        await expect(scopeTooltip).toBeVisible({ timeout: 3000 });
+        await expect(scopeTooltip).toContainText(lastCustom.partnerName);
+
+        // Đang sửa dở mà chọn đối tác khác thì hỏi, bấm Hủy thì ở lại đối tác cũ
+        await page.locator('.sql-editor-section .monaco-editor').first().click();
+        await page.keyboard.press('End');
+        await page.keyboard.type(' -- test');
+        await jumpSelect.click();
+        await page.keyboard.type(firstCustom.partnerCode);
+        await jumpOption(firstCustom.partnerCode).click();
+        const leaveConfirmBox = page.locator('.lost-keys-confirm-box');
+        await expect(leaveConfirmBox).toBeVisible({ timeout: 5000 });
+        await leaveConfirmBox.locator('.el-message-box__btns button').first().click();
+        await expect(leaveConfirmBox).toBeHidden({ timeout: 3000 });
+        await expect(toolbarCode).toHaveText(lastCustom.partnerCode);
+
+        // Tab Nhận về dùng cùng kiểu ô chọn: rộng 220px, rê chuột hiện tooltip tên phạm vi đang chọn
+        await page.locator('.direction-tabs .el-tabs__item').nth(1).click();
+        const writeSelect = page.locator('.wsp-scope-select');
+        await expect(writeSelect).toBeVisible({ timeout: 10_000 });
+        await expect(writeSelect).toBeInViewport({ ratio: 1 });
+        const writeSelectBox = (await writeSelect.boundingBox())!;
+        expect(Math.round(writeSelectBox.width)).toBe(220);
+        await writeSelect.hover();
+        await expect(page.locator('.el-popper.is-dark', { hasText: 'Mẫu chung' })).toBeVisible({ timeout: 3000 });
+        expect(pageErrors).toEqual([]);
     });
 });

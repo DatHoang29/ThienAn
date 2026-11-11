@@ -9,13 +9,15 @@
 --              1b. Điền bộ biến (@lastKey, kèm @pageSize nếu câu dùng) cho câu mẫu chung nối đuôi một chuỗi ghép còn trống VariablesJson.
 --              5. Chuyển câu SQL riêng cũ ở ShareDataMapping.ExtractSql sang ShareDataSql; đổi __rowid -> __lastKey.
 --              0.4 Bộ biến của câu SQL ở cột VariablesJson: chuyển từ bảng cũ ShareDataSqlVariable (bỏ bảng 27/10/2026).
+--              0.5 Khôi phục dòng mẫu chung đã xóa mềm của gói 101 - 111 còn sống mà không còn dòng mẫu chung nào (chỉ mục duy nhất
+--                  PacketId, PartnerId chặn thêm dòng mới), xóa trắng nội dung cũ để bước 1, 1b, 6 nạp lại câu chuẩn.
 --              6. Khối câu ghi chiều nhận (WriteSql, AffectedTables) ở dòng mẫu chung: chuyển từ bảng cũ ShareDataPacketSql,
 --                 rồi nạp khối chuẩn Catalog (101 - 109) cho gói chưa có câu ghi. Gộp tệp ShareDataPacketSql cũ (27/10/2026).
 -- THỨ TỰ CHẠY: 2 / 3 (sau sharedata-seed-goi-tin-ShareDataPacket.sql, vì cần bản ghi gói) (xem README.md cùng thư mục).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 11/11/2026 (câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
+-- CẬP NHẬT LẦN CUỐI: 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -132,6 +134,36 @@ BEGIN
     EXEC sp_executesql @MoveVarsSql, N'@TenantId NVARCHAR(64), @Moved INT OUTPUT', @TenantId = @TenantIdVars, @Moved = @MovedVars OUTPUT;
 END;
 PRINT N'   -> Đã chuyển bộ biến từ bảng cũ ShareDataSqlVariable sang VariablesJson: ' + CAST(@MovedVars AS NVARCHAR(10)) + N' dòng.';
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 0.5 KHÔI PHỤC DÒNG MẪU CHUNG ĐÃ XÓA MỀM CỦA GÓI 101 - 111 (IDEMPOTENT)
+-- -----------------------------------------------------------------------------------------
+-- Chỉ mục duy nhất (PacketId, PartnerId) tính cả dòng đã xóa mềm: gói còn dòng mẫu chung đã xóa mềm thì bước 1, 6 không thêm được dòng
+-- mới (trùng khóa) mà cũng không cập nhật (chỉ sửa dòng đang sống), gói đứng trống câu truy vấn (vd gói 105 trên staging từ 09/11/2026).
+-- Gói đang sống chưa có dòng mẫu chung đang sống: bỏ xóa mềm dòng cũ và xóa trắng nội dung cũ để bước 1, 1b, 6 nạp lại câu chuẩn.
+UPDATE s
+SET s.[IsDelete] = NULL,
+    s.[ExtractSql] = NULL,
+    s.[FieldsJson] = NULL,
+    s.[DescribedTime] = NULL,
+    s.[VariablesJson] = NULL,
+    s.[WriteSql] = NULL,
+    s.[AffectedTables] = NULL,
+    s.[WriteRemark] = NULL,
+    s.[UpdateTime] = GETDATE(),
+    s.[UpdateUId] = 'SHAREDATA-SEED-02'
+FROM [dbo].[ShareDataSql] s
+JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
+WHERE p.[IsDelete] IS NULL
+  AND s.[PartnerId] IS NULL
+  AND s.[IsDelete] IS NOT NULL
+  AND LEFT(p.[Code], 3) BETWEEN '101' AND '111'
+  AND (LEN(p.[Code]) = 3 OR SUBSTRING(p.[Code], 4, 1) = '_')
+  AND NOT EXISTS (
+      SELECT 1 FROM [dbo].[ShareDataSql] a
+      WHERE a.[PacketId] = s.[PacketId] AND a.[PartnerId] IS NULL AND a.[IsDelete] IS NULL);
+PRINT N'-> 0.5. Đã khôi phục ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng mẫu chung đã xóa mềm của gói 101 - 111.';
 GO
 
 -- -----------------------------------------------------------------------------------------

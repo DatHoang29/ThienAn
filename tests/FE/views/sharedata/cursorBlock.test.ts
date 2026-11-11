@@ -49,6 +49,14 @@ const pickTime = async (page: Page, scope: Locator, text: string) => {
     await scope.locator('.cvi-picker input').fill(text);
     await page.keyboard.press('Enter');
 };
+const selectPartnerScope = async (page: Page, labelOrCode: string) => {
+    const select = page.locator('.partner-tab-jump');
+    await expect(select).toBeVisible({ timeout: 10_000 });
+    await select.click();
+    const option = page.locator('.partner-tab-jump-popper:visible .el-select-dropdown__item', { hasText: labelOrCode }).first();
+    await expect(option).toBeVisible({ timeout: 5_000 });
+    await option.click();
+};
 
 /** Mở trang Cấu hình gói tin, chọn gói đầu tiên và chờ khung soạn SQL sẵn sàng. */
 const openSqlCenter = async (page: Page, viewport = { width: 1600, height: 1000 }) => {
@@ -202,7 +210,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(blockRow(page, 'VDOT')).toHaveCount(1, { timeout: 10_000 });
         await expect(blockRow(page, 'DT-DAT')).toHaveCount(0);
 
-        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-DAT' }).click();
+        await selectPartnerScope(page, 'DT-DAT');
         await expect(block(page)).toContainText('4. Mốc đang chạy của Đạt', { timeout: 15_000 });
         await expect(block(page).locator('.el-table__body tr')).toHaveCount(1);
         await expect(blockRow(page, 'DT-DAT')).toContainText('2026-11-01 09:00:00.000_A1');
@@ -227,18 +235,24 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
             const rowA = blockRow(page, 'CSGT');
             await expect(rowA).toContainText('2026-10-30 07:00:00.000_k100', { timeout: 15_000 });
 
+            const scbCard = block(page).locator('.scb-card');
             if (locked) {
+                await expect(scbCard).toHaveClass(/is-scope-locked/);
+                await expect(rowA).toHaveClass(/is-row-locked/);
                 await expect(rowA.locator('.sd-cursor-set-btn')).toBeDisabled();
                 await expect(rowA.locator('.sd-cursor-reset-btn')).toBeDisabled();
                 await rowA.locator('.sd-cursor-btn-wrapper').first().hover();
                 await expect(page.locator('.el-popper:visible', { hasText: 'Tắt đăng ký trước khi đặt mốc' })).toBeVisible({ timeout: 5_000 });
             } else {
+                await expect(scbCard).not.toHaveClass(/is-scope-locked/);
+                await expect(rowA).not.toHaveClass(/is-row-locked/);
                 await expect(rowA.locator('.sd-cursor-set-btn')).toBeEnabled();
                 await expect(rowA.locator('.sd-cursor-reset-btn')).toBeEnabled();
             }
 
-            // Đối tác không có đăng ký luôn đặt được
+            // Đối tác không có đăng ký luôn đặt được và dòng không bị khóa mờ
             const rowB = blockRow(page, 'VDOT');
+            await expect(rowB).not.toHaveClass(/is-row-locked/);
             await expect(rowB.locator('.sd-cursor-set-btn')).toBeEnabled();
             await expect(rowB.locator('.sd-cursor-reset-btn')).toBeEnabled();
         });
@@ -454,7 +468,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         });
 
         await openSqlCenter(page);
-        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'CSGT' }).click();
+        await selectPartnerScope(page, 'CSGT');
         const variables = page.locator('.sql-variable-panel .svp-table').first();
         const startInput = variables.locator('tbody tr', { hasText: '@lastKey' }).locator('.cvi-picker input');
         const pageSizeInput = variables.locator('tbody tr', { hasText: '@pageSize' }).locator('.el-input-number input');
@@ -536,14 +550,14 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(packetMask).toBeHidden({ timeout: 10_000 });
         await expect(blockRow(page, 'PC08').locator('.sd-cursor-line')).toHaveText('2026-11-02 02:02:00.000_');
 
-        // Chuyển sang tab đối tác VDOT rồi quay lại tab Mẫu chung khi API mốc của khối 4 phản hồi chậm: mặt nạ chuyển tab giữ cho tới khi khối 4 nạp xong
-        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'VDOT' }).click();
+        // Chuyển sang đối tác VDOT rồi quay lại Mẫu chung khi API mốc của khối 4 phản hồi chậm: mặt nạ chuyển phạm vi giữ cho tới khi khối 4 nạp xong
+        await selectPartnerScope(page, 'VDOT');
         await expect(blockRow(page, 'VDOT').locator('.sd-cursor-line')).toHaveText('2026-11-03 03:03:00.000_V1', { timeout: 10_000 });
 
         partnerCursorPending = new Promise<void>((resolve) => {
             releasePartnerCursor = resolve;
         });
-        await page.locator('.sql-partner-tabs .el-tabs__item').first().click();
+        await selectPartnerScope(page, 'Mẫu chung');
         await expect.poll(() => partnerCursorCalls, { timeout: 15_000 }).toBe(2);
         const scopeMask = page.locator('.send-regions-wrapper > .solid-loading-mask');
         await expect(scopeMask).toBeVisible();
