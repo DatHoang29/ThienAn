@@ -140,6 +140,17 @@ internal static class SeedScriptReader
 
     /// <summary>
     /// Author: DatHQ
+    /// Description: Đọc nguyên văn một tệp seed dữ liệu chuẩn trong thư mục sql (vd bộ mã chuẩn hóa) để test chạy đúng câu lệnh chạy trên máy chủ.
+    /// Created date: 11/11/2026
+    /// </summary>
+    public static string ReadSqlScript(string fileName)
+    {
+        var scriptPath = ResolveSqlScriptPath(fileName);
+        return File.ReadAllText(scriptPath);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
     /// Description: Cắt một khối lệnh của tệp script từ dòng tiêu đề mục tới dòng GO kế tiếp (không gồm GO).
     /// Created date: 02/11/2026
     /// </summary>

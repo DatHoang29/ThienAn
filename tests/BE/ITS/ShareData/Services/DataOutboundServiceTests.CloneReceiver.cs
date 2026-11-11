@@ -57,10 +57,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             ISqlSugarClient db,
             ClonePacket packet,
             string name,
-            string endpoint = ReceiveEndpoint)
+            string endpoint = ReceiveEndpoint,
+            string? shapeJson = null)
         {
             var partnerCode = ClonePartnerCode(packet, name);
-            var shape = JsonNode.Parse(ReceiverShapeJson);
+            var shapeText = shapeJson ?? ReceiverShapeJson;
+            var shape = JsonNode.Parse(shapeText);
             var seed = new OutboundSubSeed
             {
                 PartnerCode = partnerCode,
@@ -101,7 +103,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 DatatypeId = packet.PacketId,
                 Direction = BaseEnums.Direction.Inbound,
                 IsActive = true,
-                TargetShapeJson = ReceiverShapeJson
+                TargetShapeJson = shapeText
             };
             await db.Insertable(inboundMapping).ExecuteCommandAsync();
 
@@ -147,7 +149,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         ///              gửi kênh API qua WebAPI trong tiến trình test nên gói vào đúng controller nhận thật.
         /// Created date: 10/11/2026
         /// </summary>
-        private DataOutboundService CreateReceiverClone(IServiceScope scope, string? selfPartnerCode)
+        private DataOutboundService CreateReceiverClone(IServiceScope scope, string? selfPartnerCode, IHttpClientFactory? apiClientFactory = null)
         {
             var settings = new Dictionary<string, string?>();
             if (selfPartnerCode != null)
@@ -157,9 +159,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
             var services = scope.ServiceProvider;
-            var apiClientFactory = new InProcessApiClientFactory(_host);
+            var clientFactory = apiClientFactory ?? new InProcessApiClientFactory(_host);
             var fileLogger = services.GetRequiredService<ILogger<FileDeliverySender>>();
-            var httpSender = new HttpDeliverySender(apiClientFactory);
+            var httpSender = new HttpDeliverySender(clientFactory);
             var fileSender = new FileDeliverySender(configuration, fileLogger);
             var ftpSender = new FtpDeliverySender();
             var kafkaSender = new KafkaDeliverySender();

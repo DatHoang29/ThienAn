@@ -405,8 +405,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 }).ExecuteCommandAsync();
             }
 
-            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed { PartnerCode = $"P_HDR_{unique}", SubCode = $"SUB_HDR_{unique}", DatatypeId = "101" });
-
             var targetShape = new Dictionary<string, object?>
             {
                 ["header"] = new Dictionary<string, object?>
@@ -424,16 +422,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var mappingId = Guid.NewGuid().ToString("N");
-            await db.Insertable(new ShareDataMapping
-            {
-                ID = mappingId,
-                PartnerId = partner.ID,
-                DatatypeId = "101",
-                Direction = BaseEnums.Direction.Outbound,
-                TargetShapeJson = JsonSerializer.Serialize(targetShape),
-                IsActive = true
-            }).ExecuteCommandAsync();
+            // Bộ khung có header là hồ sơ duy nhất của đối tác: thêm hồ sơ thứ hai thì hai hồ sơ cùng CreateTime và Worker chọn hồ sơ nào là không xác định.
+            var (_, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed { PartnerCode = $"P_HDR_{unique}", SubCode = $"SUB_HDR_{unique}", DatatypeId = "101", MappingShape = targetShape });
 
             await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
@@ -461,7 +451,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Dọn dữ liệu test cụ thể tự chèn
             await db.Deleteable<TmsZoneStatus>().In(statusIds).ExecuteCommandAsync();
             await db.Deleteable<TmsZone>().In(zoneIds).ExecuteCommandAsync();
-            await db.Deleteable<ShareDataMapping>().Where(m => m.ID == mappingId).ExecuteCommandAsync();
         }
 
 
