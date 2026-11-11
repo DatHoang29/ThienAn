@@ -102,8 +102,9 @@
   "enabledMcpjsonServers": [
     "gortex",
     "mssql_dev",
-    "mssql_test",
-    "mssql_staging"
+    "mssql_test"
   ],
-  "disabledMcpjsonServers": []
+  "disabledMcpjsonServers": [
+    "mssql_staging"
+  ]
 }
