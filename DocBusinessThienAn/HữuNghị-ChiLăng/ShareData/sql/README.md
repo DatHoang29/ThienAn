@@ -1,7 +1,7 @@
 # 🗄️ Danh Mục Kịch Bản SQL Phân Hệ ShareData (ESHARE)
 
 > **Căn cứ quy chuẩn:** [`.agents/rules/database-mcp_thienan.md` §2.3](../../../../.agents/rules/database-mcp_thienan.md) (Rule 19.85: Entity là SSOT, CodeFirst tạo khung trước; Rule 19.101: tệp `_local.sql` chỉ chạy trên DB local; Rule 19.103: **mỗi tệp chỉ ghi một bảng, tên tệp mang hậu tố tên bảng**).  
-> **Cập nhật lần cuối:** 08/11/2026
+> **Cập nhật lần cuối:** 11/11/2026
 
 ---
 
@@ -77,6 +77,20 @@ Chỉ giả lập bảng nghiệp vụ ShareData; không ghi vào bảng của p
 - **Dọn dẹp:** mỗi tệp giả lập có khối dọn dẹp riêng, đặt `@XoaDuLieuGiaLap = 1` trong tệp đó. Dọn theo thứ tự ngược: G2 → G1 (G2 trước G1 vì G2 tìm dòng theo gói `E2E_INBOUND_TEST`).
 - Mọi dòng giả lập gắn `CreateUId = N'SHAREDATA-SEED-GIA-LAP'`.
 - G1–G2 chỉ chạy trên DB local.
+
+### D. Kiểm tải nhiều đối tác & gói tin (staging, thư mục con [`kiem-tai/`](kiem-tai/))
+
+Khôi phục đối tác gốc (`PC08`, `TTDHT`), tạo thêm hàng loạt đối tác kiểm tải (`KT001`..`KT050`), đồng thời bật đủ hồ sơ ánh xạ và đăng ký gửi/nhận cho toàn bộ 9 gói tin đang bật trên staging (`101_commonData`, `102_cctvData`, `103_vdsData`, `104_weatherData`, `106_wimData`, `107_incidentData`, `108_vmsInfo`, `109_etcData`, `110_wpData`), để các dịch vụ `ShareDataWorker` đang chạy gửi đồng thời cho nhiều đối tác rồi theo dõi CPU, RAM và hiện tượng nghẽn trên Task Manager của máy chủ. Không sửa mã, không đổi cấu hình dịch vụ. ⛔ Không chạy trên production.
+
+| Thứ tự | Tệp | Bảng ghi | Nội dung |
+| :---: | :--- | :--- | :--- |
+| **K1** | [`sharedata-kiem-tai-ShareDataPartner.sql`](kiem-tai/sharedata-kiem-tai-ShareDataPartner.sql) | `ShareDataPartner` | Khôi phục dòng `PC08` theo đúng `ID = 97ade67b-9e9b-44e3-ba0e-f31670c2a578` đang được các bảng staging tham chiếu, cập nhật kết nối cho `TTDHT`, và tạo `@SoDoiTac` đối tác (`KT001`..`KT050`, mặc định kênh Xuất tệp tin `ConnectionType = 2`, xoay vòng JSON/XML/CSV) ở trạng thái Bật và Đã kết nối (`SessionState = 1`). |
+| **K2** | [`sharedata-kiem-tai-ShareDataMapping.sql`](kiem-tai/sharedata-kiem-tai-ShareDataMapping.sql) | `ShareDataMapping` | Khôi phục các hồ sơ ánh xạ gốc của `PC08`, `TTDHT` đang bị xóa mềm (`IsDelete = NULL`, `Status = 1`) và tạo đầy đủ hồ sơ ánh xạ chiều gửi + nhận của mọi gói đang bật cho từng đối tác `KT001`..`KT050`. Chạy sau K1. |
+| **K3** | [`sharedata-kiem-tai-ShareDataSubscription.sql`](kiem-tai/sharedata-kiem-tai-ShareDataSubscription.sql) | `ShareDataSubscription` | Bật lại đăng ký đang tạm dừng (`State = 2 → 1`) của `PC08`, `TTDHT` và tạo đầy đủ đăng ký gửi (`Direction = 0`, `State = 1`) + nhận (`Direction = 1`, `State = 1`) cho toàn bộ 52 đối tác × 9 gói đang bật (468 đăng ký gửi đang hoạt động), rải lệch chu kỳ 15s / 20s / 30s / 45s / 60s (hoặc ép cố định qua `@ChuKyGiay`). Chạy sau K2. |
+| **K4** | [`sharedata-kiem-tai-ShareDataSql.sql`](kiem-tai/sharedata-kiem-tai-ShareDataSql.sql) | `ShareDataSql` | Từ `KT026` trở đi (`@TuSoDoiTacRieng`), mỗi cặp đối tác × gói có đăng ký gửi được một câu SQL riêng sinh từ câu mẫu chung, mỗi câu khác nhau: thêm 0–4 cột phụ, đổi `TOP 100` thành 20/50/200/500, đổi xuống dòng, chú thích dài ngắn. Giữ nguyên công thức mốc, WHERE, ORDER BY nên câu riêng trả đúng các dòng như mẫu chung. `KT001`–`KT025` dùng mẫu chung. Chạy sau K3. |
+
+- **Chạy ngay không cần điền tay:** mặc định `@MaDoiTacMau = NULL` dùng cấu hình Xuất tệp tin (`ConnectionType = 2`, `127.0.0.1:8080`, ghi ra `Out/KTxxx/...`) để chạy kiểm tải ngay trên staging mà không phụ thuộc máy chủ nhận bên ngoài; nếu muốn chép kênh kết nối từ một đối tác có sẵn thì điền `@MaDoiTacMau` ở K1.
+- **Dọn dẹp:** đặt `@XoaDuLieuKiemTai = 1` rồi chạy ngược K4 → K3 → K2 → K1. Mọi dòng tạo mới gắn `CreateUId = N'SHAREDATA-KIEM-TAI'` được xóa sạch; các dòng gốc của `PC08`, `TTDHT` được giữ lại.
 
 ---
 

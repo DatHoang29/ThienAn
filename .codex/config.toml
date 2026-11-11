@@ -63,6 +63,5 @@ startup_timeout_sec = 60
 command = "node"
 args = [".agents/mcp/dab.mjs", "staging"]
 startup_timeout_sec = 60
-enabled = false
 
 # <<< .agents/mcp/sync.mjs

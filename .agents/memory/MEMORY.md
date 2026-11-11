@@ -10,7 +10,7 @@
 - [Test theo luồng, có giá trị](feedback_test-flow-value.md) — chỉ test qua điểm vào luồng; cấm unit test helper, FE so chuỗi; [Theory]/[InlineData]
 
 ## Database / MCP
-- [MCP DAB](mcp-dab-database-access.md) — 3 server DAB chỉ đọc; review dùng dev/test local; staging tắt mặc định, bật khi người dùng yêu cầu
+- [MCP DAB](mcp-dab-database-access.md) — 3 server DAB chỉ đọc; review dùng dev/test local; staging nạp sẵn từ 11/11, chỉ dùng khi người dùng yêu cầu
 - [Truy vấn đọc chạy luôn](read-only-db-queries-just-run.md) — đọc không cần hỏi; tool ghi CSDL đã tắt ở `../mcp/dab-config.json`
 - [SqlSugar](sqlsugar-docs.md) — link no-entity / raw SQL / JSON→SQL / bẫy EnableIncreTable & expression tree
 

@@ -13,18 +13,17 @@ const CODEX_BEGIN = '# >>> .agents/mcp/sync.mjs (sinh từ .agents/mcp_config.js
 const CODEX_END = '# <<< .agents/mcp/sync.mjs';
 
 // Tùy chọn riêng của từng công cụ, không đưa vào nguồn chung.
-// mssql_staging tắt mặc định (chỉ dùng khi người dùng yêu cầu); Claude Code tắt bằng cài đặt của công cụ.
+// mssql_staging bật khi mở phiên như dev/test (chỉ đọc); Claude Code bật bằng cài đặt của công cụ.
 const CODEX_DEFAULTS = {startup_timeout_sec: 60};
 const CODEX_EXTRAS = {
   gortex: {
     startup_timeout_sec: 90,
     default_tools_approval_mode: 'approve',
     tools: {tool_profile: {approval_mode: 'approve'}}
-  },
-  mssql_staging: {enabled: false}
+  }
 };
 // Antigravity tắt server bằng "disabled": true (định dạng `agy mcp disable` ghi ra).
-const ANTIGRAVITY_EXTRAS = {mssql_staging: {disabled: true}};
+const ANTIGRAVITY_EXTRAS = {};
 
 const TARGETS = {
   claude: {file: root => path.join(root, '.mcp.json'), render: servers => json({mcpServers: servers})},

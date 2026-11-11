@@ -102,9 +102,10 @@
   "enabledMcpjsonServers": [
     "gortex",
     "mssql_dev",
-    "mssql_test"
-  ],
-  "disabledMcpjsonServers": [
+    "mssql_test",
     "mssql_staging"
-  ]
+  ],
+  "env": {
+    "MCP_TIMEOUT": "90000"
+  }
 }
