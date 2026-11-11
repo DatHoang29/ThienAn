@@ -20,10 +20,13 @@ const CODEX_EXTRAS = {
     startup_timeout_sec: 90,
     default_tools_approval_mode: 'approve',
     tools: {tool_profile: {approval_mode: 'approve'}}
-  }
+  },
+  mssql_staging: {enabled: false}
 };
 // Antigravity tắt server bằng "disabled": true (định dạng `agy mcp disable` ghi ra).
-const ANTIGRAVITY_EXTRAS = {};
+const ANTIGRAVITY_EXTRAS = {
+  mssql_staging: {disabled: true}
+};
 
 const TARGETS = {
   claude: {file: root => path.join(root, '.mcp.json'), render: servers => json({mcpServers: servers})},

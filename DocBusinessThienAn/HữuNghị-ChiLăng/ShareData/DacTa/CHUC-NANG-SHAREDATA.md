@@ -43,24 +43,25 @@ Hai hệ quả tester cần nhớ:
 
 | Thứ tự | Yếu tố | Khai ở đâu | Ghi chú cho tester |
 |---|---|---|---|
-| 1 | Câu truy vấn lấy dữ liệu của từng gói tin | **Cố định trong mã nguồn**, không có màn nào sửa được | Quyết định gói tin lấy từ bảng nào, cột nào — xem bảng tra ở mục 5.5 |
-| 2 | Danh sách trường của gói tin | Màn **Nguồn dữ liệu** | Chỉ khai *tên trường*; **không** quyết định lấy dữ liệu từ bảng nào |
-| 3 | Khuôn JSON gửi cho đối tác + luật quy đổi | Màn **Ánh xạ dữ liệu** (hồ sơ đang bật) | Không có hồ sơ bật → không gửi |
-| 4 | Bảng quy đổi giá trị | Màn **Bộ mã** | Tùy chọn |
-| 5 | Gửi cho ai, gói nào, bao lâu một lần | Màn **Chia sẻ dữ liệu** → Đăng ký | Đăng ký phải ở trạng thái Hoạt động |
+| 1 | Câu truy vấn lấy dữ liệu (`ExtractSql`) | Màn **Cấu hình gói tin** (`/#/shareData/dataSource`) → tab **Gửi đi** → **1. Câu truy vấn** | Soạn trực tiếp trên giao diện (có **Mẫu chung** và **Cấu hình riêng** cho từng đối tác). Chỉ nhận lệnh `SELECT` trên 15 bảng nguồn cho phép (`ShareDataSourceTable`). |
+| 2 | Danh sách trường của gói tin (`FieldsJson`) | Màn **Cấu hình gói tin** → **2. Trường dữ liệu** | **Tự động phân tích** từ bí danh (`AS <alias>`) của câu SQL khi bấm **Lưu & phân tích**; bấm biểu tượng `✎` trên dòng để sửa Tên hiển thị, Kiểu, Bắt buộc, Nhóm, Ghi chú. |
+| 3 | Tham số điều kiện (`VariablesJson`) & Mốc đang chạy | Màn **Cấu hình gói tin** → **3. Tham số điều kiện** & **4. Mốc đang chạy** | Tự trích biến `@pageSize`, `@lastKey` từ câu SQL. Mỗi đối tác có **Mốc đang chạy** độc lập tại khối 4. |
+| 4 | Khuôn JSON gửi cho đối tác + luật quy đổi | Màn **Ánh xạ dữ liệu** (hồ sơ đang bật) | Không có hồ sơ bật → không gửi |
+| 5 | Bảng quy đổi giá trị | Màn **Bộ mã** | Tùy chọn |
+| 6 | Gửi cho ai, gói nào, bao lâu một lần | Màn **Cấu hình** → Đăng ký | Đăng ký phải ở trạng thái Hoạt động |
 
-> **Điểm dễ hiểu sai nhất:** khai thêm một trường ở màn Nguồn dữ liệu **không** làm hệ thống tự đi lấy dữ liệu cho trường đó. Trường chỉ có dữ liệu khi câu truy vấn trong mã nguồn có trả về đúng khóa field đó. Danh sách trường hiện đang khai nhưng không có nguồn nằm ở mục 5.6.
+> **Điểm cốt lõi của phần Xây dựng gói tin mới:** Không còn khai trường rời bằng tay. Muốn gói tin có thêm trường mới, thêm cột `<biểu_thức> AS <tên_trường>` vào **1. Câu truy vấn** rồi bấm **Lưu & phân tích** — hệ thống tự động nạp trường đó vào **2. Trường dữ liệu** và đưa sang màn **Ánh xạ dữ liệu**.
 
 ### 1.3 Dữ liệu NHẬN VỀ phụ thuộc vào đâu
 
 | Thứ tự | Yếu tố | Khai ở đâu | Ghi chú cho tester |
 |---|---|---|---|
-| 1 | Gói tin do đối tác đẩy vào | Đối tác gửi | Hệ thống bị động, không có lịch |
+| 1 | Gói tin do đối tác đẩy vào | Đối tác gửi qua HTTP POST `/api/sharedata/shareDataInbound/receive` | Hệ thống bị động tiếp nhận |
 | 2 | Vị trí từng trường trong JSON đối tác | Màn **Ánh xạ dữ liệu**, hồ sơ chiều Nhận về hoặc Hai chiều | Không có hồ sơ bật → không bóc được gói |
-| 3 | Câu ghi vào CSDL của từng gói tin | Bảng `ShareDataPacketWrite` trong CSDL — **hiện không có màn UI nào quản lý** | Phải chạy SQL để khai, xem mục 5.7 |
+| 3 | Câu ghi vào CSDL nhận (`WriteSql`) | Màn **Cấu hình gói tin** (`/#/shareData/dataSource`) → tab **Nhận về** | Soạn câu `MERGE` / `INSERT` / `UPDATE` đọc từ `OPENJSON(@records)` (hỗ trợ **Mẫu chung** và **Cấu hình riêng** theo đối tác), có nút **Chèn mẫu MERGE** và **Kiểm an toàn câu ghi** |
 | 4 | Bảng quy đổi giá trị ngược | Màn **Bộ mã** | Tùy chọn |
 
-> **Rất quan trọng:** dữ liệu nhận về được ghi vào **CSDL riêng `DEV_ITS10_Inbound`**, **không** ghi vào CSDL nghiệp vụ `DEV_ITS10`. Tester tìm dữ liệu nhận về trong CSDL nghiệp vụ sẽ không thấy gì và dễ kết luận sai là "không nhận được gói".
+> **Rất quan trọng:** dữ liệu nhận về được ghi vào **CSDL nhận riêng (`*_Inbound`)**, **không** ghi vào CSDL nghiệp vụ chính. Tester kiểm tra dữ liệu nhận về cần tra trên CSDL `*_Inbound` hoặc qua **Lịch sử chia sẻ → Nhật ký truyền nhận**.
 
 ### 1.4 Bấm trên giao diện xong thì xem kết quả ở đâu
 

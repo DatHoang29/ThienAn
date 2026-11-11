@@ -36,6 +36,18 @@
     ]
   },
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/idle-guard.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Checking prompt cache and session idle state..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "mcp__gortex__explore|mcp__gortex__search|mcp__gortex__read|mcp__gortex__relations|mcp__gortex__trace|mcp__gortex__analyze|mcp__plugin_gortex_gortex__explore|mcp__plugin_gortex_gortex__search|mcp__plugin_gortex_gortex__read|mcp__plugin_gortex_gortex__relations|mcp__plugin_gortex_gortex__trace|mcp__plugin_gortex_gortex__analyze",
@@ -102,7 +114,9 @@
   "enabledMcpjsonServers": [
     "gortex",
     "mssql_dev",
-    "mssql_test",
+    "mssql_test"
+  ],
+  "disabledMcpjsonServers": [
     "mssql_staging"
   ],
   "env": {
