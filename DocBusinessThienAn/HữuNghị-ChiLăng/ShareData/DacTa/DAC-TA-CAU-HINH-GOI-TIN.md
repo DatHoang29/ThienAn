@@ -4,7 +4,7 @@
 
 ## 1. Tổng quan & Điểm thay đổi cốt lõi
 
-Tab **Cấu hình gói tin** mới được thiết kế lại theo hướng **lấy câu truy vấn SQL làm trung tâm (SQL-driven)**. Thay vì phải khai báo thủ công từng trường dữ liệu và từng biến như trước, người dùng chỉ cần viết câu lệnh SQL và bấm **`Lưu & phân tích`**, hệ thống sẽ tự động bóc tách toàn bộ cấu hình liên quan.
+Tab **Cấu hình gói tin** mới được thiết kế lại theo hướng **lấy câu truy vấn SQL làm trung tâm**. Thay vì phải khai báo thủ công từng trường dữ liệu và từng biến như trước, người dùng chỉ cần viết câu lệnh SQL và bấm **`Lưu & phân tích`**, hệ thống sẽ tự động bóc tách toàn bộ cấu hình liên quan.
 
 ```mermaid
 flowchart TD
@@ -65,7 +65,7 @@ Khung bên trái hiển thị danh mục toàn bộ gói tin trong hệ thống 
 | **Cột `Gửi / Nhận`** | • Hiện **`{N} bảng`** (nhãn xanh, ví dụ `2 bảng`): gói tin đã khai báo câu SQL ghi dữ liệu ở tab Nhận về.<br>• Hiện **`Chỉ gửi`** (nhãn xám): gói tin chưa khai báo câu SQL chiều nhận. |
 | **Cột `Thao tác`** *(chỉ SuperAdmin)* | Gồm 3 nút biểu tượng: **Sao chép** (tạo gói mới từ gói sẵn có), **Sửa** (sửa thông tin gói), **Xóa** (xóa gói tin). |
 
-### 2.2. Thêm mới, Sửa, Sao chép và Quy tắc khóa Gói tin
+### 2.2. Thêm mới, Sửa và Sao chép Gói tin
 
 Khi bấm **Thêm mới**, **Sửa** hoặc **Sao chép**, hộp thoại thông tin gói tin gồm các trường:
 - **`Mã`** *(bắt buộc, tối đa 128 ký tự)*: Mã định danh gói tin.
@@ -73,14 +73,6 @@ Khi bấm **Thêm mới**, **Sửa** hoặc **Sao chép**, hộp thoại thông 
 - **`Loại gói (thứ tự)`** *(từ `101` đến `111`)*: Khi tạo mới và chọn loại gói, hệ thống tự động điền sẵn câu SQL mẫu chuẩn của loại gói đó. Khi ở chế độ **Sửa**, trường này bị khóa không cho đổi.
 - **`Trạng thái`**: **Hoạt động** (`1`) hoặc **Ngừng hoạt động** (`0`). Khi gói tin ở trạng thái *Ngừng hoạt động*, tiến trình nền (Worker) sẽ bỏ qua không quét gửi gói tin này.
 - **`Ghi chú`** *(tối đa 256 ký tự)*.
-
-> [!IMPORTANT]
-> **Quy tắc bảo vệ gói tin đang được sử dụng:**
-> 1. **Khi gói tin đã có Hồ sơ ánh xạ hoặc Đăng ký sử dụng:**
->    - Nút **Xóa** ngoài danh sách bị khóa mờ kèm giải thích: *"Không thể xóa gói tin đã có ánh xạ hoặc đăng ký đang hoạt động"*.
->    - Khi bấm **Sửa**, hai ô **`Mã`** và **`Tên`** bị khóa chỉ đọc kèm thông báo: *"Gói tin đã có ánh xạ hoặc đăng ký đang hoạt động. Mã và Tên bị khóa; các thông tin mô tả vẫn được sửa."*
-> 2. **Khi gói tin đang có Đăng ký bật (`Active`):**
->    - Không cho phép gạt **Trạng thái** gói tin sang **Tắt**, hiển thị cảnh báo: *"Gói tin đang có đăng ký bật sử dụng. Vui lòng tắt đăng ký trước khi tắt gói tin."*
 
 ---
 
@@ -108,13 +100,6 @@ Một gói tin có thể dùng chung một câu truy vấn cho mọi đối tác
 | **Nút `So sánh với mẫu chung`** *(khi chọn một đối tác)* | Mở hộp thoại đối chiếu song song 2 cột (**Mẫu chung hiện tại** ↔ **Cấu hình riêng của đối tác**), cho phép chọn giữ từng đoạn của mẫu chung hoặc của đối tác rồi bấm **`Lưu bản đã trộn`**. |
 | **Nút `Dùng lại mẫu chung`** *(khi chọn một đối tác)* | Hỏi xác nhận xóa cấu hình riêng của đối tác đó để quay về dùng chung câu SQL và tham số của `Mẫu chung`. |
 | **Nút `⇄ So sánh tất cả ({N})`** *(khi chọn Mẫu chung)* | Hiển thị khi gói tin có ít nhất 1 đối tác dùng cấu hình riêng. Mở bảng tổng hợp đối chiếu **Câu truy vấn**, **Trường dữ liệu**, **Tham số điều kiện** của tất cả đối tác so với Mẫu chung; hỗ trợ tích chọn nhiều đối tác để bấm **`Đưa đã chọn về mẫu chung`**. |
-
-> [!IMPORTANT]
-> **Khóa sửa khi đang có đăng ký gửi bật:**
-> Khi phạm vi đang chọn còn đăng ký gửi bật sử dụng (Mẫu chung: mọi đối tác dùng mẫu chung; cấu hình riêng: đúng đối tác đó), phía trên Khối 1 hiện cảnh báo: *"Đang có đăng ký gửi bật sử dụng (<danh sách đối tác>). Tắt đăng ký trước khi sửa câu SQL, tham số câu truy vấn, đặt mốc hoặc đặt lại mốc gửi."*
-> - Danh sách đối tác dài thì mặc định hiện **5 đối tác đầu**, bấm **`Xem tất cả ({N})`** / **`Thu gọn`** để mở rộng, thu gọn.
-> - Khối 1 (câu truy vấn) chuyển chỉ đọc; Khối 2, 3, 4 tô xám và khóa thao tác sửa trường, sửa tham số, **`Đặt mốc`**, **`Đặt lại`**.
-> - Tắt hết đăng ký gửi liên quan thì các khối mở khóa trở lại.
 
 ---
 
