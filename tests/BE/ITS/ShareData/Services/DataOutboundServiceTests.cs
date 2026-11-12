@@ -1249,6 +1249,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var logs = await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == sub.ID)
                 .OrderByDescending(l => l.OccurredAt)
+                .OrderByDescending(l => l.StepNbr)
                 .ToListAsync();
 
             Assert.NotEmpty(logs);
@@ -3797,6 +3798,7 @@ ORDER BY __lastKey ASC";
             var logs = await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == subscriptionId)
                 .OrderByDescending(l => l.OccurredAt)
+                .OrderByDescending(l => l.StepNbr)
                 .ToListAsync();
 
             Assert.NotEmpty(logs);
@@ -4232,6 +4234,7 @@ ORDER BY __lastKey ASC";
             return await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == subId)
                 .OrderByDescending(l => l.OccurredAt)
+                .OrderByDescending(l => l.StepNbr)
                 .ToListAsync();
         }
 
@@ -8381,6 +8384,110 @@ ORDER BY __lastKey ASC";
         }
 
         #endregion
+
+        /// <summary>Đối tác của bài test nạp trước cấu hình: tên vai, đối tác, đăng ký, dấu hồ sơ ánh xạ riêng và dòng duy nhất câu riêng chọn (null = câu mẫu chung).</summary>
+        private sealed record CachedPartner(string Name, ShareDataPartner Partner, ShareDataSubscription Subscription, string Owner, int? OwnRow);
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Nhiều đối tác cùng một gói nối đuôi trong một vòng quét định kỳ: đối tác số lẻ dùng câu mẫu chung, đối tác số chẵn có câu riêng
+        ///              chỉ chọn đúng một dòng; mỗi đối tác có hồ sơ ánh xạ riêng mang dấu riêng. Mỗi đối tác nhận đúng dòng của câu SQL của mình,
+        ///              gói gửi mang dấu hồ sơ ánh xạ của chính mình, mốc dừng ở dòng cuối của câu mình. Một đối tác thiếu hồ sơ ánh xạ thì chỉ
+        ///              đối tác đó bị cảnh báo MappingNotFound, không nhận gì, không có mốc; các đối tác khác vẫn gửi bình thường.
+        /// Created date: 12/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData(4, false)]
+        [InlineData(6, false)]
+        [InlineData(6, true)]
+        public async Task ProcessSubscriptions_WhenManyPartnersShareOnePacket_EachPartnerUsesOwnMappingSqlAndCursor_Test(int partnerCount, bool oneWithoutMapping)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var packet = await SeedClonePacketAsync(db, rowCount: 6, pageSize: 10);
+            var partners = new List<CachedPartner>();
+            for (var index = 1; index <= partnerCount; index++)
+            {
+                var name = $"C{index:00}";
+                var owner = $"OWN_{name}_{packet.Unique}";
+                var shape = new Dictionary<string, object>
+                {
+                    ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" },
+                    ["owner"] = owner
+                };
+                var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+                {
+                    PartnerCode = ClonePartnerCode(packet, name),
+                    SubCode = $"SUB_{name}_{packet.Unique}",
+                    DatatypeId = packet.PacketId,
+                    MappingShape = shape,
+                    ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/{ClonePath(packet, name)}"
+                });
+                int? ownRow = null;
+                if (index % 2 == 0)
+                {
+                    ownRow = index;
+                    var commonSql = ZoneCursorSql();
+                    var ownSql = $"{commonSql}\n/* {partner.Code} */";
+                    var variables = ZoneVariables(10, $"{packet.RowPrefix}R{index:00}", null);
+                    await ShareDataSqlSeed.SetPartnerAsync(db, packet.PacketId, partner.ID, ownSql);
+                    await ShareDataSqlSeed.SetVariablesAsync(db, packet.PacketId, partner.ID, variables);
+                }
+
+                partners.Add(new CachedPartner(name, partner, sub, owner, ownRow));
+            }
+
+            var withoutMapping = oneWithoutMapping ? partners[0] : null;
+            if (withoutMapping != null)
+            {
+                var partnerId = withoutMapping.Partner.ID;
+                await db.Updateable<ShareDataMapping>().SetColumns(m => m.IsActive == false).Where(m => m.PartnerId == partnerId).ExecuteCommandAsync();
+            }
+
+            var sender = CreateClone(scope, null);
+
+            // Act
+            await sender.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var healthy = partners.Where(p => p != withoutMapping).ToList();
+            foreach (var partner in healthy)
+            {
+                var expectedRows = partner.OwnRow == null
+                    ? packet.RowCodes
+                    : [$"{packet.RowPrefix}R{partner.OwnRow:00}"];
+                var bodies = PartnerBodies(ClonePath(packet, partner.Name)).ToList();
+                var otherOwners = partners.Where(p => p != partner).Select(p => p.Owner).ToList();
+                var rows = ReceivedRows(packet, partner.Name);
+                var cursor = await GetCloneCursorAsync(db, packet, partner.Name);
+
+                Assert.Equal(expectedRows, rows);
+                Assert.NotEmpty(bodies);
+                Assert.All(bodies, body => Assert.Contains(partner.Owner, body));
+                Assert.All(bodies, body => Assert.DoesNotContain(otherOwners, other => body.Contains(other)));
+                Assert.EndsWith(CursorEnd(packet, partner.OwnRow ?? 6), cursor.LastKey);
+            }
+
+            var healthyIds = healthy.Select(p => p.Subscription.ID).ToArray();
+            var healthyAlerts = await db.Queryable<ShareDataAlertLog>().Where(a => healthyIds.Contains(a.SubscriptionId)).ToListAsync();
+            Assert.Empty(healthyAlerts);
+
+            if (withoutMapping != null)
+            {
+                var missingSubId = withoutMapping.Subscription.ID;
+                var missingAlerts = await db.Queryable<ShareDataAlertLog>().Where(a => a.SubscriptionId == missingSubId).ToListAsync();
+                var missingRows = ReceivedRows(packet, withoutMapping.Name);
+                var missingCursor = await GetCloneCursorAsync(db, packet, withoutMapping.Name);
+                var missingSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(missingSubId);
+
+                Assert.NotEmpty(missingAlerts);
+                Assert.All(missingAlerts, a => Assert.Equal(ShareDataAlertCode.Outbound.MappingNotFound, a.AlertCode));
+                Assert.Empty(missingRows);
+                Assert.Null(missingCursor);
+                Assert.Null(missingSub.ProcessingUntil);
+            }
+        }
     }
 
     internal static class HttpDeliverySenderTestExtensions

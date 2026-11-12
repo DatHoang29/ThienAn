@@ -19,6 +19,12 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
+### ⏳ Đợt 12/11/2026 — Rà chỉ mục bảng `ShareData*`
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`sharedata-chi-muc-entity-prompt.md`](sharedata-chi-muc-entity-prompt.md) | — | ⏳ **Chưa thực thi.** BE: gỡ `[SugarIndex]` `State_ProcessedAt` khỏi `ShareDataInboundPacket`; câu dọn nhật ký Change Tracking lọc `OccurredAt`; đề xuất đo chỉ mục `Dir_State_NextRun` của `ShareDataSubscription`. Đi kèm script `sql/chi-muc/` I3–I8. |
+
 ### ✅ Đợt 12/11/2026 — Câu nối đuôi tràn `tempdb` khi kiểm tải
 
 | # | Prompt | Task | Phạm vi & Trạng thái |

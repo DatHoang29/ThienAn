@@ -65,4 +65,9 @@ args = [".agents/mcp/dab.mjs", "staging"]
 startup_timeout_sec = 60
 enabled = false
 
+[mcp_servers.mssql_inbound]
+command = "node"
+args = [".agents/mcp/dab.mjs", "inbound"]
+startup_timeout_sec = 60
+
 # <<< .agents/mcp/sync.mjs

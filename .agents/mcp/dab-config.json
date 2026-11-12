@@ -152,6 +152,67 @@
         }
       ]
     },
+    "sys_index_columns": {
+      "description": "SQL Server index key/included columns for index reviews (read-only)",
+      "source": {
+        "type": "view",
+        "object": "sys.index_columns",
+        "key-fields": [
+          "object_id",
+          "index_id",
+          "index_column_id"
+        ]
+      },
+      "rest": false,
+      "graphql": false,
+      "mcp": {
+        "dml-tools": true,
+        "custom-tool": false
+      },
+      "health": {
+        "enabled": false
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "sys_columns": {
+      "description": "SQL Server column catalog with column_id to resolve index columns (read-only)",
+      "source": {
+        "type": "view",
+        "object": "sys.columns",
+        "key-fields": [
+          "object_id",
+          "column_id"
+        ]
+      },
+      "rest": false,
+      "graphql": false,
+      "mcp": {
+        "dml-tools": true,
+        "custom-tool": false
+      },
+      "health": {
+        "enabled": false
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
     "sys_change_tracking_tables": {
       "description": "SQL Server Change Tracking table settings (read-only)",
       "source": {

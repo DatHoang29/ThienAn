@@ -31,6 +31,13 @@
         ".agents/mcp/dab.mjs",
         "staging"
       ]
+    },
+    "mssql_inbound": {
+      "command": "node",
+      "args": [
+        ".agents/mcp/dab.mjs",
+        "inbound"
+      ]
     }
   }
 }

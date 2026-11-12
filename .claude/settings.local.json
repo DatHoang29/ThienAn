@@ -114,6 +114,7 @@
   "enabledMcpjsonServers": [
     "gortex",
     "mssql_dev",
+    "mssql_inbound",
     "mssql_staging",
     "mssql_test"
   ],

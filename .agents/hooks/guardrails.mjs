@@ -91,8 +91,10 @@ export function detectUntestedChanges(rootDir = defaultRoot) {
   const beUnstaged = getUnstagedSourceFiles(beRepo, f => beSourceRegex.test(f));
   let be = [];
   if (beUnstaged.files.length > 0) {
-    const dirtyBeTests = hasDirtyTestFiles(rootDir, 'tests/BE', /Tests\.cs$/i);
-    const maxBeTestMtime = newestMtimeInDir(path.join(rootDir, 'tests/BE'), /Tests\.cs$/i);
+    // Gồm cả tệp partial của lớp test: DataOutboundServiceTests.ConfigCache.cs
+    const beTestRegex = /Tests(?:\.[^/\\\s]+)?\.cs$/i;
+    const dirtyBeTests = hasDirtyTestFiles(rootDir, 'tests/BE', beTestRegex);
+    const maxBeTestMtime = newestMtimeInDir(path.join(rootDir, 'tests/BE'), beTestRegex);
     if (!dirtyBeTests && beUnstaged.maxMtime > maxBeTestMtime) {
       be = beUnstaged.files;
     }

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
-const ENVIRONMENTS = ['dev', 'test', 'staging'];
+const ENVIRONMENTS = ['dev', 'test', 'staging', 'inbound'];
 const root = path.resolve(import.meta.dirname, '../..');
 
 function fail(message) {
