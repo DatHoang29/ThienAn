@@ -4,6 +4,10 @@
 // Chặn người dùng gửi prompt khi phiên đã Idle quá lâu (Prompt Cache Anthropic hết hạn sau 1 giờ)
 // VÀ ngữ cảnh phiên đang rất nặng (>= 100k tokens), tránh việc bị phạt nạp lại toàn bộ ngữ cảnh
 // gây cạn 10% - 25% hạn ngạch 5-giờ trong 1 tin nhắn duy nhất.
+//
+// Lưu ý đặc biệt: Khi người dùng đã chạy /compact, Claude Code sẽ chèn dấu mốc "compact_boundary".
+// Toàn bộ lịch sử trước mốc đó đã được thu gọn (chỉ còn lại bản summary ~3k-10k tokens).
+// Hook dừng quét tại compact_boundary và không dùng kích thước tệp đĩa làm fallback (vì tệp JSONL chỉ append, không cắt dung lượng).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,7 +15,7 @@ import process from 'node:process';
 
 export const DEFAULT_IDLE_MINUTES = 45; // Ngưỡng an toàn (cache server Anthropic hết sau 60 phút)
 export const DEFAULT_TOKEN_THRESHOLD = 100_000; // Ngưỡng ngữ cảnh nặng (100k tokens)
-export const DEFAULT_FILE_SIZE_THRESHOLD = 500_000; // 500 KB transcript nếu không có usage
+export const DEFAULT_FILE_SIZE_THRESHOLD = 500_000; // 500 KB transcript nếu không có usage (chỉ áp dụng khi chưa compact)
 
 function readTail(filePath, maxBytes = 1024 * 1024) {
   try {
@@ -30,18 +34,45 @@ function readTail(filePath, maxBytes = 1024 * 1024) {
 
 export function inspectTranscript(filePath, now = Date.now()) {
   const { text, size } = readTail(filePath);
-  if (!text) return { idleMinutes: 0, tokens: 0, size };
+  if (!text) return { idleMinutes: 0, tokens: 0, size, isCompacted: false };
 
   const lines = text.trim().split(/\r?\n/);
   let tokens = 0;
   let lastActiveMs = null;
+  let isCompacted = false;
+  let summaryChars = 0;
 
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
     if (!line) continue;
     try {
       const obj = JSON.parse(line);
-      // Tìm số tokens gần nhất từ trường usage
+
+      // Nếu gặp ranh giới compaction (compact_boundary):
+      // Toàn bộ lịch sử trước ranh giới này đã được thu gọn, KHÔNG tính vào context hiện tại!
+      const isBoundary =
+        obj.subtype === 'compact_boundary' ||
+        obj.content === 'Conversation compacted' ||
+        (obj.type === 'system' && String(obj.content).includes('compacted'));
+
+      if (isBoundary) {
+        isCompacted = true;
+        // Nếu chưa có lượt tương tác nào sau compact, mốc hoạt động tính từ lúc compact
+        if (lastActiveMs === null && obj.timestamp) {
+          const time = new Date(obj.timestamp).getTime();
+          if (!Number.isNaN(time) && time <= now) {
+            lastActiveMs = time;
+          }
+        }
+        break; // DỪNG LẠI NGAY! Không quét ngược vào lịch sử cũ trước khi compact!
+      }
+
+      // Đếm độ dài văn bản summary sau compact (nếu có)
+      if (obj.type === 'user' && typeof obj.message?.content === 'string') {
+        summaryChars += obj.message.content.length;
+      }
+
+      // Tìm số tokens gần nhất từ trường usage sau compact
       if (!tokens) {
         const u = obj.message?.usage || obj.usage;
         if (u) {
@@ -49,7 +80,8 @@ export function inspectTranscript(filePath, now = Date.now()) {
           if (sum > 0) tokens = sum;
         }
       }
-      // Tìm timestamp của lượt assistant gần nhất (thời điểm server Anthropic hoàn tất phản hồi lượt trước)
+
+      // Tìm timestamp của lượt assistant gần nhất sau compact
       const isAssistant = obj.type === 'assistant' || obj.message?.role === 'assistant';
       if (lastActiveMs === null && isAssistant && obj.timestamp) {
         const time = new Date(obj.timestamp).getTime();
@@ -62,8 +94,14 @@ export function inspectTranscript(filePath, now = Date.now()) {
     }
   }
 
-  // Fallback nếu không có tin nhắn assistant (ví dụ lượt system trước đó)
-  if (lastActiveMs === null) {
+  // Nếu phiên đã compact và chưa có lượt gọi API nào mới:
+  // Ngữ cảnh hiện tại chỉ là bản summary thu gọn (~ vài nghìn tokens), không thể tính là nặng!
+  if (isCompacted && tokens === 0) {
+    tokens = Math.max(1_000, Math.round(summaryChars / 3.5));
+  }
+
+  // Fallback nếu không có tin nhắn assistant và chưa từng compact
+  if (lastActiveMs === null && !isCompacted) {
     for (let i = lines.length - 1; i >= 0; i--) {
       try {
         const obj = JSON.parse(lines[i].trim());
@@ -81,7 +119,7 @@ export function inspectTranscript(filePath, now = Date.now()) {
   const idleMs = lastActiveMs !== null ? Math.max(0, now - lastActiveMs) : 0;
   const idleMinutes = Math.floor(idleMs / 60_000);
 
-  return { idleMinutes, tokens, size };
+  return { idleMinutes, tokens, size, isCompacted };
 }
 
 export function evaluateIdleGuard(payload, options = {}) {
@@ -109,10 +147,12 @@ export function evaluateIdleGuard(payload, options = {}) {
   }
 
   // 3. Kiểm tra độ trễ (idle) và kích thước phiên
-  const { idleMinutes, tokens, size } = inspectTranscript(transcriptPath, now);
+  const { idleMinutes, tokens, size, isCompacted } = inspectTranscript(transcriptPath, now);
 
   const isIdle = idleMinutes >= idleThreshold;
-  const isHeavy = tokens >= tokenThreshold || (tokens === 0 && size >= sizeThreshold);
+  // Khi phiên đã compact, kích thước tệp trên đĩa (size) vẫn giữ lịch sử cũ (do file JSONL chỉ append).
+  // Vì vậy chỉ dùng sizeThreshold khi phiên CHƯA compact (!isCompacted).
+  const isHeavy = tokens >= tokenThreshold || (!isCompacted && tokens === 0 && size >= sizeThreshold);
 
   if (isIdle && isHeavy) {
     const hours = Math.floor(idleMinutes / 60);
@@ -140,11 +180,12 @@ export function evaluateIdleGuard(payload, options = {}) {
       idleMinutes,
       tokens,
       size,
+      isCompacted,
       message
     };
   }
 
-  return { allowed: true, idleMinutes, tokens, size, reason: 'within safe limits' };
+  return { allowed: true, idleMinutes, tokens, size, isCompacted, reason: 'within safe limits' };
 }
 
 function readStdin() {

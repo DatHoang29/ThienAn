@@ -80,7 +80,29 @@ test('Idle Guard: Cho qua khi phiên nhẹ (< 100k tokens) kể cả khi idle l�
   }
 });
 
-test('Idle Guard: Chặn (allowed: false) khi Idle >= 45 phút VÀ Context >= 100k tokens', () => {
+test('Idle Guard: Cho qua khi phiên ĐÃ COMPACT kể cả khi để qua đêm (> 8 tiếng)', () => {
+  const now = Date.now();
+  const tenHoursAgo = new Date(now - 10 * 60 * 60 * 1000).toISOString();
+  const elevenHoursAgo = new Date(now - 11 * 60 * 60 * 1000).toISOString();
+
+  // Mô phỏng: phiên cũ nặng 800k tokens, sau đó được compact thành công
+  const { filePath, dir } = createTempTranscript([
+    { timestamp: elevenHoursAgo, type: 'assistant', message: { usage: { cache_read_input_tokens: 800_000 } } },
+    { timestamp: tenHoursAgo, type: 'system', subtype: 'compact_boundary', content: 'Conversation compacted' },
+    { timestamp: tenHoursAgo, type: 'user', message: { role: 'user', content: 'This session is being continued from a previous conversation...' } }
+  ]);
+
+  try {
+    const result = evaluateIdleGuard({ prompt: 'câu hỏi buổi sáng', transcript_path: filePath }, { now });
+    assert.equal(result.allowed, true, 'Phiên đã compact phải được cho qua kể cả khi để qua đêm');
+    assert.equal(result.isCompacted, true);
+    assert.ok(result.tokens < DEFAULT_TOKEN_THRESHOLD, 'Số token sau compact phải nhỏ hơn ngưỡng nặng');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Idle Guard: Chặn (allowed: false) khi Idle >= 45 phút VÀ Context >= 100k tokens CHƯA COMPACT', () => {
   const now = Date.now();
   const fiftyMinutesAgo = new Date(now - 50 * 60 * 1000).toISOString();
   const { filePath, dir } = createTempTranscript([
@@ -145,23 +167,21 @@ test('Idle Guard: Thực thi script qua stdin - Exit code 2 khi bị chặn, Exi
   }
 });
 
-test('Idle Guard: Kiểm tra thực tế với phiên fork 851k tokens lịch sử', () => {
+test('Idle Guard: Kiểm tra thực tế với phiên fork 851k tokens lịch sử - Đã Compact sáng nay thì cho qua', () => {
   const historicalSession = '/Users/hoangquydat/.claude/projects/-Users-hoangquydat-ThienAn/f1a2575f-c5c7-439a-a974-7c93e694cf54.jsonl';
   if (!fs.existsSync(historicalSession)) return;
 
-  // Thời điểm 6:58 PM (11:58:22 UTC) khi user gửi prompt 'lỗi ui' sau 1h59m idle
-  const submissionTime = new Date('2026-11-11T11:58:22.000Z').getTime();
+  // Thời điểm 8:05 AM ngày 12/11 khi người dùng gửi prompt sau khi đã compact tối hôm trước
+  const morningTime = new Date('2026-11-12T01:05:54.000Z').getTime();
 
-  const inspection = inspectTranscript(historicalSession, submissionTime);
-  assert.ok(inspection.idleMinutes >= 115, `Idle phút phải ~119 phút, thực tế: ${inspection.idleMinutes}`);
-  assert.ok(inspection.tokens >= 800_000, `Tokens phải >= 800k, thực tế: ${inspection.tokens}`);
+  const inspection = inspectTranscript(historicalSession, morningTime);
+  assert.equal(inspection.isCompacted, true, 'Phiên phải được nhận diện là đã compact');
+  assert.ok(inspection.tokens < DEFAULT_TOKEN_THRESHOLD, 'Tokens sau compact phải nhỏ hơn 100k');
 
-  const evalBlocked = evaluateIdleGuard({
-    prompt: 'lỗi ui',
+  const evalAllowed = evaluateIdleGuard({
+    prompt: 'các test case của mình đã phủ hết DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql/kiem-tai chưa',
     transcript_path: historicalSession
-  }, { now: submissionTime });
+  }, { now: morningTime });
 
-  assert.equal(evalBlocked.allowed, false);
-  assert.match(evalBlocked.message, /CHẶN BỞI THIENAN IDLE GUARD/);
-  assert.match(evalBlocked.message, /~855k tokens/);
+  assert.equal(evalAllowed.allowed, true, 'Phiên đã compact thì không được chặn');
 });
