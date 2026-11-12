@@ -10,9 +10,12 @@ GO
 --              cho cả 3 câu: đếm 5 ô thống kê, đếm tổng số dòng, lấy trang 50 dòng. Bảng không có chỉ mục nào trên
 --              OccurredAt (chỉ mục index_ShareDataActivityLog_OA khai trên CreateTime) nên mỗi câu quét cả bảng;
 --              staging 12/11/2026: 750.955 dòng, 1.332 MB, mỗi câu đọc khoảng 150.000 trang, 9–10 giây.
---              Tệp này thêm chỉ mục [IX_ShareDataActivityLog_LogType_ParentId_OccurredAt]:
---                  khóa (LogType, ParentId, OccurredAt), INCLUDE (IsDelete, Action, Success, TransferDirection)
---              để ba câu trên đi thẳng tới đúng khoảng thời gian của dòng cha; câu đếm không phải đọc bảng.
+--              Tệp này:
+--                1) Sửa lại chỉ mục [index_ShareDataActivityLog_OA] từ (CreateTime DESC) sang đúng (OccurredAt DESC)
+--                   cho khớp với khai báo mới trên Entity ShareDataActivityLog;
+--                2) Thêm chỉ mục [IX_ShareDataActivityLog_LogType_ParentId_OccurredAt]:
+--                   khóa (LogType, ParentId, OccurredAt), INCLUDE (IsDelete, Action, Success, TransferDirection)
+--                   để ba câu trên đi thẳng tới đúng khoảng thời gian của dòng cha; câu đếm không phải đọc bảng.
 -- THỨ TỰ CHẠY: Chạy độc lập, sau CodeFirst (bảng phải có sẵn).
 --              GỠ: đặt @GoChiMuc = 1 rồi chạy lại.
 -- PHÂN HỆ: ShareData (ESHARE)
@@ -21,7 +24,7 @@ GO
 --           Bản SQL Server hỗ trợ thì dựng ONLINE = ON (Worker vẫn ghi nhật ký được); bản khác thì bảng bị chặn GHI
 --           cho tới khi dựng xong, nên dừng các dịch vụ ShareDataWorker trước khi chạy.
 --           Mỗi lệnh chờ khóa tối đa @ChoKhoaMs rồi báo lỗi 1222; khi đó chạy lại tệp.
--- CẬP NHẬT LẦN CUỐI: 12112026 (tạo mới)
+-- CẬP NHẬT LẦN CUỐI: 12112026 (sửa cả index_ShareDataActivityLog_OA sang OccurredAt DESC)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -51,8 +54,43 @@ DECLARE @CoChiMuc BIT = CASE WHEN EXISTS (SELECT 1 FROM sys.indexes
                                           WHERE [object_id] = OBJECT_ID(N'[dbo].[ShareDataActivityLog]') AND [name] = @TenChiMuc)
                              THEN 1 ELSE 0 END;
 DECLARE @Sql NVARCHAR(MAX);
+DECLARE @TenChiMucOA SYSNAME = N'index_ShareDataActivityLog_OA';
+DECLARE @OaTrenCreateTime BIT = CASE WHEN EXISTS (
+    SELECT 1
+    FROM sys.indexes i
+    JOIN sys.index_columns ic ON ic.[object_id] = i.[object_id] AND ic.[index_id] = i.[index_id] AND ic.[key_ordinal] = 1
+    JOIN sys.columns c ON c.[object_id] = ic.[object_id] AND c.[column_id] = ic.[column_id]
+    WHERE i.[object_id] = OBJECT_ID(N'[dbo].[ShareDataActivityLog]')
+      AND i.[name] = @TenChiMucOA
+      AND c.[name] = N'CreateTime'
+) THEN 1 ELSE 0 END;
 
 BEGIN TRY
+    -- 1. Đồng bộ index_ShareDataActivityLog_OA sang cột OccurredAt DESC (nếu đang nằm nhầm trên CreateTime)
+    IF @GoChiMuc = 0
+    BEGIN
+        IF @OaTrenCreateTime = 1
+        BEGIN
+            SET @Sql = N'SET LOCK_TIMEOUT ' + CAST(@ChoKhoaMs AS NVARCHAR(12)) + N';
+DROP INDEX ' + QUOTENAME(@TenChiMucOA) + N' ON [dbo].[ShareDataActivityLog];';
+            EXEC sys.sp_executesql @Sql;
+            PRINT N'-> Đã gỡ ' + @TenChiMucOA + N' cũ (nằm trên CreateTime).';
+        END;
+
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[ShareDataActivityLog]') AND [name] = @TenChiMucOA)
+        BEGIN
+            SET @Sql = N'SET LOCK_TIMEOUT ' + CAST(@ChoKhoaMs AS NVARCHAR(12)) + N';
+CREATE NONCLUSTERED INDEX ' + QUOTENAME(@TenChiMucOA) + N'
+    ON [dbo].[ShareDataActivityLog] ([OccurredAt] DESC)'
+                + CASE WHEN @TrucTuyen = 1 THEN N' WITH (ONLINE = ON)' ELSE N'' END + N';';
+            EXEC sys.sp_executesql @Sql;
+            PRINT N'-> Đã tạo chỉ mục ' + @TenChiMucOA + N' trên cột OccurredAt DESC.';
+        END
+        ELSE
+            PRINT N'-> Chỉ mục ' + @TenChiMucOA + N' đã nằm đúng trên cột OccurredAt, bỏ qua.';
+    END;
+
+    -- 2. Chỉ mục phủ (LogType, ParentId, OccurredAt) INCLUDE (IsDelete, Action, Success, TransferDirection)
     IF @GoChiMuc = 1
     BEGIN
         IF @CoChiMuc = 1

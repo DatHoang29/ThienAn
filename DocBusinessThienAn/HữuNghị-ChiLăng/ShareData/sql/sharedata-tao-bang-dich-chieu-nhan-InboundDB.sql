@@ -11,13 +11,14 @@ GO
 --              bảng dưới đây qua kết nối ShareDataDB (Database.json). Các bảng này không thuộc entity của ShareDataDB
 --              nên CodeFirst không tạo; thiếu bảng thì nhận dữ liệu báo lỗi "Invalid object name".
 --              Cấu trúc chép từ bảng cùng tên trên DEV_ITS015 ngày 06/11/2026: cột, kiểu, cho phép trống, giá trị mặc định,
---              khóa chính. Không chép index phụ, khóa ngoại, dữ liệu.
---              Bảng đã có thì bỏ qua (không sửa cấu trúc). Entity bảng gốc đổi cột thì sửa tay bảng tương ứng ở đây.
+--              khóa chính; kèm chỉ mục phụ theo đúng cột khóa ON của các câu MERGE chiều nhận gói 101–109 để không quét bảng
+--              khi nhiều dịch vụ nhận chạy song song.
+--              Bảng/chỉ mục đã có thì bỏ qua (không sửa cấu trúc). Entity bảng gốc đổi cột thì sửa tay bảng tương ứng ở đây.
 -- THỨ TỰ CHẠY: Sau khi CodeFirst tạo CSDL nhận và bảng ShareDataInboundPacket (ConfigId ShareDataDB) (xem README.md).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi CSDL nhận *_Inbound. Chạy trên CSDL không có hậu tố _Inbound thì tệp tự bỏ qua.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 06/11/2026 (tạo mới)
+-- CẬP NHẬT LẦN CUỐI: 12/11/2026 (bổ sung chỉ mục theo khóa MERGE của câu ghi chiều nhận gói 101–109)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -588,6 +589,116 @@ ELSE
     PRINT N'   - [ĐÃ CÓ] Bảng TollLane';
 
 PRINT N'-> 1. Đã tạo ' + CAST(@Created AS NVARCHAR(10)) + N' bảng đích.';
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 2. TẠO CHỈ MỤC THEO KHÓA MERGE CỦA CÂU GHI CHIỀU NHẬN (GÓI 101 - 109)
+-- -----------------------------------------------------------------------------------------
+-- Các câu MERGE chuẩn (sharedata-seed-goi-tin-ShareDataSql.sql, bước 6.3) dùng WITH (HOLDLOCK).
+-- Nếu bảng đích chỉ có PK trên [ID] mà câu MERGE lại khớp theo cột nghiệp vụ ([Code], [TransactionId], [ZoneId]...),
+-- SQL Server phải quét và giữ khóa cả bảng ở mỗi lượt nhận.
+DECLARE @IdxCreated INT = 0;
+
+-- TmsTrafficStatistic (gói 101: ON t.ZoneId = s.zoneId)
+IF OBJECT_ID(N'[dbo].[TmsTrafficStatistic]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[TmsTrafficStatistic]') AND [name] = N'IX_TmsTrafficStatistic_ZoneId')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TmsTrafficStatistic_ZoneId] ON [dbo].[TmsTrafficStatistic] ([ZoneId]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_TmsTrafficStatistic_ZoneId';
+END;
+
+-- TmsEquipment (gói 102, 108: ON t.Code = s.cameraCode / s.equipmentCode)
+IF OBJECT_ID(N'[dbo].[TmsEquipment]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[TmsEquipment]') AND [name] = N'IX_TmsEquipment_Code')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TmsEquipment_Code] ON [dbo].[TmsEquipment] ([Code]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_TmsEquipment_Code';
+END;
+
+-- CctvDevice (gói 102: ON t.Code = s.cameraCode)
+IF OBJECT_ID(N'[dbo].[CctvDevice]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[CctvDevice]') AND [name] = N'IX_CctvDevice_Code')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_CctvDevice_Code] ON [dbo].[CctvDevice] ([Code]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_CctvDevice_Code';
+END;
+
+-- TmsWeather (gói 104: ON t.RefId = s.weatherStationId AND t.TimeDetect = s.detectTime)
+IF OBJECT_ID(N'[dbo].[TmsWeather]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[TmsWeather]') AND [name] = N'IX_TmsWeather_RefId_TimeDetect')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TmsWeather_RefId_TimeDetect] ON [dbo].[TmsWeather] ([RefId], [TimeDetect]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_TmsWeather_RefId_TimeDetect';
+END;
+
+-- TmsVehicleRegistration (gói 105: ON t.LicensePlate = s.licensePlate)
+IF OBJECT_ID(N'[dbo].[TmsVehicleRegistration]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[TmsVehicleRegistration]') AND [name] = N'IX_TmsVehicleRegistration_LicensePlate')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TmsVehicleRegistration_LicensePlate] ON [dbo].[TmsVehicleRegistration] ([LicensePlate]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_TmsVehicleRegistration_LicensePlate';
+END;
+
+-- TollTransactionOut (gói 105, 109: ON t.TransactionId = s.transactionId)
+IF OBJECT_ID(N'[dbo].[TollTransactionOut]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[TollTransactionOut]') AND [name] = N'IX_TollTransactionOut_TransactionId')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TollTransactionOut_TransactionId] ON [dbo].[TollTransactionOut] ([TransactionId]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_TollTransactionOut_TransactionId';
+END;
+
+-- TmsTrafficData (gói 106: ON t.DetectTime = s.detectTime AND ISNULL(t.Lane, '') = ISNULL(s.lane, '') AND ISNULL(t.Location, '') = ISNULL(s.locationCode, ''))
+IF OBJECT_ID(N'[dbo].[TmsTrafficData]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[TmsTrafficData]') AND [name] = N'IX_TmsTrafficData_DetectTime_Lane_Location')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TmsTrafficData_DetectTime_Lane_Location] ON [dbo].[TmsTrafficData] ([DetectTime], [Lane], [Location]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_TmsTrafficData_DetectTime_Lane_Location';
+END;
+
+-- TmsIncident (gói 107: ON t.Code = s.incidentCode)
+IF OBJECT_ID(N'[dbo].[TmsIncident]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[TmsIncident]') AND [name] = N'IX_TmsIncident_Code')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TmsIncident_Code] ON [dbo].[TmsIncident] ([Code]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_TmsIncident_Code';
+END;
+
+-- VmsCurrent (gói 108: ON t.EquipmentId = s.equipmentId)
+IF OBJECT_ID(N'[dbo].[VmsCurrent]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[VmsCurrent]') AND [name] = N'IX_VmsCurrent_EquipmentId')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_VmsCurrent_EquipmentId] ON [dbo].[VmsCurrent] ([EquipmentId]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_VmsCurrent_EquipmentId';
+END;
+
+-- TollStation (gói 109: ON t.StationId = s.stationId)
+IF OBJECT_ID(N'[dbo].[TollStation]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[TollStation]') AND [name] = N'IX_TollStation_StationId')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TollStation_StationId] ON [dbo].[TollStation] ([StationId]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_TollStation_StationId';
+END;
+
+-- TollLane (gói 109: ON t.LaneId = s.laneId)
+IF OBJECT_ID(N'[dbo].[TollLane]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'[dbo].[TollLane]') AND [name] = N'IX_TollLane_LaneId')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TollLane_LaneId] ON [dbo].[TollLane] ([LaneId]);
+    SET @IdxCreated = @IdxCreated + 1;
+    PRINT N'   - Đã tạo chỉ mục IX_TollLane_LaneId';
+END;
+
+PRINT N'-> 2. Đã tạo ' + CAST(@IdxCreated AS NVARCHAR(10)) + N' chỉ mục chiều nhận.';
 GO
 
 SET NOEXEC OFF;
