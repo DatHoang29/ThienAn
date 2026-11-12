@@ -19,6 +19,12 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
+### ✅ Đợt 12/11/2026 — Câu nối đuôi tràn `tempdb` khi kiểm tải
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | `sharedata-cau-noi-duoi-tran-tempdb-be-prompt.md` (đã xóa theo yêu cầu 12/11/2026) | `SV-6` | ✅ **Đã thực thi 12/11/2026; chưa chạy staging.** Ba tệp `sql/chi-muc/`: thêm / gỡ cột tính toán `CursorKey` và chỉ mục cột mốc cho 6 bảng nguồn của 7 gói nối đuôi; chỉ mục `OccurredAt` cho `ShareDataActivityLog`. Ca test `CursorQuery_WhenSourceHasCursorKeyIndex_SeeksWithoutSortAndReturnsSamePage_Test` (8 ca) đạt; toàn bộ test ShareData chạy với chỉ mục đang có trên CSDL test: 903 đạt, 0 lỗi; CodeFirst không xóa cột ngoài entity. K3 thêm `@BuocGuiKhiCoDuLieuMoi`. Phương án sửa câu mẫu gói 103 (lấy trang trước, nối sau) chưa làm, tóm tắt ở `.agents/memory/sharedata.md`. |
+
 ### ✅ Đợt 11/11/2026 — Truy vết nhật ký khi kiểm tải nhiều đối tác
 
 > 11/11/2026: phần FE đã làm (nhánh `fix/20261111-sharedata-ra-lai-phan-he` ở WEBVUE); phần BE người dùng cho tạm bỏ, code Worker giữ như `dev`. Prompt đã xóa theo yêu cầu.

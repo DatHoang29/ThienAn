@@ -56,3 +56,10 @@ Khi viết LINQ query với SqlSugar (ví dụ `.Where(x => x.Field == MyClass.S
   2. Hoặc gán ra biến cục bộ (`var target = MyClass.SomeVar;`) bên trong hàm trước khi truyền vào biểu thức `.Where(x => x.Field == target)`.
 
 You can refer to this file in future sessions when needing SqlSugar patterns.
+
+### 3. Cột tính toán và chỉ mục trong CodeFirst (soi SqlSugarCore 5.1.4.214 bằng reflection, 12/11/2026)
+
+- `SugarColumn` không có thuộc tính nào cho cột tính toán; cả thư viện không có thành viên nào tên chứa "Comput". Mẫu thêm cột: `ALTER TABLE {0} ADD {1} {2}{3} {4} {5} {6}` (luôn kèm kiểu + NULL/NOT NULL).
+- `SugarIndex` chỉ có tên, danh sách cột + chiều sắp xếp, `IsUnique`. Mẫu SQL Server: `CREATE {3} NONCLUSTERED INDEX Index_{0}_{2} ON {0}({1})` — không `INCLUDE`, không `WHERE`.
+- `SugarTable.IsDisabledDelete` tồn tại (chặn CodeFirst xóa cột không có trong entity); hành vi xóa cột mặc định chưa chạy thử để xác nhận.
+- Hệ quả: cột tính toán phải tạo bằng script; chỉ mục trên cột đó khai được bằng `SugarIndex` nếu entity có thuộc tính tương ứng.

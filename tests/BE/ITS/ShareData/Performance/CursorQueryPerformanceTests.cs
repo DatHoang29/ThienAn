@@ -17,7 +17,7 @@ namespace Tests.ShareData.Performance
     ///              Dữ liệu nằm trong bảng tạm trên một kết nối riêng tới CSDL test local, đóng kết nối là bảng tự mất.
     ///              Biến thể PA1, PA2: dùng lại kế hoạch (-S), ORDER BY cột gốc (-G), chặn dưới lấy thời gian từ @lastKey (-CD), để chọn cách giữ một chuỗi.
     /// Created date: 29/10/2026
-    /// Modified date: 02/11/2026
+    /// Modified date: 12/11/2026
     /// </summary>
     [Collection("api")]
     public class CursorQueryPerformanceTests
@@ -313,6 +313,76 @@ namespace Tests.ShareData.Performance
             Assert.Equal(expectedDuplicates, sent.Count - sent.Distinct().Count());
         }
 
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Bảng nguồn có cột tính toán bằng đúng biểu thức mốc và chỉ mục trên cột đó: câu nối đuôi vẫn ghép biểu thức mốc
+        ///              như câu mẫu (không gọi tên cột tính toán) phải đi Index Seek trên chỉ mục cột mốc, không còn phép sắp xếp,
+        ///              và trả đúng trang, đúng mốc kế tiếp như khi bảng chưa có chỉ mục. Kiểm cả dạng người dùng tự viết:
+        ///              nối bảng danh mục trước khi lấy trang, TOP lớn hơn 100, TOP theo biến @pageSize.
+        /// Created date: 12/11/2026
+        /// </summary>
+        [Theory]
+        [Trait("Feature", "Performance")]
+        [InlineData("TOP 100", false, "start")]
+        [InlineData("TOP 100", false, "middle")]
+        [InlineData("TOP 100", true, "start")]
+        [InlineData("TOP 100", true, "middle")]
+        [InlineData("TOP 500", true, "start")]
+        [InlineData("TOP 500", true, "middle")]
+        [InlineData("TOP (@pageSize)", true, "start")]
+        [InlineData("TOP (@pageSize)", true, "middle")]
+        public async Task CursorQuery_WhenSourceHasCursorKeyIndex_SeeksWithoutSortAndReturnsSamePage_Test(string top, bool joinCatalog, string position)
+        {
+            // Arrange: bảng nguồn 60.000 dòng, bảng danh mục 500 dòng, trang đọc được khi bảng chưa có chỉ mục cột mốc
+            const int rowCount = 60_000;
+            const string cursorKey = "CONVERT(varchar(23), COALESCE(s.UpdateTime, s.CreateTime, s.DetectTime), 121) + '_' + s.ID";
+            var connectionString = _host.Services.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Thiếu ConnectionStrings:DefaultConnection trong appsettings.Test.json.");
+            await using var conn = new SqlConnection(connectionString);
+            await conn.OpenAsync();
+            await SeedSourceAsync(conn, rowCount);
+            await ExecuteAsync(conn, """
+                ALTER TABLE #CursorSource ADD IsDelete DATETIME NULL;
+                CREATE TABLE #CursorCatalog (Code NVARCHAR(64) NOT NULL PRIMARY KEY, KmNumber INT NULL);
+                INSERT INTO #CursorCatalog (Code, KmNumber)
+                SELECT DISTINCT s.Code, 1 FROM #CursorSource s;
+                """);
+            var lastKey = position == "start"
+                ? string.Empty
+                : (await ReadPositionAsync(conn, position, position, rowCount / 2)).ConcatKey;
+            var join = joinCatalog ? "LEFT JOIN #CursorCatalog c ON s.Code = c.Code" : string.Empty;
+            var pageSql = $"""
+                SELECT {top} s.ID, {cursorKey} AS __lastKey
+                FROM #CursorSource s
+                {join}
+                WHERE s.IsDelete IS NULL
+                  AND {cursorKey} > @lastKey
+                ORDER BY __lastKey ASC
+                """;
+            var expectedParameters = BuildCursorKeyParameters(lastKey);
+            var expected = await QueryAsync(conn, $"/* trước chỉ mục */ {pageSql}", expectedParameters);
+            await ExecuteAsync(conn, """
+                ALTER TABLE #CursorSource ADD CursorKey AS
+                    (CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime, DetectTime), 121) + '_' + ID);
+                CREATE NONCLUSTERED INDEX IX_CursorSource_CursorKey ON #CursorSource (CursorKey) INCLUDE (IsDelete);
+                SET STATISTICS XML ON;
+                """, 600);
+
+            // Act
+            var actualParameters = BuildCursorKeyParameters(lastKey);
+            var actual = await QueryAsync(conn, $"/* sau chỉ mục */ {pageSql}", actualParameters);
+
+            // Assert
+            var planXml = new[] { actual.PlanXml };
+            var plan = SummarizePlans(planXml).Plan;
+            var expectedPage = expected.Rows.Select(r => $"{r.Id}|{r.LastKey}").ToList();
+            var actualPage = actual.Rows.Select(r => $"{r.Id}|{r.LastKey}").ToList();
+            Assert.NotEmpty(expectedPage);
+            Assert.Equal(expectedPage, actualPage);
+            Assert.Contains("Index Seek (IX_CursorSource_CursorKey)", plan);
+            Assert.DoesNotContain("Sort", plan);
+        }
+
         private enum CursorShape
         {
             /// <summary>Một chuỗi ghép thời gian + mã (PA1, PA2, PA3).</summary>
@@ -464,6 +534,12 @@ namespace Tests.ShareData.Performance
                 new SqlParameter("@lastKey", SqlDbType.NVarChar, 256) { Value = position.LastId },
             ];
         }
+
+        private static SqlParameter[] BuildCursorKeyParameters(string lastKey) =>
+        [
+            new SqlParameter("@lastKey", SqlDbType.NVarChar, 4000) { Value = lastKey },
+            new SqlParameter("@pageSize", SqlDbType.Int) { Value = PageSize }
+        ];
 
         private static SqlParameter LastRowIdParameter(string id) => new("@lastRowId", SqlDbType.NVarChar, 64) { Value = id };
 

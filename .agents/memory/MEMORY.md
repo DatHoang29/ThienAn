@@ -23,5 +23,5 @@
 - [Biểu mẫu KPI](kpi-template.md) — tạo kỳ mới từ 2026.09; 2026.08 chỉ đọc để đối chiếu; quy chuẩn định dạng trong tệp
 
 ## Dự án
-- [ShareData](sharedata.md) — trạng thái, quyết định đã chốt, giao diện Nguồn dữ liệu (W0.2), kiểm tải nhiều đối tác, test bật pooling (11/11)
+- [ShareData](sharedata.md) — trạng thái, quyết định đã chốt, Nguồn dữ liệu (W0.2), kiểm tải nhiều đối tác (11/11), tràn tempdb gói 103 (12/11)
 - [Bàn giao 11/2026](handover-2026-11.md) — tài liệu ở `bangiao/`, tách theo phân hệ, bản html và md
