@@ -19,7 +19,7 @@ GO
 --              Khác màn hình: tệp KHÔNG ghi nhật ký hoạt động (ShareDataActivityLog) và không xóa bộ nhớ đệm của WebAPI;
 --              màn hình có thể hiện trạng thái cũ cho tới khi bộ nhớ đệm hết hạn hoặc khởi động lại WebAPI.
 -- THỨ TỰ CHẠY: K5, chạy độc lập bất cứ lúc nào sau K1–K4. Muốn xem trước danh sách: đặt @ChiXem = 1.
---              MỞ LẠI: kết nối lại từng đối tác và bật lại đăng ký trên màn hình (hoặc chạy lại K1, K3).
+--              MỞ LẠI: chạy K6 (sharedata-kiem-tai-ket-noi-lai.sql), hoặc kết nối lại từng đối tác và bật lại đăng ký trên màn hình.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Staging (CSDL có dữ liệu kiểm tải KTxxx). ⛔ Không chạy trên CSDL vận hành thật.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): chỉ đổi dòng đang Active / đang kết nối; lỗi thì hoàn tác cả ba bảng.
