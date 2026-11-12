@@ -12,7 +12,6 @@ using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
 using Shared.Core.Domain;
 using ShareDataWorker.Infrastructure.Services.DataInbound;
-using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using Tests.ShareData.Common;
 using Xunit;
 
@@ -34,6 +33,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>Mốc lần đầu của câu nối đuôi: chỉ lấy các dòng nguồn của bài test (giờ năm 2099), bỏ dữ liệu sẵn có.</summary>
         private const string RoundTripCursorStart = "2098-01-01 00:00:00.000_";
+
+        /// <summary>Số đối tác cùng chạy vòng một gói: nửa sau dùng câu riêng biến tấu từ câu trích thật, đủ 5 kiểu biến tấu (số thứ tự chia 5 dư 0..4).</summary>
+        private const int RoundTripPartnerCount = 10;
 
         /// <summary>Giờ của dòng nguồn: số giây tròn để kiểu datetime ở hai CSDL không lệch phần nghìn giây.</summary>
         private static readonly DateTime RoundTripTime = new(2099, 1, 1, 8, 0, 0);
@@ -292,11 +294,16 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Author: DatHQ
-        /// Description: Mỗi gói catalog đang bật trên staging chạy vòng: câu trích và câu ghi đúng tệp seed, bộ khung đủ trường của gói, bộ mã nạp bằng tệp
-        ///              seed bộ mã; gửi qua controller nhận thật rồi bản nhận chạy câu ghi thật. Đọc lại ở CSDL nhận bằng cùng câu SELECT phải ra đúng các dòng ở
-        ///              CSDL nguồn (câu ghi chỉ cập nhật thì sửa đúng dòng có sẵn); gói 101 đi trên đường dây bằng mã đối tác (LANE_2, CONGESTED, ALL_LANES,
-        ///              FREE_FLOW) và ghi lại đúng mã gốc. Gói nhận nào cũng Done, không cảnh báo, mỗi gói nhận có dòng cha và bước 2 thành công trong nhật ký.
+        /// Description: Mỗi gói catalog đang bật trên staging chạy vòng với nhiều đối tác như seed kiểm tải: câu trích và câu ghi đúng tệp seed (câu trích xuống
+        ///              dòng CRLF như trên staging), bộ khung đủ trường của gói, bộ mã nạp bằng tệp seed bộ mã; nửa sau số đối tác dùng câu riêng biến tấu từ câu
+        ///              trích thật (thêm cột phụ, đổi TOP 100 thành 20 hoặc 500, xuống dòng LF, chú thích cuối dài) và không khai câu ghi riêng.
+        ///              4 bản chỉ gửi, 1 bản hai chiều, 1 bản chỉ nhận chạy cùng lúc; gửi qua controller nhận thật rồi bản nhận chạy câu ghi thật.
+        ///              Đối tác nào cũng gửi được dòng nguồn của bài test, cột phụ của câu riêng không lên đường dây; gói 101 đi trên đường dây bằng mã đối tác
+        ///              (LANE_2, CONGESTED, ALL_LANES, FREE_FLOW). Gói nhận nào cũng Done, không cảnh báo, mỗi gói nhận có dòng cha và bước 2 thành công trong nhật ký.
+        ///              Đọc lại ở CSDL nhận bằng cùng câu SELECT phải ra đúng các dòng ở CSDL nguồn: câu ghi MERGE nên nhiều đối tác gửi cùng dòng không nhân dòng,
+        ///              câu ghi chỉ cập nhật thì sửa đúng dòng có sẵn, gói 101 ghi lại đúng mã gốc.
         /// Created date: 11/11/2026
+        /// Modified date: 12/11/2026
         /// </summary>
         [Theory]
         [InlineData("101", new[] { "LANE_2", "CONGESTED", "ALL_LANES", "FREE_FLOW" })]
@@ -319,39 +326,68 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var prefix = $"RT{code}{unique}";
             var packet = await SeedRoundTripPacketAsync(db, code, unique, prefix);
             var checks = await SeedRoundTripSourceAsync(db, inboundDb, code, prefix);
-            var partnerCode = ClonePartnerCode(packet, "RT");
-            var shapeJson = RoundTripShapeJson(code, partnerCode, packet.PacketCode);
-            var partner = await SeedReceiverPartnerAsync(db, packet, "RT", ReceiveEndpoint, shapeJson);
-            var partners = new List<ReceiverPartner> { partner };
-            var sender = CreateReceiverClone(scope, null);
-            var senders = new List<DataOutboundService> { sender };
-            var receiver = receiverScope.ServiceProvider.GetRequiredService<DataInboundService>();
+            var seedSql = SeedScriptReader.GetExtractSql(code);
+            var commonSql = seedSql.ReplaceLineEndings("\r\n");
+            await ShareDataSqlSeed.SetCommonAsync(db, packet.PacketId, commonSql);
+            var commonVariables = await ShareDataSqlSeed.GetVariablesAsync(db, packet.PacketId, null);
+            var partners = new List<ReceiverPartner>();
+            for (var index = 1; index <= RoundTripPartnerCount; index++)
+            {
+                var name = $"RT{index:00}";
+                var partnerCode = ClonePartnerCode(packet, name);
+                var shapeJson = RoundTripShapeJson(code, partnerCode, packet.PacketCode);
+                var partner = await SeedReceiverPartnerAsync(db, packet, name, ReceiveEndpoint, shapeJson);
+                partners.Add(partner);
+                if (index > RoundTripPartnerCount / 2)
+                {
+                    var ownSql = LoadTestOwnSql(commonSql, index, partnerCode);
+                    await ShareDataSqlSeed.SetPartnerAsync(db, packet.PacketId, partner.Partner.ID, ownSql);
+                    await ShareDataSqlSeed.SetVariablesAsync(db, packet.PacketId, partner.Partner.ID, commonVariables);
+                }
+            }
+
+            var senders = Enumerable.Range(0, ManyPartnerSenderCount + 1).Select(_ => CreateReceiverClone(scope, null)).ToList();
+            var receiveOnly = receiverScope.ServiceProvider.GetRequiredService<DataInboundService>();
+            var bothServiceReceiver = CreateInboundService(scope);
+            var receivers = new List<DataInboundService> { receiveOnly, bothServiceReceiver };
+            var partnerIds = partners.Select(p => p.Partner.ID).ToList();
 
             // Act: gói nối đuôi gửi hết trong lượt đầu; gói gửi toàn bộ gửi lại ở lượt sau, câu ghi MERGE nên không nhân dòng
             for (var round = 0; round < 2; round++)
             {
-                await RunRoundAsync(db, senders, receiver, packet, false, partners);
+                await RunLoadTestSeedRoundAsync(senders, receivers);
+                foreach (var partner in partners)
+                {
+                    await MakeSubscriptionDue(db, partner.Outbound.ID);
+                }
             }
 
-            await receiver.ProcessPendingPackets(CancellationToken.None);
+            await receiveOnly.ProcessPendingPackets(CancellationToken.None);
 
-            // Assert
-            var received = await ReceivedPacketsAsync(inboundDb, packet, partner);
-            var rawContents = string.Join("\n", received.Select(p => p.RawContent));
-            var partnerId = partner.Partner.ID;
-            var alerts = await db.Queryable<ShareDataAlertLog>().Where(a => a.PartnerId == partnerId).ToListAsync();
-            var receiveLogIds = received.Select(p => p.ReceiveLogId).ToList();
-            var receiveParents = await db.Queryable<ShareDataActivityLog>().Where(l => receiveLogIds.Contains(l.ID)).ToListAsync();
-            var processSteps = await db.Queryable<ShareDataActivityLog>().Where(l => receiveLogIds.Contains(l.ParentId) && l.StepNbr == 2).ToListAsync();
-
-            Assert.NotEmpty(received);
-            Assert.All(received, p => Assert.Equal(BaseEnums.InboundProcessState.Done, p.ProcessState));
+            // Assert: đối tác nào (câu chung lẫn câu riêng) cũng gửi được dòng nguồn của bài test và bên nhận xử lý xong mọi gói
+            var alerts = await db.Queryable<ShareDataAlertLog>().Where(a => partnerIds.Contains(a.PartnerId)).ToListAsync();
             Assert.Empty(alerts);
-            Assert.All(wireTokens, token => Assert.Contains(token, rawContents));
-            Assert.Equal(received.Count, receiveParents.Count);
-            Assert.All(receiveParents, l => Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success));
-            Assert.Equal(received.Count, processSteps.Count);
-            Assert.All(processSteps, l => Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success));
+            foreach (var partner in partners)
+            {
+                var received = await ReceivedPacketsAsync(inboundDb, packet, partner);
+                var rawParts = received.Select(p => p.RawContent);
+                var rawContents = string.Join("\n", rawParts);
+                var receiveLogIds = received.Select(p => p.ReceiveLogId).ToList();
+                var receiveParents = await db.Queryable<ShareDataActivityLog>().Where(l => receiveLogIds.Contains(l.ID)).ToListAsync();
+                var processSteps = await db.Queryable<ShareDataActivityLog>().Where(l => receiveLogIds.Contains(l.ParentId) && l.StepNbr == 2).ToListAsync();
+
+                Assert.NotEmpty(received);
+                Assert.All(received, p => Assert.Equal(BaseEnums.InboundProcessState.Done, p.ProcessState));
+                Assert.Contains(prefix, rawContents);
+                Assert.DoesNotContain("ktPartner", rawContents);
+                Assert.All(wireTokens, token => Assert.Contains(token, rawContents));
+                Assert.Equal(received.Count, receiveParents.Count);
+                Assert.All(receiveParents, l => Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success));
+                Assert.Equal(received.Count, processSteps.Count);
+                Assert.All(processSteps, l => Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success));
+            }
+
+            // Assert: CSDL nhận khớp CSDL nguồn
             foreach (var check in checks)
             {
                 var sourceRows = await ReadRoundTripRowsAsync(db, check.SourceSql, prefix);

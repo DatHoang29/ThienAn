@@ -43,6 +43,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// <summary>Số lượt vận hành của bài test bộ seed: đủ cho gói nhiều trang nhất (5 dòng, mỗi lượt 2 dòng) gửi hết và còn một lượt trống.</summary>
         private const int LoadTestSeedRounds = 4;
 
+        /// <summary>Số gói nối đuôi TOP 100 viết thẳng như trên staging (103, 104, 106, 107, 109).</summary>
+        private const int LoadTestLiteralTopPacketCount = 5;
+
+        /// <summary>Số gói gửi toàn bộ như trên staging (102, 108).</summary>
+        private const int LoadTestSnapshotPacketCount = 2;
+
         /// <summary>Công thức cột mốc của các câu kiểu catalog trên TmsZone.</summary>
         private const string LoadTestCursorKey = "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID";
 
@@ -385,17 +391,20 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// <summary>
         /// Author: DatHQ
         /// Description: Cấu hình kiểm tải như trên staging chạy trên CSDL test: đối tác kênh WebAPI (https kèm cổng, BypassSsl) gửi vào cổng HTTPS có chứng chỉ
-        ///              khác tên rồi tới controller nhận thật; mỗi đối tác giữ ba gói kiểu catalog (nối đuôi @pageSize, nối đuôi TOP 100 viết thẳng, gửi toàn bộ),
+        ///              khác tên rồi tới controller nhận thật; mỗi đối tác giữ 8 gói kiểu catalog như 8 gói đang chạy trên staging (101–104, 106–109):
+        ///              1 gói nối đuôi @pageSize (101), 5 gói nối đuôi TOP 100 viết thẳng (103, 104, 106, 107, 109), 2 gói gửi toàn bộ (102, 108);
         ///              lịch chu kỳ 30 giây, SerialNbr gán như màn hình; nửa sau số đối tác có câu riêng biến tấu dài ngắn khác nhau.
+        ///              Ca 52 đối tác đúng quy mô seed kiểm tải: 52 đối tác × 8 gói × 2 chiều = 832 đăng ký.
         ///              4 bản chỉ gửi, 1 bản hai chiều, 1 bản chỉ nhận chạy cùng lúc. Bên nhận ghi đủ mọi dòng đúng một lần (gói gửi toàn bộ: mỗi lượt một lần),
         ///              mỗi gói nhận Done, gói đầu mang đúng SerialNbr đã gán, đăng ký nhận chỉ tăng số (giữ số lúc tạo nếu lớn hơn); mốc tới dòng cuối, khóa được nhả,
         ///              lần chạy kế tiếp hẹn sau đúng chu kỳ; không cảnh báo. Nhật ký nối được hai đầu: mỗi trang gửi có dòng cha Success mang
         ///              SerialNbr trùng gói bên nhận, mỗi gói nhận có dòng cha (ReceiveLogId) và bước 2 Success.
         /// Created date: 11/11/2026
+        /// Modified date: 12/11/2026
         /// </summary>
         [Theory]
         [InlineData(10)]
-        [InlineData(50)]
+        [InlineData(52)]
         public async Task ProcessSubscriptions_WhenLoadTestSeedRunsOverHttpsWithBypassSsl_EveryPartnerPacketReceivedOnceAndTraceable_Test(int partnerCount)
         {
             // Arrange
@@ -408,9 +417,19 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var literalTopSql = LoadTestLiteralTopSql();
             var snapshotSql = LoadTestSnapshotSql();
             var pagePacket = await SeedLoadTestCatalogPacketAsync(db, rowCount: 5, pageSize: 2, pageSizeSql, isSnapshot: false);
-            var topPacket = await SeedLoadTestCatalogPacketAsync(db, rowCount: 25, pageSize: 100, literalTopSql, isSnapshot: false);
-            var snapshotPacket = await SeedLoadTestCatalogPacketAsync(db, rowCount: 3, pageSize: 1, snapshotSql, isSnapshot: true);
-            var packets = new List<LoadTestSeedPacket> { pagePacket, topPacket, snapshotPacket };
+            var packets = new List<LoadTestSeedPacket> { pagePacket };
+            for (var i = 0; i < LoadTestLiteralTopPacketCount; i++)
+            {
+                var topPacket = await SeedLoadTestCatalogPacketAsync(db, rowCount: 25, pageSize: 100, literalTopSql, isSnapshot: false);
+                packets.Add(topPacket);
+            }
+
+            for (var i = 0; i < LoadTestSnapshotPacketCount; i++)
+            {
+                var snapshotPacket = await SeedLoadTestCatalogPacketAsync(db, rowCount: 3, pageSize: 1, snapshotSql, isSnapshot: true);
+                packets.Add(snapshotPacket);
+            }
+
             var prefix = $"Q{Guid.NewGuid():N}"[..7];
             var firstOwnSqlPartner = partnerCount / 2 + 1;
             var partners = await SeedLoadTestSeedPartnersAsync(db, prefix, partnerCount, packets, receiverPort, firstOwnSqlPartner);
@@ -511,16 +530,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Assert.All(processSteps, l => Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success));
                 }
 
-                var pageCursor = await db.Queryable<ShareDataLastSend>()
-                    .Where(c => c.PartnerCode == code && c.PacketCode == pagePacket.Packet.PacketCode && c.CursorKey == null)
-                    .FirstAsync();
-                var topCursor = await db.Queryable<ShareDataLastSend>()
-                    .Where(c => c.PartnerCode == code && c.PacketCode == topPacket.Packet.PacketCode && c.CursorKey == null)
-                    .FirstAsync();
-                var pageLastRow = CursorEnd(pagePacket.Packet, 5);
-                var topLastRow = CursorEnd(topPacket.Packet, 25);
-                Assert.EndsWith(pageLastRow, pageCursor.LastKey);
-                Assert.EndsWith(topLastRow, topCursor.LastKey);
+                foreach (var seedPacket in packets.Where(p => !p.IsSnapshot))
+                {
+                    var packetCode = seedPacket.Packet.PacketCode;
+                    var cursor = await db.Queryable<ShareDataLastSend>()
+                        .Where(c => c.PartnerCode == code && c.PacketCode == packetCode && c.CursorKey == null)
+                        .FirstAsync();
+                    var lastRow = CursorEnd(seedPacket.Packet, seedPacket.Packet.RowCodes.Count);
+                    Assert.EndsWith(lastRow, cursor.LastKey);
+                }
             }
 
             var alerts = await db.Queryable<ShareDataAlertLog>().Where(a => partnerIds.Contains(a.PartnerId)).ToListAsync();
