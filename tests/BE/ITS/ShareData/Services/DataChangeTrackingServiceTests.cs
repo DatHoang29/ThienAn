@@ -260,6 +260,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// Description: Kiểm chứng khi MỌI bảng nguồn đều có mốc tối thiểu mới hơn mốc đang giữ: worker nhảy cóc
         ///              mốc lên version hiện tại và ghi 1 dòng ESH-1601, KHÔNG cô lập bảng nào.
         /// Created date: 02/10/2026
+        /// Modified date: 12/11/2026
         /// </summary>
         [Fact]
         public async Task PollChanges_WhenAllTablesAreStale_FastForwardsAndWritesEsh1601_Test()
@@ -282,6 +283,17 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 RefId = $"W_ALLSTALE_{testId}",
                 CreateTime = DateTime.Now
             }).ExecuteCommandAsync();
+
+            // Arrange 2b: CSDL mới tạo thì bảng được bật tracking lúc version = 0 (min_valid_version = 0) nên không ép được ca quá hạn;
+            // bật lại tracking riêng các bảng đó khi version CSDL đã > 0 (sau Arrange 2) để min_valid_version > 0. CSDL cũ thì bỏ qua.
+            await db.Ado.ExecuteCommandAsync(@"
+DECLARE @sql NVARCHAR(MAX) = N'';
+SELECT @sql += N'ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(t.schema_id)) + N'.' + QUOTENAME(t.name) + N' DISABLE CHANGE_TRACKING; '
+             + N'ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(t.schema_id)) + N'.' + QUOTENAME(t.name) + N' ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF); '
+FROM sys.change_tracking_tables ct
+JOIN sys.tables t ON t.object_id = ct.object_id
+WHERE ct.min_valid_version = 0;
+IF @sql <> N'' EXEC sys.sp_executesql @sql;");
 
             // Arrange 3: Đọc min_valid_version của mọi bảng đang bật tracking
             var minOfAllObj = await db.Ado.GetScalarAsync("SELECT MIN(min_valid_version) FROM sys.change_tracking_tables");
@@ -324,6 +336,190 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && !existingIds.Contains(x.ID))
                 .CountAsync();
             Assert.Equal(1, totalEsh1601AfterSecondPoll);
+        }
+
+        /// <summary>
+        /// Description: Kiểm chứng Worker giám sát chạy một lượt rồi tắt, vài ngày sau mở lại (instance mới, đọc mốc đã lưu):
+        ///              - tắt ngắn hơn số ngày giữ lịch sử (tracking_change_retention_days, mặc định 2 ngày): đọc tiếp từ mốc cũ,
+        ///                thấy thay đổi phát sinh lúc tắt (ghi LastChangeTime), không ghi ESH-1601;
+        ///              - tắt 3-4 ngày, quá số ngày giữ lịch sử: SQL Server đã dọn lịch sử nên min_valid_version vượt mốc cũ
+        ///                (mô phỏng bằng tắt / bật lại tracking của TmsWeather); Worker nhảy cóc mốc lên version hiện tại, ghi đúng
+        ///                1 dòng ESH-1601, không cô lập bảng, không báo thay đổi cho khoảng bị bỏ qua (luồng quét định kỳ gửi bù).
+        /// Created date: 12/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData(false, 0)]
+        [InlineData(true, 1)]
+        public async Task ChangeTracking_WhenWorkerRestartsAfterDowntime_ResumesOrFastForwardsByRetention_Test(bool historyCleanedWhileDown, int expectedSelfHealCount)
+        {
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var testId = Guid.NewGuid().ToString("N")[..8];
+
+            // Arrange 1: Worker chạy một lượt (2 vòng quét để mốc mọi bảng ổn định) rồi tắt
+            var firstWorker = CreateTrackerWorker(scope);
+            await firstWorker.PollChanges(CancellationToken.None);
+            await firstWorker.PollChanges(CancellationToken.None);
+
+            var before = await GetTrackState(db, "TmsWeather");
+            Assert.NotNull(before);
+            Assert.True(before!.LastVersion >= 0, "Mốc của TmsWeather phải được khởi tạo trước khi tắt Worker.");
+
+            var existingIds = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal)
+                .Select(x => x.ID)
+                .ToListAsync();
+
+            // Arrange 2: Trong lúc Worker tắt, bảng nguồn có dữ liệu mới
+            await db.Insertable(new TmsWeather
+            {
+                ID = $"W_DOWN_{testId}",
+                RefId = $"W_DOWN_{testId}",
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            // Arrange 3: Tắt quá số ngày giữ lịch sử thì SQL Server đã dọn lịch sử, min_valid_version của bảng vượt mốc đã lưu
+            if (historyCleanedWhileDown)
+            {
+                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
+                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+            }
+
+            // Act: Mở lại Worker (instance mới, đọc mốc đã lưu trong ShareDataSourceTable)
+            var restartedWorker = CreateTrackerWorker(scope);
+            await restartedWorker.PollChanges(CancellationToken.None);
+
+            // Assert 1: Mốc TmsWeather tiến lên, bảng không bị cô lập
+            var after = await GetTrackState(db, "TmsWeather");
+            Assert.NotNull(after);
+            Assert.True(after!.LastVersion > before.LastVersion, $"Mốc chưa tiến: before={before.LastVersion}, after={after.LastVersion}.");
+            var missing = GetMissingTables(restartedWorker);
+            Assert.False(missing.ContainsKey("TmsWeather"));
+
+            // Assert 2: Trong cửa sổ giữ lịch sử thì thấy thay đổi lúc tắt; quá cửa sổ thì nhảy cóc, ghi LastIssue ESH-1601
+            var changeDetected = after.LastChangeTime != before.LastChangeTime;
+            Assert.Equal(!historyCleanedWhileDown, changeDetected);
+            var hasSelfHealIssue = after.LastIssue != null && after.LastIssue.StartsWith(ShareDataAlertCode.Tracking.SelfHeal);
+            Assert.Equal(historyCleanedWhileDown, hasSelfHealIssue);
+
+            // Assert 3: Số dòng ESH-1601 mới đúng kỳ vọng và đều nêu TmsWeather
+            var newSelfHealLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && !existingIds.Contains(x.ID))
+                .ToListAsync();
+            Assert.Equal(expectedSelfHealCount, newSelfHealLogs.Count);
+            Assert.All(newSelfHealLogs, l => Assert.Contains("TmsWeather", l.AfterJson!));
+
+            // Assert 4: Vòng quét kế tiếp không sinh thêm ESH-1601 (mốc đã hợp lệ lại)
+            await restartedWorker.PollChanges(CancellationToken.None);
+            var selfHealCountAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && !existingIds.Contains(x.ID))
+                .CountAsync();
+            Assert.Equal(expectedSelfHealCount, selfHealCountAfterSecondPoll);
+        }
+
+        /// <summary>
+        /// Description: Kiểm chứng khi ai đó can thiệp trực tiếp vào bảng nguồn đang theo dõi (dùng bảng thăm dò riêng ShareDataCtProbe,
+        ///              không đụng bảng dùng chung):
+        ///              - TRUNCATE: lịch sử thay đổi của bảng bị xóa, mốc cũ quá hạn => nhảy cóc riêng bảng, ghi ESH-1601, không cô lập;
+        ///              - DROP rồi tạo lại có khóa chính: bảng mất tracking => cô lập, tới hạn tự bật lại tracking và khôi phục;
+        ///              - DROP rồi tạo lại KHÔNG có khóa chính: không bật lại được tracking => vẫn cô lập, ghi LastIssue.
+        ///              Mọi trường hợp: bảng lành mạnh (TmsWeather) không bị cô lập.
+        /// Created date: 12/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData("truncate", false, false, 1)]
+        [InlineData("dropRecreate", true, false, 0)]
+        [InlineData("dropRecreateNoPk", true, true, 0)]
+        public async Task ChangeTracking_WhenSourceTableIsTruncatedOrRecreated_SelfHealsOrIsolatesOnlyThatTable_Test(
+            string tamper, bool expectIsolatedFirstPoll, bool expectIsolatedAfterRetry, int expectedSelfHealCount)
+        {
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            const string probeTable = "ShareDataCtProbe";
+            const string dropProbeSql = "IF OBJECT_ID(N'[dbo].[ShareDataCtProbe]', N'U') IS NOT NULL DROP TABLE [dbo].[ShareDataCtProbe];";
+            const string createProbeWithPkSql = "CREATE TABLE [dbo].[ShareDataCtProbe] ([ID] NVARCHAR(64) NOT NULL CONSTRAINT [PK_ShareDataCtProbe] PRIMARY KEY, [Note] NVARCHAR(64) NULL);";
+            const string createProbeNoPkSql = "CREATE TABLE [dbo].[ShareDataCtProbe] ([ID] NVARCHAR(64) NOT NULL, [Note] NVARCHAR(64) NULL);";
+
+            // Arrange 1: Tạo mới bảng thăm dò có khóa chính và khai vào ShareDataSourceTable (chưa có mốc)
+            await db.Ado.ExecuteCommandAsync(dropProbeSql);
+            await db.Ado.ExecuteCommandAsync(createProbeWithPkSql);
+            await db.Deleteable<ShareDataSourceTable>().Where(x => x.TableName == probeTable).ExecuteCommandAsync();
+            await db.Insertable(new ShareDataSourceTable
+            {
+                ID = Guid.NewGuid().ToString(),
+                TableName = probeTable,
+                Name = probeTable,
+                PacketCodes = "104,104_weatherData",
+                OrderNo = 999,
+                IsTracked = true,
+                IsQueryable = false,
+                LastVersion = null,
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            // Arrange 2: Worker bật tracking cho bảng thăm dò, cắm mốc, đọc được 1 thay đổi
+            var worker = CreateTrackerWorker(scope);
+            await worker.PollChanges(CancellationToken.None);
+            await db.Ado.ExecuteCommandAsync($"INSERT INTO [dbo].[ShareDataCtProbe] ([ID], [Note]) VALUES (N'P1_{testId}', N'{tamper}');");
+            await worker.PollChanges(CancellationToken.None);
+
+            var before = await GetTrackState(db, probeTable);
+            Assert.NotNull(before);
+            Assert.True(before!.LastVersion >= 0, "Bảng thăm dò phải có mốc trước khi bị can thiệp.");
+            Assert.Contains(probeTable, worker.ActiveChangesSql);
+
+            var existingIds = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal)
+                .Select(x => x.ID)
+                .ToListAsync();
+
+            // Act 1: Can thiệp bảng (có dữ liệu mới chưa kịp quét) rồi Worker quét
+            await db.Ado.ExecuteCommandAsync($"INSERT INTO [dbo].[ShareDataCtProbe] ([ID], [Note]) VALUES (N'P2_{testId}', N'{tamper}');");
+            if (tamper == "truncate")
+            {
+                await db.Ado.ExecuteCommandAsync("TRUNCATE TABLE [dbo].[ShareDataCtProbe];");
+            }
+            else
+            {
+                await db.Ado.ExecuteCommandAsync(dropProbeSql);
+                await db.Ado.ExecuteCommandAsync(tamper == "dropRecreateNoPk" ? createProbeNoPkSql : createProbeWithPkSql);
+            }
+            await db.Ado.ExecuteCommandAsync($"INSERT INTO [dbo].[ShareDataCtProbe] ([ID], [Note]) VALUES (N'P3_{testId}', N'{tamper}');");
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert 1: Chỉ bảng thăm dò bị cô lập (nếu bị DROP), bảng lành mạnh vẫn chạy
+            var missingFirst = GetMissingTables(worker);
+            Assert.Equal(expectIsolatedFirstPoll, missingFirst.ContainsKey(probeTable));
+            Assert.False(missingFirst.ContainsKey("TmsWeather"));
+
+            // Act 2: Tới hạn thử lại bảng bị cô lập, Worker quét tiếp
+            ExpireMissingTableRetry(worker);
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert 2: Có khóa chính thì tự bật lại tracking và khôi phục; không có khóa chính thì vẫn cô lập kèm LastIssue
+            var missingAfterRetry = GetMissingTables(worker);
+            Assert.Equal(expectIsolatedAfterRetry, missingAfterRetry.ContainsKey(probeTable));
+            Assert.False(missingAfterRetry.ContainsKey("TmsWeather"));
+            Assert.Equal(!expectIsolatedAfterRetry, worker.ActiveChangesSql!.Contains(probeTable));
+
+            var after = await GetTrackState(db, probeTable);
+            Assert.NotNull(after);
+            var cannotEnableIssue = after!.LastIssue != null && after.LastIssue.Contains("Không thể bật Change Tracking");
+            Assert.Equal(expectIsolatedAfterRetry, cannotEnableIssue);
+
+            // Assert 3: Chỉ TRUNCATE mới nhảy cóc (ESH-1601), mốc không lùi
+            var newSelfHealLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && !existingIds.Contains(x.ID))
+                .ToListAsync();
+            Assert.Equal(expectedSelfHealCount, newSelfHealLogs.Count);
+            Assert.All(newSelfHealLogs, l => Assert.Contains(probeTable, l.AfterJson!));
+            Assert.True(after.LastVersion >= before.LastVersion, $"Mốc bị lùi: before={before.LastVersion}, after={after.LastVersion}.");
+
+            // Dọn bảng thăm dò riêng của test, trả cấu hình bảng nguồn về mặc định
+            await db.Deleteable<ShareDataSourceTable>().Where(x => x.TableName == probeTable).ExecuteCommandAsync();
+            await db.Ado.ExecuteCommandAsync(dropProbeSql);
+            await EnsureDefaultTrackTables(db);
         }
 
         /// <summary>
