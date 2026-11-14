@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { resolveWebVueSrc } from '../../setup';
+import { resolveWebVueSrc, readVxeColumnAligns, readElTableColumnAligns, expectedColumnAligns } from '../../setup';
 import fs from 'node:fs';
 
 /**
@@ -729,6 +729,103 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
             return window.getComputedStyle(el).display;
         });
         expect(placeholderDisplay, 'vxe-table--empty-placeholder phải có display: flex khi bảng rỗng').toBe('flex');
+    });
+
+    test('Trang 50 dòng cuộn tới đáy thấy đủ dòng 50 ở cả cột cố định chọn và Hành động', async ({ page }) => {
+        test.slow();
+        const records = Array.from({ length: 50 }, (_, i) => ({
+            id: `MAP_${i + 1}`, code: `MAP_CUA_KHAU_HUU_NGHI_${i + 1}`,
+            name: `Hồ sơ ánh xạ dữ liệu phương tiện qua cửa khẩu Hữu Nghị - Chi Lăng số ${i + 1}`,
+            partnerId: 'PARTNER_01', datatypeId: 'PKT_01', direction: i % 2, mappedFieldCount: 24, isActive: i % 3 !== 0,
+            createTime: '2026-11-13 14:58:17', createUserName: 'admin', updateTime: '2026-11-13 15:02:44', updateUserName: 'admin',
+        }));
+        await page.route('**/api/sharedata/sharedatamapping/page*', (r) =>
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records, total: 1024 } }) })
+        );
+        await page.setViewportSize({ width: 1280, height: 620 });
+        await page.goto('/#/sharedata/mapping');
+
+        const body = page.locator('.vxe-table--main-wrapper .vxe-table--body-wrapper').first();
+        await expect(body.locator('tr.vxe-body--row')).toHaveCount(50, { timeout: 60_000 });
+        const box = (await body.boundingBox())!;
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        for (let i = 0; i < 40; i++) await page.mouse.wheel(0, 400);
+        await page.waitForTimeout(500);
+
+        /* Check every body pane: main, fixed-left (checkbox) and fixed-right (Hành động). */
+        const panes = await page.evaluate(() =>
+            [...document.querySelectorAll('.full-table .vxe-table--body-wrapper')].map((el) => {
+                const b = el as HTMLElement;
+                const rows = b.querySelectorAll('tr.vxe-body--row');
+                const last = rows[rows.length - 1].getBoundingClientRect();
+                /* Visible area = intersection of the pane with every clipping ancestor. */
+                let bottom = b.getBoundingClientRect().bottom;
+                for (let p = b.parentElement; p; p = p.parentElement) {
+                    if (getComputedStyle(p).overflowY !== 'visible') bottom = Math.min(bottom, p.getBoundingClientRect().bottom);
+                }
+                return { pane: b.className, hiddenPx: Math.round(last.bottom - bottom) };
+            })
+        );
+        expect(panes.some((p) => p.pane.includes('fixed-'))).toBe(true);
+        for (const p of panes) expect(p.hiddenPx, `dòng 50 bị che ở ${JSON.stringify(p)}`).toBeLessThanOrEqual(1);
+    });
+
+    test('Căn lề cột: tiêu đề giữa; Mã, Tên, Đối tác, Gói tin căn trái; cột trạng thái, số, hành động căn giữa', async ({ page }) => {
+        const records = [
+            { id: 'MAP_1', code: 'KT038_110WPDATA_IN', name: 'KT038 - 110_wpData - Nhận về', partnerId: 'PARTNER_01', datatypeId: 'PKT_01', direction: 1, mappedFieldCount: 24, isActive: true },
+            { id: 'MAP_2', code: 'M1', name: 'Ngắn', partnerId: 'PARTNER_01', datatypeId: 'PKT_01', direction: 0, mappedFieldCount: 3, isActive: false },
+        ];
+        await page.route('**/api/sharedata/sharedatamapping/page*', (r) =>
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records, total: 2 } }) })
+        );
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/mapping');
+        await expect(page.locator('.vxe-table--main-wrapper tr.vxe-body--row')).toHaveCount(2, { timeout: 60_000 });
+
+        const actual = await readVxeColumnAligns(page, '.xGrid-style');
+        expect(actual).toEqual(expectedColumnAligns(['Mã', 'Tên', 'Đối tác', 'Gói tin'], ['', 'Chiều', 'Số trường', 'Đang dùng', 'Thông tin', 'Hành động']));
+    });
+
+    test('Căn lề bảng xem trước Dữ liệu gửi đi / nhận về: tiêu đề giữa; cột # giữa; cột trường dữ liệu căn trái', async ({ page }) => {
+        test.slow();
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        await page.route('**/api/sharedata/sharedatamapping/byid*', (r) => r.fulfill(ok({
+            id: 'MAP_01', code: 'MAP01', name: 'Hồ sơ hai chiều', partnerId: 'PARTNER_01', datatypeId: 'PKT_01', direction: 2,
+            partnerSchemaJson: JSON.stringify({ laneCode: 'KT038_110WPDATA_IN', plate: '29A-12345' }),
+            targetShapeJson: JSON.stringify({ laneCode: { $field: 'LaneCode' }, plate: { $field: 'PlateNumber' } }),
+        })));
+        await page.route('**/api/sharedata/sharedatapacket/getfields*', (r) => r.fulfill(ok([
+            { key: 'LaneCode', label: 'Mã làn', type: 'string' },
+            { key: 'PlateNumber', label: 'Biển số', type: 'string' },
+        ])));
+        await page.route('**/api/sharedata/sharedatapacket/sampledata*', (r) =>
+            r.fulfill(ok({ packetCode: '101_commonData', rows: [{ LaneCode: 'KT038_110WPDATA_IN', PlateNumber: '29A-12345' }] }))
+        );
+        await page.goto('/#/sharedata/mapping');
+        const copyBtn = page.locator('.vxe-body--row button:has(.ele-CopyDocument), .vxe-body--row button.el-button--warning').first();
+        await expect(copyBtn).toBeVisible({ timeout: 60_000 });
+        await copyBtn.click();
+        const dialog = page.locator('.mp-dialog');
+        await expect(dialog).toBeVisible();
+        const fieldColumns = { left: ['LaneCode', 'PlateNumber'], center: ['#'] };
+
+        await dialog.getByRole('tab', { name: 'Dữ liệu gửi đi' }).click();
+        await dialog.getByRole('button', { name: 'Lấy dữ liệu mẫu' }).click();
+        await expect(dialog.locator('.send-preview .el-table__body tr')).toHaveCount(1);
+        const send = await readElTableColumnAligns(page, '.mp-dialog .send-preview .el-table');
+        expect(send).toEqual(expectedColumnAligns(fieldColumns.left, fieldColumns.center));
+
+        await dialog.getByRole('tab', { name: 'Dữ liệu nhận về' }).click();
+        await dialog.getByRole('button', { name: 'Dùng JSON mẫu' }).click();
+        await dialog.getByRole('button', { name: 'Phân tích dữ liệu nhận' }).click();
+        await expect(dialog.locator('.receive-preview .el-table')).toHaveCount(2);
+        await expect(dialog.locator('.receive-preview .el-table').nth(1).locator('.el-table__body tr')).toHaveCount(1);
+        const receive = await readElTableColumnAligns(page, '.mp-dialog .receive-preview .el-table >> nth=1');
+        expect(receive).toEqual(expectedColumnAligns(fieldColumns.left, fieldColumns.center));
+        const meta = await readElTableColumnAligns(page, '.mp-dialog .receive-preview .el-table >> nth=0');
+        expect(Object.fromEntries(Object.entries(meta).map(([title, align]) => [title, align.split('|')[0]]))).toEqual(
+            { 'Đối tác': 'center', 'Hệ thống': 'center', 'Giá trị nhận được': 'center', 'Giá trị mong đợi': 'center', '': 'center' },
+        );
     });
 
 });

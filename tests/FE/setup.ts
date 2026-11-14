@@ -136,3 +136,47 @@ export async function mockAuth(
  * Bí danh tương thích ngược cho mockAuth
  */
 export const setupMockContext = mockAuth;
+
+/**
+ * Đọc căn lề thực tế (computed text-align) của các cột trong vxe-grid / vxe-table nằm trong `scope`.
+ * Trả về { [tiêu đề cột]: '<căn tiêu đề>|<căn ô dòng đầu>' }, ví dụ { 'Mã': 'center|left' }.
+ * Cột tìm theo tiêu đề hiển thị, ô thân ghép với tiêu đề qua thuộc tính colid của vxe.
+ */
+export async function readVxeColumnAligns(page: Page, scope: string): Promise<Record<string, string>> {
+    return page.locator(scope).first().evaluate((root) => {
+        const main = root.querySelector('.vxe-table--main-wrapper') ?? root;
+        const out: Record<string, string> = {};
+        for (const th of main.querySelectorAll('.vxe-header--column')) {
+            const title = (th.querySelector('.vxe-cell--title') ?? th).textContent?.trim() ?? '';
+            const td = main.querySelector(`.vxe-body--row .vxe-body--column[colid="${th.getAttribute('colid')}"] .vxe-cell`);
+            const headerCell = th.querySelector('.vxe-cell') ?? th;
+            out[title] = `${getComputedStyle(headerCell).textAlign}|${td ? getComputedStyle(td).textAlign : 'no-row'}`;
+        }
+        return out;
+    });
+}
+
+/**
+ * Như readVxeColumnAligns nhưng cho el-table: { [nhãn cột]: '<căn tiêu đề>|<căn ô dòng đầu>' }.
+ * Ô thân ghép với tiêu đề qua class cột el-table_<n>_column_<m>.
+ */
+export async function readElTableColumnAligns(page: Page, scope: string): Promise<Record<string, string>> {
+    return page.locator(scope).first().evaluate((root) => {
+        const out: Record<string, string> = {};
+        for (const th of root.querySelectorAll('.el-table__header th')) {
+            const columnClass = [...th.classList].find((c) => /^el-table_\d+_column_\d+$/.test(c));
+            const td = columnClass ? root.querySelector(`.el-table__body tr td.${columnClass} .cell`) : null;
+            const headerCell = th.querySelector('.cell') ?? th;
+            out[headerCell.textContent?.trim() ?? ''] = `${getComputedStyle(headerCell).textAlign}|${td ? getComputedStyle(td).textAlign : 'no-row'}`;
+        }
+        return out;
+    });
+}
+
+/**
+ * Kết quả mong đợi theo quy chuẩn: mọi tiêu đề căn giữa; cột chữ (mã, tên, mô tả…) căn trái;
+ * cột trạng thái, thời gian, số, hành động căn giữa.
+ */
+export function expectedColumnAligns(left: string[], center: string[]): Record<string, string> {
+    return Object.fromEntries([...left.map((t) => [t, 'center|left']), ...center.map((t) => [t, 'center|center'])]);
+}

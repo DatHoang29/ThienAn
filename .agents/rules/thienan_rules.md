@@ -26,7 +26,7 @@ description: Single Source of Truth for ThienAn project — P0 safeguards; domai
 | **13** | **Can thiệp tối thiểu** (19.6, 19.35) | Sửa ít dòng nhất, giữ logic và format xung quanh; ⛔ sửa tệp/hàm không liên quan, tự refactor hay format lại. |
 | **14** | **1 MasterPlan, giữ prompt** (19.52, 19.34) | Mỗi phân hệ một MasterPlan sống (`<PhânHệ>_MasterPlan.md`); ⛔ xóa tệp prompt trừ khi người dùng bảo. documentation §1 |
 | **15** | **Dọn test artifacts** (19.64) | Test pass thì xóa `test-results/`, trace, screenshot do runner sinh. testing §4 |
-| **16** | **Prompt-first, ngoại lệ `.sql`** | Phát hiện chỗ cần sửa: viết prompt ở `DocBusinessThienAn/<DựÁn>/<PhânHệ>/Prompt/`, không tự sửa; được sửa thẳng `.sql` (không tự chạy DB). database-mcp §2.2 |
+| **16** | **Sửa thẳng, không cần prompt** | Phát hiện chỗ cần sửa thì sửa thẳng mã, tài liệu, `.sql`; không phải viết prompt (người dùng bỏ prompt-first 13/11/2026). ⛔ Tự chạy `.sql` lên DB. database-mcp §2.2 |
 | **17** | **Repo cha `ThienAn` chỉ `main`** | Sửa thẳng `main`, push `origin main`; ⛔ nhánh `fix/*`, `feature/*`, `agents/*`, worktree. git §4.3 |
 | **18** | **Có test trước khi chốt** (19.67) | Vòng sửa nhanh thì sửa code trước; trước khi chốt, chạy full test hay xuất commit phải có test cho mọi code mới sửa trong `tests/FE/`, `tests/BE/` (19.109). testing §1, §2.7, §3 |
 | **21** | **Cấm hardcode text** (20.15) | ⛔ Text cứng, tooltip, placeholder, `ElMessage` ở FE; 100% `$t(...)`, đồng bộ `vi-vn.json` và `en-us.json`. frontend §5 |

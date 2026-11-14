@@ -1322,7 +1322,8 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await page.route('**/api/sharedata/sharedatapacket/getpartnerwritesqllist*', (r) =>
             r.fulfill(json({ code: 200, result: [{ partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt', isCustom: true }] }))
         );
-        await page.route('**/api/sharedata/sharedatapacket/getpartnerwritesql*', (r) =>
+        // Chỉ bắt API một đối tác: mẫu `getpartnerwritesql*` khớp luôn API danh sách `getpartnerwritesqllist`
+        await page.route((url) => url.pathname.endsWith('/sharedatapacket/getpartnerwritesql'), (r) =>
             r.fulfill(json({ code: 200, result: { packetCode: '101_commonData', isCustom: true, customWriteSql: 'MERGE dbo.TmsTrafficData AS t USING (SELECT 1 AS id) s ON t.ID = s.id OUTPUT $action;', standardWriteSql: '' } }))
         );
         await openSqlCenter(page);
@@ -2111,7 +2112,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(paramCodes).toHaveText(['@pageSize', '@lastKey'], { timeout: 10_000 });
 
         // @pageSize tự điền 100 nên lần bấm đầu lưu luôn
-        await expect(page.locator('.el-message--success')).toBeVisible({ timeout: 10_000 });
+        await expect(page.locator('.el-message--success').filter({ hasText: 'Lưu cấu hình SQL trích xuất thành công' })).toBeVisible({ timeout: 10_000 });
         expect(saveBodies).toHaveLength(1);
         expect(saveBodies[0].extractSql.replace(/\s+/g, ' ').trim()).toBe(
             "SELECT TOP (@pageSize) t.Column AS aliasName, CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime), 121) + '_' + t.ID AS __lastKey " +

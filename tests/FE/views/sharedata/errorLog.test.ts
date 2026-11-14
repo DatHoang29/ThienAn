@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockAuth } from '../../setup';
+import { mockAuth, readVxeColumnAligns, expectedColumnAligns } from '../../setup';
 
 /**
  * Test E2E cho phân hệ ShareData — Nhật ký cảnh báo lỗi (errorLog/index.vue)
@@ -328,6 +328,99 @@ test.describe('ShareData — Nhật ký cảnh báo lỗi (errorLog) @sharedata'
             return { fontWeight: cs.fontWeight };
         });
         expect(ackSelectedStyle.fontWeight).toBe('600');
+    });
+
+    test('6. Trang 50 dòng cuộn tới đáy thấy đủ dòng 50 ở cả cột cố định STT và Hành động', async ({ page }) => {
+        test.slow();
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        const records = Array.from({ length: 50 }, (_, i) => ({
+            id: `ALERT_${i + 1}`, alertCode: 'ESH-1401', alertSource: 1, severity: 2, partnerId: 'PARTNER_01', datatypeId: '101',
+            message: `Gửi HTTP REST trực tiếp tới đối tác thất bại lần ${i + 1}`, occurredAt: '2026-11-13T14:58:17Z',
+        }));
+        await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', (r) => r.fulfill(ok({})));
+        await page.route('**/api/sharedata/sharedatapartner/list*', (r) => r.fulfill(ok([])));
+        await page.route('**/api/sharedata/sharedataalertlog/summary*', (r) => r.fulfill(ok({ unackedCount: 0, totalCount: 104888 })));
+        await page.route('**/api/sharedata/sharedataalertlog/page*', (r) => r.fulfill(ok({ records, total: 104888 })));
+        await page.setViewportSize({ width: 1280, height: 620 });
+        await page.goto('/sharedata/errorLog');
+
+        const body = page.locator('.vxe-table--main-wrapper .vxe-table--body-wrapper').first();
+        await expect(body.locator('tr.vxe-body--row')).toHaveCount(50, { timeout: 30_000 });
+        const box = (await body.boundingBox())!;
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        for (let i = 0; i < 40; i++) await page.mouse.wheel(0, 400);
+        await page.waitForTimeout(500);
+
+        /* Check every body pane: main, fixed-left (STT) and fixed-right (Hành động). */
+        const panes = await page.evaluate(() =>
+            [...document.querySelectorAll('.full-table .vxe-table--body-wrapper')].map((el) => {
+                const b = el as HTMLElement;
+                const rows = b.querySelectorAll('tr.vxe-body--row');
+                const last = rows[rows.length - 1].getBoundingClientRect();
+                /* Visible area = intersection of the pane with every clipping ancestor. */
+                let bottom = b.getBoundingClientRect().bottom;
+                for (let p = b.parentElement; p; p = p.parentElement) {
+                    if (getComputedStyle(p).overflowY !== 'visible') bottom = Math.min(bottom, p.getBoundingClientRect().bottom);
+                }
+                return { pane: b.className, hiddenPx: Math.round(last.bottom - bottom) };
+            })
+        );
+        expect(panes.some((p) => p.pane.includes('fixed-left'))).toBe(true);
+        for (const p of panes) expect(p.hiddenPx, `dòng 50 bị che ở ${JSON.stringify(p)}`).toBeLessThanOrEqual(1);
+    });
+
+    test('7. Bộ lọc không tràn cột: ô nhập nằm gọn trong cột của mình, không đè lên nhãn kế bên ở mọi độ rộng', async ({ page }) => {
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', (r) => r.fulfill(ok({})));
+        await page.route('**/api/sharedata/sharedatapartner/list*', (r) => r.fulfill(ok([])));
+        await page.route('**/api/sharedata/sharedataalertlog/summary*', (r) => r.fulfill(ok({ unackedCount: 0 })));
+        await page.route('**/api/sharedata/sharedataalertlog/page*', (r) => r.fulfill(ok({ records: [], total: 0 })));
+        await page.goto('/sharedata/errorLog');
+        await expect(page.locator('.sd-filter-form .el-form-item')).toHaveCount(7, { timeout: 30_000 });
+
+        const broken: Record<number, unknown> = {};
+        for (const width of [1920, 1600, 1440, 1366, 1280, 1235, 1024, 768]) {
+            await page.setViewportSize({ width, height: 900 });
+            await page.waitForTimeout(300);
+            const overflow = await page.locator('.sd-filter-form').evaluate((form) =>
+                [...form.querySelectorAll('.el-col')].map((col) => {
+                    const c = col.getBoundingClientRect();
+                    const label = col.querySelector('.el-form-item__label') as HTMLElement;
+                    const field = col.querySelector('.el-date-editor, .el-select__wrapper, .el-input__wrapper') as HTMLElement;
+                    const l = label.getBoundingClientRect();
+                    const f = field.getBoundingClientRect();
+                    return {
+                        label: label.textContent?.trim(),
+                        fieldOverCol: Math.round(f.right - c.right),
+                        labelCut: label.scrollWidth > label.clientWidth + 1,
+                        labelUnderField: Math.round(l.right - f.left),
+                    };
+                }).filter((x) => x.fieldOverCol > 1 || x.labelCut || x.labelUnderField > 1)
+            );
+            if (overflow.length) broken[width] = overflow;
+        }
+        expect(broken, 'bộ lọc tràn cột theo độ rộng màn hình').toEqual({});
+    });
+
+    test('8. Căn lề cột: tiêu đề giữa; Mã lỗi, Mô tả, Đối tác, Loại dữ liệu, Nội dung căn trái; thời gian, trạng thái, hành động căn giữa', async ({ page }) => {
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        const records = [
+            { id: 'ALERT_1', alertCode: 'ESH-1401', alertSource: 1, severity: 2, partnerId: 'PARTNER_01', datatypeId: '110_wpData', message: 'Gửi HTTP REST trực tiếp tới đối tác thất bại', occurredAt: '2026-11-13T14:58:17Z' },
+            { id: 'ALERT_2', alertCode: 'E1', alertSource: 2, severity: 1, partnerId: 'PARTNER_01', datatypeId: '1', message: 'M', occurredAt: '2026-11-13T14:58:18Z', acknowledged: true },
+        ];
+        await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', (r) => r.fulfill(ok({})));
+        await page.route('**/api/sharedata/sharedatapartner/list*', (r) => r.fulfill(ok([{ id: 'PARTNER_01', code: 'KT038', name: 'Trạm KT038' }])));
+        await page.route('**/api/sharedata/sharedataalertlog/summary*', (r) => r.fulfill(ok({ unackedCount: 1, totalCount: 2 })));
+        await page.route('**/api/sharedata/sharedataalertlog/page*', (r) => r.fulfill(ok({ records, total: 2 })));
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/sharedata/errorLog');
+        await expect(page.locator('.vxe-table--main-wrapper tr.vxe-body--row')).toHaveCount(2, { timeout: 30_000 });
+
+        const actual = await readVxeColumnAligns(page, '.full-table');
+        expect(actual).toEqual(expectedColumnAligns(
+            ['Mã cảnh báo', 'Mô tả', 'Đối tác', 'Loại dữ liệu', 'Nội dung'],
+            ['', 'STT', 'Thời gian xảy ra', 'Mức độ', 'Nguồn', 'Trạng thái xử lý', 'Hành động'],
+        ));
     });
 
 });

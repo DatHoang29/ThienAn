@@ -21,8 +21,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
     /// Description: Kịch bản clone thực tế dùng chung một CSDL: các bản Worker chỉ gửi (chỉ khai ShareData:Role, hoặc khai thêm ShareData:SelfPartnerCode)
     ///              gửi kênh API vào đúng controller nhận của WebAPI chạy trong tiến trình test; một bản chỉ nhận ghi CSDL nhận.
     ///              Gồm ca chạy thường và các ca biên khi vận hành: bản nhận dừng rồi chạy lại, một đối tác sai đường dẫn nhận, quên tắt Worker cũ,
-    ///              bản gửi khởi động lại, có dữ liệu mới sau khi gửi hết, mỗi cặp đối tác gửi một gói khác nhau.
+    ///              bản gửi khởi động lại, có dữ liệu mới sau khi gửi hết, mỗi cặp đối tác gửi một gói khác nhau, WebAPI khởi động lại đúng lúc vừa lưu gói.
     /// Created date: 10/11/2026
+    /// Modified date: 13/11/2026
     /// </summary>
     public partial class DataOutboundServiceTests
     {
@@ -42,6 +43,41 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         private sealed class InProcessApiClientFactory(Host host) : IHttpClientFactory
         {
             public HttpClient CreateClient(string name) => host.CreateApiClient();
+        }
+
+        /// <summary>
+        /// Cấp HttpClient gọi thẳng WebAPI trong tiến trình test nhưng làm mất phản hồi của vài lần gửi đầu, như khi WebAPI khởi động lại
+        /// đúng lúc vừa lưu gói: yêu cầu vẫn vào controller nhận thật và gói đã lưu, chỉ có phản hồi không về tới bản gửi.
+        /// </summary>
+        private sealed class LostResponseApiClientFactory(Host host, int lostCount) : IHttpClientFactory
+        {
+            private int _sentCount;
+
+            /// <summary>Chuyển yêu cầu vào WebAPI, tới lượt mất phản hồi thì bỏ phản hồi và báo máy chủ đóng kết nối ngang.</summary>
+            private sealed class LostResponseHandler(LostResponseApiClientFactory owner) : DelegatingHandler
+            {
+                protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+                {
+                    var response = await base.SendAsync(request, cancellationToken);
+                    if (!owner.TakeLostTurn())
+                    {
+                        return response;
+                    }
+
+                    response.Dispose();
+                    var connectionClosed = new IOException("An existing connection was forcibly closed by the remote host.");
+                    throw new HttpRequestException("An error occurred while sending the request.", connectionClosed);
+                }
+            }
+
+            public HttpClient CreateClient(string name)
+            {
+                var handler = new LostResponseHandler(this);
+                return host.CreateApiClient(handler);
+            }
+
+            /// <summary>Đếm lần gửi; trả true khi lần này còn nằm trong số lần bị mất phản hồi.</summary>
+            private bool TakeLostTurn() => Interlocked.Increment(ref _sentCount) <= lostCount;
         }
 
         /// <summary>Kết nối CSDL nhận, nơi WebAPI lưu gói và bản chỉ nhận ghi dữ liệu.</summary>
@@ -646,6 +682,60 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 Assert.Equal(packetTwo.RowCodes, rowsTwo);
                 Assert.Empty(rowsOne);
             }
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: WebAPI khởi động lại đúng lúc vừa lưu gói: gói số 1 đã lưu nhưng phản hồi không về tới bản gửi, trong lúc đó nguồn có thêm dòng mới.
+        ///              Bản gửi không biết gói đã tới hay chưa nên coi số đó đã dùng, giữ nguyên mốc và lượt sau gửi lại trang với số kế tiếp, không gửi lại mãi một số bên nhận đã có:
+        ///              mọi dòng đều được ghi, chỉ trang bị mất phản hồi ghi hai lần, mỗi số thứ tự chỉ có một gói nhận, mốc tới dòng cuối, khóa được nhả.
+        /// Created date: 13/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ProcessSubscriptions_WhenReceiverSavedPacketButResponseWasLost_ResendsWithNextSerialAndWritesEveryRow_Test(bool byEvent)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            using var receiverScope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var inboundDb = InboundDb(db);
+            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 2);
+            var markerCode = await SetMarkerWriteSqlAsync(db, packet);
+            var partners = await SeedReceiverPartnersAsync(db, packet, "A101");
+            var partner = partners[0];
+            var lostResponses = new LostResponseApiClientFactory(_host, lostCount: 1);
+            var senders = new[] { CreateReceiverClone(scope, null, lostResponses) };
+            var receiver = receiverScope.ServiceProvider.GetRequiredService<DataInboundService>();
+            var baseTime = new DateTime(2026, 10, 27, 9, 0, 0);
+            var lostPage = packet.RowCodes.Take(2).ToList();
+
+            // Act: lượt đầu WebAPI lưu gói số 1 (R01, R02) nhưng phản hồi bị mất; nguồn có thêm R04; chạy tiếp 4 lượt
+            await RunRoundAsync(db, senders, receiver, packet, byEvent, partners);
+            var newRowName = "R04";
+            var newRowTime = baseTime.AddMinutes(4);
+            await SeedZoneRowAsync(db, packet.RowPrefix, packet.Unique, newRowName, newRowTime);
+            packet.RowCodes.Add($"{packet.RowPrefix}{newRowName}");
+            for (var round = 0; round < 4; round++)
+            {
+                await RunRoundAsync(db, senders, receiver, packet, byEvent, partners);
+            }
+
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            // Assert
+            var rows = await WrittenRowsAsync(inboundDb, markerCode, partner);
+            var received = await ReceivedPacketsAsync(inboundDb, packet, partner);
+            var serials = received.Select(r => r.SerialNbr).Order().ToList();
+            var outbound = await db.Queryable<ShareDataSubscription>().InSingleAsync(partner.Outbound.ID);
+            var cursor = await GetCloneCursorAsync(db, packet, partner.Name);
+            var expectedRows = packet.RowCodes.Concat(lostPage).Order().ToList();
+            Assert.Equal(expectedRows, rows);
+            Assert.Equal(new int?[] { 1, 2, 3 }, serials);
+            Assert.Equal(4, outbound.SerialNbr);
+            Assert.EndsWith(CursorEnd(packet, 4), cursor.LastKey);
+            Assert.Null(outbound.ProcessingUntil);
         }
     }
 }

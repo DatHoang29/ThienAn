@@ -3,7 +3,7 @@ import { mockAuth } from '../../setup';
 
 /**
  * Test E2E cho phân hệ ShareData — khối 4 "Mốc đang chạy" ở trang Cấu hình gói tin (dataSource/component/cursorBlock.vue):
- * mốc đang chạy theo từng đối tác trong phạm vi tab đang mở (tab Mẫu chung: đối tác dùng mẫu chung; tab đối tác: đúng đối tác đó),
+ * mốc đang chạy theo từng đối tác trong phạm vi tab đang mở (tab Mẫu chung: chọn từng đối tác dùng mẫu chung ở ô Đối tác; tab đối tác: đúng đối tác đó),
  * Đặt mốc, Đặt lại và khóa khi đăng ký gửi đang bật.
  */
 
@@ -48,6 +48,16 @@ const blockRow = (page: Page, text: string) => block(page).locator('.el-table__b
 const pickTime = async (page: Page, scope: Locator, text: string) => {
     await scope.locator('.cvi-picker input').fill(text);
     await page.keyboard.press('Enter');
+};
+const cursorPartnerSelect = (page: Page) => block(page).locator('.scb-partner-select');
+const cursorPartnerOptions = (page: Page) => page.locator('.scb-partner-popper:visible .el-select-dropdown__item');
+/** Tab Mẫu chung: chọn đối tác ở ô Đối tác của khối 4. */
+const pickCursorPartner = async (page: Page, code: string) => {
+    await cursorPartnerSelect(page).click();
+    const option = cursorPartnerOptions(page).filter({ hasText: code }).first();
+    await expect(option).toBeVisible({ timeout: 5_000 });
+    await option.click();
+    await expect(blockRow(page, code)).toHaveCount(1, { timeout: 10_000 });
 };
 const selectPartnerScope = async (page: Page, labelOrCode: string) => {
     const select = page.locator('.partner-tab-jump');
@@ -122,12 +132,12 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
 
     /**
      * Author: DatHQ
-     * Description: Tab Mẫu chung: khối 4 liệt kê đúng các đối tác dùng mẫu chung (đối tác có cấu hình riêng nằm ở tab của họ), hiện mốc đang chạy,
+     * Description: Tab Mẫu chung: khối 4 hiện mốc theo từng đối tác dùng mẫu chung chọn ở ô Đối tác (đối tác có cấu hình riêng nằm ở tab của họ), hiện mốc đang chạy,
      *              chưa có mốc thì nói lượt gửi tới lấy từ Mốc bắt đầu; Đặt mốc cho đối tác chưa có mốc thì không báo hệ quả,
      *              Đặt lại hỏi rõ sẽ gửi lại từ Mốc bắt đầu, bảng nạp lại đúng sau mỗi thao tác.
      * Created date: 07/11/2026
      */
-    test('1. Tab Mẫu chung: khối 4 liệt kê đối tác dùng mẫu chung kèm mốc đang chạy (chưa có thì nói lượt gửi tới lấy từ đâu); Đặt mốc, Đặt lại nạp lại đúng', async ({ page }) => {
+    test('1. Tab Mẫu chung: khối 4 hiện từng đối tác dùng mẫu chung kèm mốc đang chạy (chưa có thì nói lượt gửi tới lấy từ đâu); Đặt mốc, Đặt lại nạp lại đúng', async ({ page }) => {
         const saved: Record<string, string | null> = { p_a: '2026-10-27 10:05:00.000_Z02', p_b: null };
         const resetPayloads: any[] = [];
         await mockExtractSql(page, CURSOR_SQL);
@@ -156,6 +166,9 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         const rowB = blockRow(page, 'VDOT');
         // Có mốc thì hiện nguyên chuỗi mốc như trong CSDL (thời gian_khóa); chưa có mốc thì nói lượt gửi tới lấy từ Mốc bắt đầu
         await expect(rowA.locator('.sd-cursor-line')).toHaveText('2026-10-27 10:05:00.000_Z02', { timeout: 10_000 });
+        await expect(rowB).toHaveCount(0);
+        await pickCursorPartner(page, 'VDOT');
+        await expect(rowA).toHaveCount(0);
         await expect(rowB.locator('.sd-cursor-line')).toHaveText('Chưa có, lượt gửi tới lấy từ Mốc bắt đầu 22/10/2026 00:00:00');
         await expect(blockRow(page, 'RIENG')).toHaveCount(0);
 
@@ -176,6 +189,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(rowB.locator('.sd-cursor-line')).toHaveText('2026-11-02 08:00:00.000_');
 
         // Đặt lại CSGT: hỏi rõ gửi lại từ Mốc bắt đầu và bị gửi trùng, gửi đúng gói và đối tác, bảng về trạng thái chưa có mốc
+        await pickCursorPartner(page, 'CSGT');
         await rowA.locator('.sd-cursor-reset-btn').click();
         await expect(page.locator('.el-message-box')).toContainText(
             'Bỏ Mốc đang chạy của Cục CSGT? Lượt gửi tới gửi lại từ Mốc bắt đầu 22/10/2026 00:00:00, phần đã gửi sẽ bị gửi trùng.'
@@ -251,7 +265,9 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
             }
 
             // Đối tác không có đăng ký luôn đặt được và dòng không bị khóa mờ
+            await pickCursorPartner(page, 'VDOT');
             const rowB = blockRow(page, 'VDOT');
+            await expect(scbCard).not.toHaveClass(/is-scope-locked/);
             await expect(rowB).not.toHaveClass(/is-row-locked/);
             await expect(rowB.locator('.sd-cursor-set-btn')).toBeEnabled();
             await expect(rowB.locator('.sd-cursor-reset-btn')).toBeEnabled();
@@ -354,6 +370,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         expect(setPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_time', lastKey: '2026-10-29 08:30:00.000_' });
 
         await expect(dialog).toBeHidden();
+        await pickCursorPartner(page, 'PLAIN1');
         await blockRow(page, 'PLAIN1').locator('.sd-cursor-set-btn').click();
         await expect(dialog.locator('.sd-cursor-no-time')).toBeVisible();
         await expect(dialog.locator('.cvi-picker')).toHaveCount(0);
@@ -393,8 +410,10 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         ]);
 
         await openSqlCenter(page, { width: 1366, height: 768 });
-        await expect(blockRow(page, 'TTDHT')).toContainText('Chưa có, lượt gửi tới lấy từ Mốc bắt đầu 22/10/2026 00:00:00', { timeout: 15_000 });
-        await expect(blockRow(page, 'PC08')).toContainText('2026-10-27 10:05:00.000_0dcdde08-134b-45cb-898b-59fd11a42504');
+        await expect(blockRow(page, 'PC08')).toContainText('2026-10-27 10:05:00.000_0dcdde08-134b-45cb-898b-59fd11a42504', { timeout: 15_000 });
+        await pickCursorPartner(page, 'TTDHT');
+        await expect(blockRow(page, 'TTDHT')).toContainText('Chưa có, lượt gửi tới lấy từ Mốc bắt đầu 22/10/2026 00:00:00');
+        await pickCursorPartner(page, 'PC08');
         await expect(page.locator('.el-loading-mask:visible')).toHaveCount(0, { timeout: 15_000 });
         await block(page).scrollIntoViewIfNeeded();
         // Ảnh khối 4 ở thư mục kết quả test để so giao diện khi cần
@@ -565,5 +584,63 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         releasePartnerCursor();
         await expect(scopeMask).toBeHidden({ timeout: 10_000 });
         await expect(blockRow(page, 'PC08').locator('.sd-cursor-line')).toHaveText('2026-11-02 02:02:00.000_');
+    });
+
+    /**
+     * Author: DatHQ
+     * Description: Tab Mẫu chung nhiều đối tác: khối 4 chỉ hiện mốc của một đối tác chọn ở ô Đối tác (mặc định đối tác đầu),
+     *              ô chọn chỉ có đối tác dùng mẫu chung, đối tác có đăng ký gửi đang bật có dấu khóa; chỉ tải mốc của đối tác đang chọn.
+     *              Tab đối tác có cấu hình riêng không có ô chọn.
+     * Created date: 13/11/2026
+     */
+    test('11. Tab Mẫu chung: chọn từng đối tác ở ô Đối tác, chỉ tải mốc đối tác đang chọn; tab đối tác không có ô chọn', async ({ page }) => {
+        const cursorCalls: string[] = [];
+        await page.route('**/api/sharedata/sharedatasubscription/list*', (route) => fulfillJson(route, [{ partnerId: 'p_b', direction: 0 }]));
+        await mockExtractSql(page, CURSOR_SQL);
+        await mockPartners(page, [
+            { partnerId: 'p_a', partnerCode: 'CSGT', partnerName: 'Cục CSGT', isCustom: false },
+            { partnerId: 'p_b', partnerCode: 'VDOT', partnerName: 'Sở GTVT', isCustom: false },
+            { partnerId: 'p_c', partnerCode: 'PC08', partnerName: 'Phòng CSGT', isCustom: false },
+            { partnerId: 'p_d', partnerCode: 'RIENG', partnerName: 'Đối tác cấu hình riêng', isCustom: true },
+        ]);
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (route) => {
+            const partnerId = partnerIdOf(route);
+            if (partnerId) cursorCalls.push(partnerId);
+            return fulfillJson(route, { items: [pageSizeItem, keyItem(partnerId ? `2026-11-0${cursorCalls.length} 08:00:00.000_${partnerId}` : null)] });
+        });
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (route) => {
+            const partnerId = partnerIdOf(route);
+            const isCustom = partnerId === 'p_d';
+            return fulfillJson(route, { partnerId, packetCode: PACKET_CODE, standardSql: CURSOR_SQL, customSql: isCustom ? CURSOR_SQL : null, isCustom, fields: [] });
+        });
+
+        await openSqlCenter(page);
+        await expect(block(page).locator('.el-table__body tr')).toHaveCount(1, { timeout: 15_000 });
+        await expect(blockRow(page, 'CSGT')).toContainText('_p_a');
+        await expect(block(page).locator('.scb-badge-count')).toHaveText('3');
+        const cursorPartnersLoaded = () => [...new Set(cursorCalls.filter((id) => id !== 'p_d'))];
+        await expect.poll(cursorPartnersLoaded).toEqual(['p_a']);
+
+        // Ô chọn chỉ có đối tác dùng mẫu chung; VDOT có đăng ký gửi đang bật nên có dấu khóa
+        await cursorPartnerSelect(page).click();
+        await expect(cursorPartnerOptions(page)).toHaveCount(3);
+        await expect(cursorPartnerOptions(page).filter({ hasText: 'RIENG' })).toHaveCount(0);
+        await expect(cursorPartnerOptions(page).filter({ hasText: 'VDOT' }).locator('.scb-partner-lock')).toHaveCount(1);
+        await expect(cursorPartnerOptions(page).filter({ hasText: 'CSGT' }).locator('.scb-partner-lock')).toHaveCount(0);
+        await page.keyboard.press('Escape');
+
+        // Chọn VDOT: chỉ tải mốc của VDOT, khối khóa vì đăng ký đang bật
+        await pickCursorPartner(page, 'VDOT');
+        await expect(blockRow(page, 'VDOT')).toContainText('_p_b');
+        await expect(blockRow(page, 'CSGT')).toHaveCount(0);
+        await expect(block(page).locator('.scb-card')).toHaveClass(/is-scope-locked/);
+        expect(cursorPartnersLoaded()).toEqual(['p_a', 'p_b']);
+
+        // Tab đối tác có cấu hình riêng: không có ô chọn, chỉ dòng của đối tác đó
+        await selectPartnerScope(page, 'RIENG');
+        await expect(block(page)).toContainText('4. Mốc đang chạy của Đối tác cấu hình riêng', { timeout: 15_000 });
+        await expect(cursorPartnerSelect(page)).toHaveCount(0);
+        await expect(block(page).locator('.el-table__body tr')).toHaveCount(1);
+        await expect(blockRow(page, 'RIENG')).toHaveCount(1);
     });
 });

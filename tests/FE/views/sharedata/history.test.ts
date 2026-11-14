@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { readVxeColumnAligns, readElTableColumnAligns, expectedColumnAligns } from '../../setup';
 
 /**
  * Test E2E cho phân hệ ShareData — Modal Chi tiết Nhật ký (Cha - Con)
@@ -781,6 +782,25 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(codeRow.locator('td').nth(2)).toHaveText('20261023');
     });
 
+    test('8b. Bảng Trước / Sau trong hộp chi tiết: tiêu đề căn giữa, ba cột chữ căn trái', async ({ page }) => {
+        const log = {
+            id: 'LOG_DIFF', logType: 0, action: 2, targetName: 'Đăng ký gói 101', changedFields: 'Name, Code', success: 1, occurredAt: '2026-10-22T09:20:00Z',
+            beforeJson: JSON.stringify({ Name: 'KT038 - 110_wpData - Nhận về', Code: 'KT038_110WPDATA_IN' }),
+            afterJson: JSON.stringify({ Name: 'Ngắn', Code: 'K1' }),
+        };
+        await page.route('**/api/sharedata/sharedataactivitylog/page*', (r) =>
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records: [log], total: 1 } }) })
+        );
+        await page.goto('/sharedata/history');
+        const detailButton = page.locator('button:has-text("Chi tiết")').first();
+        await expect(detailButton).toBeVisible({ timeout: 30_000 });
+        await detailButton.click();
+        await expect(page.locator('.el-dialog .el-table__body tr')).toHaveCount(2);
+
+        const actual = await readElTableColumnAligns(page, '.el-dialog .el-table');
+        expect(actual).toEqual(expectedColumnAligns(['Trường', 'Trước', 'Sau'], []));
+    });
+
     test('Bộ lọc Thời gian hiện đủ ngày giờ DD/MM/YYYY HH:mm:ss ở cả hai ô, không bị khuất ở mọi độ rộng màn hình từ 768px tới 1920px (bao gồm breakpoint 1235px)', async ({ page }) => {
         await page.route('**/api/sharedata/sharedataactivitylog/page*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records: [], total: 0 } }) }));
         await page.goto('/sharedata/history');
@@ -864,5 +884,71 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
             expect(heights.pagerH).toBeGreaterThanOrEqual(30);
         }
     });
+
+    for (const tabIndex of [0, 1]) {
+        test(`Trang 50 dòng cuộn tới đáy thấy đủ dòng 50 (tab ${tabIndex + 1})`, async ({ page }) => {
+            test.slow();
+            const records = Array.from({ length: 50 }, (_, i) => ({
+                id: `LOG_${i + 1}`, logType: tabIndex, action: 1, success: 1, transferDirection: 0,
+                occurredAt: '2026-11-13T10:00:00', partnerName: `Kiểm tải ${i + 1}`, datatypeId: 'PKT_01', serialNbr: 2868 + i,
+                pduType: 'DATA_PACKET', format: 'JSON', byteSize: 1024, recordCount: 10, operatorName: 'admin',
+                targetName: `đăng ký gửi #${i} loại 6E9DAAF`, description: `Thêm mới đăng ký chia sẻ "đăng ký gửi #${i} loại 6E9DAAF" cho đối tác`,
+                changedFields: 'IsActive, UpdateTime',
+            }));
+            await page.route('**/api/sharedata/sharedataactivitylog/page*', (r) =>
+                r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records, total: 319 } }) })
+            );
+            await page.setViewportSize({ width: 1280, height: 620 });
+            await page.goto('/sharedata/history');
+            if (tabIndex === 1) await page.locator('.history-tabs .el-tabs__item').nth(1).click();
+            const body = page.locator('.vxe-table--main-wrapper .vxe-table--body-wrapper').first();
+            await expect(body.locator('tr.vxe-body--row')).toHaveCount(50, { timeout: 30_000 });
+
+            const box = (await body.boundingBox())!;
+            await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+            for (let i = 0; i < 40; i++) await page.mouse.wheel(0, 400);
+            await page.waitForTimeout(500);
+            /* Check every body pane: main, fixed-left (STT) and fixed-right (Thao tác). */
+            const panes = await page.evaluate(() =>
+                [...document.querySelectorAll('.xGrid-style .vxe-table--body-wrapper')].map((el) => {
+                    const b = el as HTMLElement;
+                    const rows = b.querySelectorAll('tr.vxe-body--row');
+                    const last = rows[rows.length - 1].getBoundingClientRect();
+                    /* Visible area = intersection of the pane with every clipping ancestor. */
+                    let bottom = b.getBoundingClientRect().bottom;
+                    for (let p = b.parentElement; p; p = p.parentElement) {
+                        if (getComputedStyle(p).overflowY !== 'visible') bottom = Math.min(bottom, p.getBoundingClientRect().bottom);
+                    }
+                    return { pane: b.className, rows: rows.length, hiddenPx: Math.round(last.bottom - bottom), scrollTop: b.scrollTop, maxScroll: b.scrollHeight - b.clientHeight };
+                })
+            );
+            for (const p of panes) expect(p.hiddenPx, `dòng 50 bị che ở ${JSON.stringify(p)}`).toBeLessThanOrEqual(1);
+        });
+    }
+
+    const alignCases = [
+        { tab: 0, left: ['Đối tượng', 'Nội dung', 'Trường thay đổi', 'Người thực hiện'], center: ['STT', 'Thời gian', 'Hành động', 'Kết quả', 'Thao tác'] },
+        { tab: 1, left: ['Đối tác', 'Loại dữ liệu', 'Loại gói (PDU)', 'Định dạng'], center: ['STT', 'Thời gian', 'Chiều', 'Serial', 'Dung lượng (B)', 'Số bản ghi', 'Kết quả', 'Thao tác'] },
+    ];
+    for (const c of alignCases) {
+        test(`Căn lề cột tab ${c.tab + 1}: tiêu đề giữa; cột chữ căn trái; thời gian, trạng thái, số, thao tác căn giữa`, async ({ page }) => {
+            const records = [
+                { id: 'LOG_1', logType: c.tab, action: 1, success: 1, transferDirection: 0, occurredAt: '2026-11-13T10:00:00', partnerName: 'Trạm KT038 cửa khẩu Hữu Nghị', datatypeId: 'PKT_01', serialNbr: 2868,
+                    pduType: 'DATA_PACKET', format: 'JSON', byteSize: 1024, recordCount: 10, operatorName: 'admin', targetName: 'KT038 - 110_wpData - Nhận về', description: 'Thêm mới đăng ký chia sẻ cho đối tác', changedFields: 'IsActive, UpdateTime' },
+                { id: 'LOG_2', logType: c.tab, action: 2, success: 0, transferDirection: 1, occurredAt: '2026-11-13T10:00:01', partnerName: 'A', datatypeId: 'PKT_01', serialNbr: 1,
+                    pduType: 'ACK', format: 'XML', byteSize: 1, recordCount: 1, operatorName: 'qa', targetName: 'B', description: 'C', changedFields: 'D' },
+            ];
+            await page.route('**/api/sharedata/sharedataactivitylog/page*', (r) =>
+                r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records, total: 2 } }) })
+            );
+            await page.setViewportSize({ width: 1920, height: 900 });
+            await page.goto('/sharedata/history');
+            if (c.tab === 1) await page.locator('.history-tabs .el-tabs__item').nth(1).click();
+            await expect(page.locator('.xGrid-style .vxe-table--main-wrapper tr.vxe-body--row')).toHaveCount(2, { timeout: 30_000 });
+
+            const actual = await readVxeColumnAligns(page, '.xGrid-style');
+            expect(actual).toEqual(expectedColumnAligns(c.left, c.center));
+        });
+    }
 
 });

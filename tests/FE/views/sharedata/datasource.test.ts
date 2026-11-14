@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
-import { mockAuth } from '../../setup';
+import { mockAuth, readVxeColumnAligns, expectedColumnAligns } from '../../setup';
 
 /**
  * Test E2E cho phân hệ ShareData — Quản lý Gói tin & Trường gói tin (dataSource/index.vue):
@@ -993,6 +993,20 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const table = page.locator('.sql-variable-panel .svp-table').first();
         const picker = table.locator('.cvi-picker input');
         const paramCodes = table.locator('.svp-param-code');
+        const expectHasCursorTab = async () => {
+            await expect(paramCodes).toHaveText(['@pageSize', '@lastKey'], { timeout: 10_000 });
+            await expect(table.locator('.el-input-number input')).toHaveValue('5');
+            await expect(picker).toBeDisabled();
+            await expect(picker).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
+            expect(variablePartners.at(-1)).toBe('p_a');
+        };
+        const expectNoCursorTab = async () => {
+            await expect(paramCodes).toHaveText(['@lastKey'], { timeout: 10_000 });
+            await expect(picker).toBeEnabled();
+            await expect(picker).toHaveAttribute('placeholder', 'Gửi toàn bộ dữ liệu');
+            expect(variablePartners.at(-1)).toBe('p_b');
+        };
+
         await selectPartnerScope(page, 'CSGT');
         await expectHasCursorTab();
         await selectPartnerScope(page, 'VETC');
@@ -1999,7 +2013,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(editDialog).toBeHidden();
 
         // Thông báo thành công hiển thị đúng ngữ cảnh chỉnh sửa trường dữ liệu, không thông báo sai "Lưu cấu hình SQL"
-        const successToast = page.locator('.el-message--success');
+        // Lọc theo chữ: thông báo kết nối NATS cũng là el-message--success
+        const successToast = page.locator('.el-message--success').filter({ hasText: 'trường dữ liệu' });
         await expect(successToast).toBeVisible();
         await expect(successToast).toContainText('trường dữ liệu');
         await expect(successToast).not.toContainText('cấu hình SQL');
@@ -2867,7 +2882,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
 
         // Ngay khoảnh khắc thông báo thành công xuất hiện, dòng gói mới 'test' phải ĐÃ có mặt trên bảng (không bị trễ 1-2s)
-        const successMsg = page.locator('.el-message--success').last();
+        // Lọc theo chữ: thông báo kết nối NATS cũng là el-message--success
+        const successMsg = page.locator('.el-message--success').filter({ hasText: 'Thực hiện thành công' }).last();
         await expect(successMsg).toBeVisible({ timeout: 10_000 });
 
         const rowCountAtToast = await rows.count();
@@ -3062,7 +3078,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(addPartnerBtn).toBeInViewport({ ratio: 1 });
         await expect(page.locator('.sql-toolbar-right button').filter({ hasText: 'Lưu & phân tích' })).toBeInViewport({ ratio: 1 });
         const jumpBox = (await jumpSelect.boundingBox())!;
-        expect(Math.round(jumpBox.width)).toBe(220);
+        expect(Math.round(jumpBox.width)).toBe(180);
 
         // BƯỚC 3: Mở ô chọn — có Mẫu chung và đủ đối tác cấu hình riêng; gõ tìm rồi chọn đối tác cuối
         await jumpSelect.click();
@@ -3091,15 +3107,66 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(leaveConfirmBox).toBeHidden({ timeout: 3000 });
         await expect(toolbarCode).toHaveText(lastCustom.partnerCode);
 
-        // Tab Nhận về dùng cùng kiểu ô chọn: rộng 220px, rê chuột hiện tooltip tên phạm vi đang chọn
+        // Tab Nhận về dùng cùng kiểu ô chọn: rộng 180px, rê chuột hiện tooltip tên phạm vi đang chọn
         await page.locator('.direction-tabs .el-tabs__item').nth(1).click();
         const writeSelect = page.locator('.wsp-scope-select');
         await expect(writeSelect).toBeVisible({ timeout: 10_000 });
         await expect(writeSelect).toBeInViewport({ ratio: 1 });
         const writeSelectBox = (await writeSelect.boundingBox())!;
-        expect(Math.round(writeSelectBox.width)).toBe(220);
+        expect(Math.round(writeSelectBox.width)).toBe(180);
         await writeSelect.hover();
         await expect(page.locator('.el-popper.is-dark', { hasText: 'Mẫu chung' })).toBeVisible({ timeout: 3000 });
         expect(pageErrors).toEqual([]);
+    });
+
+    test('80. Bảng Gói tin trang 50 dòng cuộn tới đáy thấy đủ dòng 50 ở cả cột cố định STT và Hành động', async ({ page }) => {
+        test.slow();
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        const records = Array.from({ length: 50 }, (_, i) => ({
+            id: `PKT_${i + 1}`, code: `${101 + i}_commonData`, name: `Dữ liệu giao thông tuyến cao tốc Hữu Nghị - Chi Lăng gói ${i + 1}`, status: 1,
+            partnerCount: 3, writeSqlCount: 2, createUserName: 'Quản trị hệ thống', createTime: '2026-11-13T14:58:17', updateUserName: 'Quản trị hệ thống', updateTime: '2026-11-13T14:58:17',
+        }));
+        await page.route('**/api/sharedata/sharedatapacket/page*', (r) => r.fulfill(ok({ records, total: 120 })));
+        await page.setViewportSize({ width: 1024, height: 620 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const body = page.locator('.packet-col .vxe-table--main-wrapper .vxe-table--body-wrapper').first();
+        await expect(body.locator('tr.vxe-body--row')).toHaveCount(50, { timeout: 30_000 });
+        const box = (await body.boundingBox())!;
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        for (let i = 0; i < 40; i++) await page.mouse.wheel(0, 400);
+        await page.waitForTimeout(500);
+
+        /* Check every body pane: main, fixed-left (STT) and fixed-right (Hành động). */
+        const panes = await page.evaluate(() =>
+            [...document.querySelectorAll('.packet-col .vxe-table--body-wrapper')].map((el) => {
+                const b = el as HTMLElement;
+                const rows = b.querySelectorAll('tr.vxe-body--row');
+                const last = rows[rows.length - 1].getBoundingClientRect();
+                /* Visible area = intersection of the pane with every clipping ancestor. */
+                let bottom = b.getBoundingClientRect().bottom;
+                for (let p = b.parentElement; p; p = p.parentElement) {
+                    if (getComputedStyle(p).overflowY !== 'visible') bottom = Math.min(bottom, p.getBoundingClientRect().bottom);
+                }
+                return { pane: b.className, hiddenPx: Math.round(last.bottom - bottom) };
+            })
+        );
+        expect(panes.some((p) => p.pane.includes('fixed-left'))).toBe(true);
+        for (const p of panes) expect(p.hiddenPx, `dòng 50 bị che ở ${JSON.stringify(p)}`).toBeLessThanOrEqual(1);
+    });
+
+    test('81. Căn lề cột bảng Gói tin: tiêu đề giữa; Tên gói, Mã gói căn trái; STT, số đối tác, số câu ghi, thông tin, hành động căn giữa', async ({ page }) => {
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        const records = [
+            { id: 'PKT_1', code: 'KT038_110WPDATA_IN', name: 'KT038 - 110_wpData - Nhận về', status: 1, partnerCount: 3, writeSqlCount: 2 },
+            { id: 'PKT_2', code: 'P2', name: 'Ngắn', status: 0, partnerCount: 0, writeSqlCount: 0 },
+        ];
+        await page.route('**/api/sharedata/sharedatapacket/page*', (r) => r.fulfill(ok({ records, total: 2 })));
+        await page.setViewportSize({ width: 1920, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+        await expect(page.locator('.packet-col .vxe-table--main-wrapper tr.vxe-body--row')).toHaveCount(2, { timeout: 30_000 });
+
+        const actual = await readVxeColumnAligns(page, '.packet-col .vxe-grid');
+        expect(actual).toEqual(expectedColumnAligns(['Tên gói tin', 'Mã'], ['STT', 'Đối tác', 'Gửi / Nhận', 'Thông tin', 'Hành động']));
     });
 });

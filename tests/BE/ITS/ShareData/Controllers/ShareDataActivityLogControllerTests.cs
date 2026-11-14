@@ -102,6 +102,51 @@ public class ShareDataActivityLogControllerTests(Host host)
     }
 
     /// <summary>
+    /// Description: Lật hết các trang 50 dòng (sắp OccurredAt giảm dần như lưới) thì mỗi trang đủ dòng, cộng lại bằng Total, không trùng không sót
+    /// Created date: 13/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    public async Task Page_WhenPagingThroughAllPages_EveryRowAppearsExactlyOnce_Test(int distinctTimes)
+    {
+        // Arrange
+        var subId = Guid.NewGuid().ToString("N");
+        var baseTime = DateTime.Now.AddMinutes(-10);
+        var logs = Enumerable.Range(0, 120).Select(i => new ShareDataActivityLog
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            SubscriptionId = subId,
+            LogType = BaseEnums.LogTypeEnum.Transfer,
+            Action = BaseEnums.ActivityAction.Send,
+            TransferDirection = BaseEnums.TransferDirection.SND,
+            Success = BaseEnums.SuccessEnums.Success,
+            OccurredAt = baseTime.AddSeconds(i % distinctTimes),
+            CreateTime = baseTime,
+            UpdateTime = baseTime,
+            Description = $"Paging log {i}"
+        }).ToList();
+        await _db.Insertable(logs).ExecuteCommandAsync();
+
+        // Act
+        var pages = new List<List<ShareDataPageActivityLogOutput>>();
+        long total = 0;
+        for (var page = 1; page <= 3; page++)
+        {
+            var input = new ShareDataPageActivityLogInput { SubscriptionId = subId, Page = page, PageSize = 50, Field = "occurredAt", Order = "desc", DescStr = "desc" };
+            var result = await host.Services.CallApiAsync<SqlSugarPagedList<ShareDataPageActivityLogOutput>>(input);
+            total = result.Total;
+            pages.Add(result.Records.ToList());
+        }
+
+        // Assert
+        Assert.Equal(120, total);
+        Assert.Equal(new[] { 50, 50, 20 }, pages.Select(p => p.Count).ToArray());
+        var ids = pages.SelectMany(p => p).Select(r => r.ID).ToList();
+        Assert.Equal(logs.Select(l => l.ID).OrderBy(x => x), ids.Distinct().OrderBy(x => x));
+    }
+
+    /// <summary>
     /// Description: Kiểm tra thống kê Summary chỉ tính dòng cha, không tính trùng dòng con
     /// Created date: 02/10/2026
     /// </summary>

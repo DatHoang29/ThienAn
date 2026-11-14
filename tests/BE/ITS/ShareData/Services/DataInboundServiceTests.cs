@@ -13,6 +13,7 @@ using Modules.CfgSystem.Core.Entities;
 using Modules.TMS.Core.Entities;
 using ShareDataWorker.Infrastructure.Services.WorkerConfig;
 using Tests.ShareData.Common;
+using System.Text.RegularExpressions;
 
 namespace Tests.ShareData.Services;
 
@@ -1417,6 +1418,121 @@ public class DataInboundServiceTests(Host host)
         Assert.Equal("Đoạn 1", zoneRow.Rows[0]["Name"]?.ToString());
         Assert.Equal(100, Convert.ToInt32(zoneRow.Rows[0]["MaxSpeed"]));
         Assert.Equal("SHAREDATA_INBOUND", zoneRow.Rows[0]["UpdateUId"]?.ToString());
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Câu ghi mẫu gói 104 (TmsWeather), 106 (TmsTrafficData): cùng một bản ghi tới hai lần, thời gian có mili-giây lẻ
+    ///              (cột đích kiểu datetime chỉ lưu theo bước 1/300 giây) vẫn khớp dòng đã ghi: cập nhật dòng đó, không chèn dòng thứ hai.
+    /// Created date: 13/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("104_weatherData", "weatherStationId", "temperature", "TmsWeather", "RefId", "Temperature")]
+    [InlineData("106_wimData", "locationCode", "speed", "TmsTrafficData", "Location", "Speed")]
+    public async Task ProcessPendingPackets_WhenSameRecordArrivesTwiceWithOddMilliseconds_SeedMergeUpdatesOneRow_Test(
+        string seedPacketCode, string keyField, string valueField, string table, string keyColumn, string valueColumn)
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var partnerCode = $"PARTNER_DUP_{unique}";
+        var partner = new ShareDataPartner
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = partnerCode,
+            Name = $"Đối tác gửi lại {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(partner).ExecuteCommandAsync();
+
+        var packet = new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"PKT_DUP_{unique}",
+            Name = $"Gói {seedPacketCode} {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(packet).ExecuteCommandAsync();
+        var seedWrite = SeedScriptReader.ReadWriteSqlStatements().Single(s => s.PacketCode == seedPacketCode);
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, seedWrite.WriteSql, seedWrite.AffectedTables);
+
+        await _db.Insertable(new ShareDataSubscription
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerId = partner.ID,
+            DatatypeId = packet.ID,
+            Direction = BaseEnums.Direction.Inbound,
+            State = BaseEnums.SubSubscriptionState.Active
+        }).ExecuteCommandAsync();
+
+        var key = $"DUP_{unique}";
+        var firstContent = $"{{\"data\":[{{\"{keyField}\":\"{key}\",\"detectTime\":\"2026-10-21T08:15:07.613\",\"{valueField}\":20}}]}}";
+        var secondContent = $"{{\"data\":[{{\"{keyField}\":\"{key}\",\"detectTime\":\"2026-10-21T08:15:07.613\",\"{valueField}\":25}}]}}";
+        var firstPacket = await SeedPendingPacket(partnerCode, packet.Code!, 1, firstContent, DateTime.Now);
+        var secondPacket = await SeedPendingPacket(partnerCode, packet.Code!, 2, secondContent, DateTime.Now.AddSeconds(1));
+
+        // Act
+        using var scope = _host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var first = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(firstPacket.ID);
+        var second = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(secondPacket.ID);
+        var savedValues = await _inboundDb.Ado.SqlQueryAsync<double>(
+            $"SELECT CONVERT(float, {valueColumn}) FROM dbo.{table} WHERE {keyColumn} = @key", new { key });
+        Assert.Equal(BaseEnums.InboundProcessState.Done, first.ProcessState);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, second.ProcessState);
+        Assert.Equal(new[] { 25d }, savedValues);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Tệp dọn trùng bên nhận gói 104 (TmsWeather), 106 (TmsTrafficData): câu ghi lỗi cũ để lại nhiều dòng cùng khóa so khớp,
+    ///              chạy tệp còn một dòng ghi sau cùng; dòng do nơi khác ghi (không phải Worker nhận) giữ nguyên; chạy lại không xóa thêm.
+    /// Created date: 14/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("sharedata-don-trung-TmsWeather.sql", "TmsWeather", "RefId", "TimeDetect", "Temperature")]
+    [InlineData("sharedata-don-trung-TmsTrafficData.sql", "TmsTrafficData", "Location", "DetectTime", "Speed")]
+    public async Task DuplicateCleanupScript_WhenOldWriteSqlLeftDuplicateRows_KeepsLatestInboundRow_Test(
+        string scriptFile, string table, string keyColumn, string timeColumn, string valueColumn)
+    {
+        // Arrange
+        var key = $"DUP_{Guid.NewGuid().ToString("N")[..8]}";
+        var insertSql = $"INSERT INTO dbo.{table} (ID, {keyColumn}, {timeColumn}, {valueColumn}, CreateTime, CreateUId) "
+            + "VALUES (CONVERT(nvarchar(64), NEWID()), @key, '2026-10-21T08:15:07.613', @value, @createTime, @createUId)";
+        await _inboundDb.Ado.ExecuteCommandAsync(insertSql, new { key, value = 20, createTime = DateTime.Now.AddMinutes(-2), createUId = "SHAREDATA_INBOUND" });
+        await _inboundDb.Ado.ExecuteCommandAsync(insertSql, new { key, value = 25, createTime = DateTime.Now.AddMinutes(-1), createUId = "SHAREDATA_INBOUND" });
+        await _inboundDb.Ado.ExecuteCommandAsync(insertSql, new { key, value = 99, createTime = DateTime.Now.AddMinutes(-3), createUId = "OTHER_MODULE" });
+
+        // Act
+        await RunInboundSqlScriptAsync(scriptFile);
+        await RunInboundSqlScriptAsync(scriptFile);
+
+        // Assert
+        var savedValues = await _inboundDb.Ado.SqlQueryAsync<double>(
+            $"SELECT CONVERT(float, {valueColumn}) FROM dbo.{table} WHERE {keyColumn} = @key ORDER BY {valueColumn}", new { key });
+        Assert.Equal(new[] { 25d, 99d }, savedValues);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Chạy tệp script trong thư mục sql lên CSDL nhận như trên SSMS: bỏ dòng USE, chạy từng khối giữa các GO.
+    /// Created date: 14/11/2026
+    /// </summary>
+    private async Task RunInboundSqlScriptAsync(string fileName)
+    {
+        var script = SeedScriptReader.ReadSqlScript(fileName);
+        var batches = Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline);
+        foreach (var batch in batches)
+        {
+            var body = Regex.Replace(batch, @"^USE \[[^\]]+\];\s*$", string.Empty, RegexOptions.Multiline);
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                continue;
+            }
+
+            await _inboundDb.Ado.ExecuteCommandAsync(body);
+        }
     }
 
     /// <summary>

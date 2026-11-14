@@ -29,4 +29,4 @@ Hai trục chạy song song bằng hai subagent được (Rule 19.70). Mỗi sub
 ## 4. Báo cáo, prompt sửa
 - Báo cáo theo [documentation-standards_thienan.md](../../rules/documentation-standards_thienan.md) §2: mở đầu là kết luận và việc cần làm; khung Hiện trạng, Đã làm, Chưa làm, Rủi ro và Đề xuất; chỉ hai trạng thái Đã làm, Chưa làm; không phụ lục.
 - Phát hiện nằm trong hai mục `## Chuẩn` và `## Yêu cầu`, giữ như subagent báo. Cuối báo cáo một dòng: số phát hiện mỗi trục và lỗi nặng nhất của từng trục.
-- Chỗ cần sửa thì không tự sửa: viết prompt `DocBusinessThienAn/<DựÁn>/<PhânHệ>/Prompt/<task-slug>-prompt.md` theo skill `plan-writing`, tách BE, FE (thienan_rules STT 16). Riêng tệp `.sql` được sửa thẳng. Trong chat chỉ đưa đường dẫn và tóm tắt.
+- Chỗ cần sửa nêu trong báo cáo; người dùng bảo sửa thì sửa thẳng, không viết prompt (thienan_rules STT 16, bỏ prompt-first 13/11/2026).

@@ -31,6 +31,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// <summary>Tệp seed bộ mã chuẩn hóa (dữ liệu chuẩn, chạy mọi CSDL).</summary>
         private const string CodeSetSeedScript = "sharedata-seed-bo-ma-ShareDataCodeSet.sql";
 
+        /// <summary>Tệp sửa câu ghi mẫu chung gói 104, 106 trên CSDL đã nạp seed trước 13/11/2026.</summary>
+        private const string WriteSqlTimeFixScript = "sharedata-sua-cau-ghi-thoi-gian-ShareDataSql.sql";
+
         /// <summary>Mốc lần đầu của câu nối đuôi: chỉ lấy các dòng nguồn của bài test (giờ năm 2099), bỏ dữ liệu sẵn có.</summary>
         private const string RoundTripCursorStart = "2098-01-01 00:00:00.000_";
 
@@ -395,6 +398,41 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 Assert.NotEmpty(sourceRows);
                 Assert.Equal(sourceRows, inboundRows);
             }
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Tệp sửa câu ghi trên CSDL đã nạp seed cũ: câu ghi mẫu chung gói 104, 106 còn bản so thời gian lệch kiểu
+        ///              (cột datetime với datetime2 đọc từ JSON) được sửa đúng thành câu của seed hiện hành; chạy lại lần hai không đổi gì thêm.
+        /// Created date: 13/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData("104_weatherData", "104")]
+        [InlineData("106_wimData", "106")]
+        public async Task SqlFixScript_WhenTemplateWriteSqlComparesTimeAcrossTypes_RewritesToSeedWriteSql_Test(string seedPacketCode, string packetNumber)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-fix-{unique}";
+            var seedWrite = SeedScriptReader.ReadWriteSqlStatements().Single(w => w.PacketCode == seedPacketCode);
+            var oldWriteSql = seedWrite.WriteSql
+                .Replace("CONVERT(datetime, detectTime) AS detectTime", "detectTime")
+                .Replace("CONVERT(datetime, detectTime)", "detectTime");
+            await db.Insertable(new ShareDataPacket { ID = packetId, Code = $"{packetNumber}_fix{unique}", Name = $"Packet fix {unique}", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetWriteAsync(db, packetId, oldWriteSql, seedWrite.AffectedTables);
+
+            // Act
+            await RunSqlSeedScriptAsync(db, WriteSqlTimeFixScript);
+            var firstRun = await ShareDataSqlSeed.GetWriteSqlAsync(db, packetId);
+            await RunSqlSeedScriptAsync(db, WriteSqlTimeFixScript);
+
+            // Assert
+            var secondRun = await ShareDataSqlSeed.GetWriteSqlAsync(db, packetId);
+            Assert.NotEqual(seedWrite.WriteSql, oldWriteSql);
+            Assert.Equal(seedWrite.WriteSql, firstRun);
+            Assert.Equal(firstRun, secondRun);
         }
     }
 }

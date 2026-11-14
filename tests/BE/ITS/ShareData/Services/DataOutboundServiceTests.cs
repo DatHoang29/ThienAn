@@ -5371,17 +5371,17 @@ ORDER BY __lastKey ASC";
         }
 
         /// <summary>
-        /// Description: Khẳng định mốc nối đuôi chưa tiến: Subscription.LastTimeRun bằng giờ khởi tạo, SerialNbr chưa tăng;
+        /// Description: Khẳng định mốc nối đuôi chưa tiến: Subscription.LastTimeRun bằng giờ khởi tạo, SerialNbr bằng số mong đợi (mặc định chưa tăng);
         ///              dòng ShareDataLastSend chưa có LastKey và chưa có giờ ghi mốc (LastTime).
         /// Created date: 12/10/2026
-        /// Modified date: 03/11/2026
+        /// Modified date: 13/11/2026
         /// </summary>
-        private static async Task AssertCursorUnchanged(ISqlSugarClient db, string? partnerCode, string subId, DateTime expectedTime)
+        private static async Task AssertCursorUnchanged(ISqlSugarClient db, string? partnerCode, string subId, DateTime expectedTime, int expectedSerial = 0)
         {
             var sub = await db.Queryable<ShareDataSubscription>().InSingleAsync(subId);
             Assert.NotNull(sub.LastTimeRun);
             Assert.Equal(expectedTime, sub.LastTimeRun!.Value, TimeSpan.FromSeconds(1));
-            Assert.True((sub.SerialNbr ?? 0) == 0, $"SerialNbr={sub.SerialNbr}");
+            Assert.True((sub.SerialNbr ?? 0) == expectedSerial, $"SerialNbr={sub.SerialNbr}");
 
             var lastSend = await db.Queryable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).FirstAsync();
             Assert.NotNull(lastSend);
@@ -5614,16 +5614,18 @@ ORDER BY __lastKey ASC";
         /// <summary>
         /// Description: TC2 - Sửa cấu hình đối tác giữa 2 kỳ chạy thì worker tự gửi bù đúng các bản ghi cũ và tiến cursor.
         ///              - Kỳ 1: Gửi HTTP lỗi (ClosedPort hoặc AbortOnCall). Log cha ghi nhận Fail, cảnh báo HttpSendFailed,
-        ///                ErrorMessage chứa URL đã gọi, file vẫn được lưu đệm (bằng chứng), LastTimeRun / SerialNbr / ShareDataLastSend không đổi.
+        ///                ErrorMessage chứa URL đã gọi, file vẫn được lưu đệm (bằng chứng), LastTimeRun / ShareDataLastSend không đổi;
+        ///                SerialNbr giữ nguyên khi chưa kết nối được (ClosedPort), tăng 1 khi gói đã gửi đi mà mất phản hồi (AbortOnCall).
         ///              - Giữa 2 kỳ: Sửa cấu hình đối tác (Port/phục hồi mạng), ResetDefaults và kích hoạt kỳ chạy tiếp theo (MakeSubscriptionDue).
         ///              - Kỳ 2: Worker tự gửi bù đúng 5 bản ghi cũ, mock nhận đủ 5 biển số, header PartnerCode / PacketCode đúng,
-        ///                header SerialNbr bằng giá trị trước kỳ 1 (không tăng khi lỗi). Sau kỳ 2: LastTimeRun tiến lên, SerialNbr tăng 1, log bước gửi thành công.
+        ///                header SerialNbr bằng SerialNbr sau kỳ 1. Sau kỳ 2: LastTimeRun tiến lên, SerialNbr tăng 1, log bước gửi thành công.
         /// Created date: 15/10/2026
+        /// Modified date: 13/11/2026
         /// </summary>
         [Theory]
-        [InlineData("ClosedPort")]
-        [InlineData("AbortOnCall")]
-        public async Task ProcessSubscriptions_WhenPartnerConnectionFixedBetweenRuns_ResendsSameRecordsAndAdvancesCursor_Test(string failureMode)
+        [InlineData("ClosedPort", 0)]
+        [InlineData("AbortOnCall", 1)]
+        public async Task ProcessSubscriptions_WhenPartnerConnectionFixedBetweenRuns_ResendsSameRecordsAndAdvancesCursor_Test(string failureMode, int consumedSerials)
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -5691,8 +5693,9 @@ ORDER BY __lastKey ASC";
             Assert.True(File.Exists(fullPathRun1), $"File [{fullPathRun1}] phải được lưu đệm trước khi gửi");
             if (File.Exists(fullPathRun1)) File.Delete(fullPathRun1);
 
-            // LastTimeRun, SerialNbr, ShareDataLastSend KHÔNG đổi
-            await AssertCursorUnchanged(db, partner.Code, sub.ID, baseTime);
+            // LastTimeRun, ShareDataLastSend KHÔNG đổi; SerialNbr chỉ tăng khi gói đã gửi đi mà mất phản hồi
+            var resentSerial = initialSerial + consumedSerials;
+            await AssertCursorUnchanged(db, partner.Code, sub.ID, baseTime, resentSerial);
 
             // 3. Mô phỏng sửa cấu hình đối tác giữa 2 kỳ chạy
             if (failureMode == "ClosedPort")
@@ -5714,16 +5717,17 @@ ORDER BY __lastKey ASC";
             Assert.Equal(5, receivedPlates.Count);
             Assert.Equal(expectedPlates, receivedPlates);
 
-            // Headers đúng: PartnerCode, PacketCode, SerialNbr bằng giá trị trước kỳ 1
+            // Headers đúng: PartnerCode, PacketCode, SerialNbr bằng giá trị sau kỳ 1
             var successfulRequest = partnerServer.LastRequest!;
             Assert.Equal(partner.Code, successfulRequest.Headers["PartnerCode"]);
             Assert.Equal(expectedPacketCode, successfulRequest.Headers["PacketCode"]);
-            Assert.Equal(initialSerial.ToString(), successfulRequest.Headers["SerialNbr"]);
+            var expectedSerialHeader = resentSerial.ToString();
+            Assert.Equal(expectedSerialHeader, successfulRequest.Headers["SerialNbr"]);
 
             // Sau kỳ 2: LastTimeRun tiến lên, SerialNbr tăng 1, log gửi thành công
             var subAfterRun2 = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
             Assert.True(subAfterRun2.LastTimeRun > initialLastTime, "LastTimeRun phải tiến lên sau kỳ gửi thành công");
-            Assert.Equal(initialSerial + 1, subAfterRun2.SerialNbr);
+            Assert.Equal(resentSerial + 1, subAfterRun2.SerialNbr);
 
             var logsRun2 = await GetLogs(db, sub.ID);
             var parentRun2 = logsRun2.Where(l => l.ParentId == null).OrderByDescending(l => l.OccurredAt).First();

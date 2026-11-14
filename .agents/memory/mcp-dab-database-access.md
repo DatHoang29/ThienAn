@@ -78,3 +78,11 @@ Lần gặp 2026-09-14: `dev` lệch 3 bảng (`ShareDataEventSource`/`ShareData
 - Máy đó còn `DEV_ITS016` (bản cũ hơn: 15 gói, 118 câu dịch ShareData so với 20 gói, 222 câu dịch ở `DEV_ITS015`). Cả hai CSDL DEV chưa có cột `CursorKey` ở `ShareDataLastSend`; `DEV_ITS015` còn bảng cũ `ShareDataLastSendKey`.
 - Kiểm CSDL không có sqlcmd: dựng app .NET nhỏ trong scratchpad dùng `Microsoft.Data.SqlClient`, chuỗi kết nối qua biến môi trường, chỉ `SELECT`; viết tệp bằng Write vì hook chặn `cat > *.cs`.
 - Phiên Claude đang mở thì `mssql_staging` không tự kết nối lại: dùng `/mcp` hoặc mở phiên mới.
+
+## Mẹo dùng DAB MCP (13/11/2026)
+
+- Lọc theo `TransferDirection` ở `ShareDataActivityLog` luôn trả rỗng; dùng `Action` thay (10 là gửi, 11 là nhận).
+- Truy vấn `ShareDataActivityLog` (2,4 triệu dòng) mà không giới hạn `OccurredAt` sẽ trả rỗng, không báo lỗi; luôn kèm khung giờ.
+- Lọc `datetime` theo khoảng mili-giây hẹp trả 0 dòng; dùng khoảng rộng hơn (vd theo giờ).
+- `aggregate_records` max/min chỉ nhận cột số; với cột chuỗi (vd `CursorKey`) thì dùng `read_records` với `orderby desc`, `first: 1`.
+- Kết quả lớn hơn khoảng 100 nghìn ký tự được lưu ra tệp ở `tool-results`, đọc bằng Python. Muốn ép lưu tệp thì thêm vào `groupby` các cột toàn null.

@@ -17,7 +17,7 @@
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
+-- CẬP NHẬT LẦN CUỐI: 13/11/2026 (câu ghi gói 104, 106 đổi thời gian về datetime trước khi so khóa: cột đích datetime so với datetime2 đọc từ JSON không khớp mili-giây lẻ nên mỗi lần gửi lại chèn thêm dòng); 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -1025,7 +1025,7 @@ OUTPUT $action;');
 INSERT INTO @SeedWrites ([PacketCode], [AffectedTables], [WriteSql])
 VALUES ('104_weatherData', N'dbo.TmsWeather', N'MERGE dbo.TmsWeather WITH (HOLDLOCK) AS t
 USING (
-    SELECT weatherStationId, detectTime,
+    SELECT weatherStationId, CONVERT(datetime, detectTime) AS detectTime,
             MAX(locationDetail) AS locationDetail, MAX(temperature) AS temperature, MAX(humidity) AS humidity,
             MAX(windSpeed) AS windSpeed, MAX(windDirection) AS windDirection, MAX(rainfall) AS rainfall,
             MAX(rainfallHour) AS rainfallHour, MAX(visibility) AS visibility,
@@ -1036,7 +1036,7 @@ USING (
         rainfall float, rainfallHour float, visibility float,
         weatherDescription nvarchar(128), weatherCode nvarchar(32))
     WHERE weatherStationId IS NOT NULL AND detectTime IS NOT NULL
-    GROUP BY weatherStationId, detectTime
+    GROUP BY weatherStationId, CONVERT(datetime, detectTime)
 ) AS s
    ON t.RefId = s.weatherStationId AND t.TimeDetect = s.detectTime
 WHEN MATCHED THEN
@@ -1112,13 +1112,13 @@ OUTPUT $action;');
 INSERT INTO @SeedWrites ([PacketCode], [AffectedTables], [WriteSql])
 VALUES ('106_wimData', N'dbo.TmsTrafficData', N'MERGE dbo.TmsTrafficData WITH (HOLDLOCK) AS t
 USING (
-    SELECT detectTime, lane, locationCode,
+    SELECT CONVERT(datetime, detectTime) AS detectTime, lane, locationCode,
             MAX(speed) AS speed, MAX(height) AS height, MAX(width) AS width, MAX(length) AS length
     FROM OPENJSON(@records) WITH (
         detectTime datetime2, lane nvarchar(32), locationCode nvarchar(32),
         speed float, height int, width int, length int)
     WHERE detectTime IS NOT NULL
-    GROUP BY detectTime, lane, locationCode
+    GROUP BY CONVERT(datetime, detectTime), lane, locationCode
 ) AS s
    ON t.DetectTime = s.detectTime
   AND ISNULL(t.Lane, N'''') = ISNULL(s.lane, N'''')

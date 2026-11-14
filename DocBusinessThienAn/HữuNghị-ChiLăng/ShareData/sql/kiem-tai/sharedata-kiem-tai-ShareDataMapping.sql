@@ -13,12 +13,14 @@ GO
 --                tên trường khớp cột trả về của câu SQL mẫu chuẩn trong ShareDataSql.
 --              - Những hồ sơ của PC08, TTDHT đã có sẵn trên staging (do SHAREDATA-SEED-15 tạo trước đây) nhưng đang
 --                bị xóa mềm sẽ được khôi phục tạm (ghi UpdateUId = N'SHAREDATA-KIEM-TAI') và tự trả về xóa mềm khi dọn.
+--              - Hồ sơ gửi được khôi phục mà chưa áp bộ mã, trong khi hồ sơ nhận cùng đối tác, cùng gói đã áp (TTDHT gói 101),
+--                thì lấy bộ khung của hồ sơ nhận để hai chiều quy đổi mã khớp nhau (bước 2.3). Chạy lại K2 là sửa được cặp đã lệch.
 -- THỨ TỰ CHẠY: K2, chạy sau K1 (sharedata-kiem-tai-ShareDataPartner.sql), trước K3.
 --              DỌN: đặt @XoaDuLieuKiemTai = 1, chạy sau K3 và trước K1.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Staging (chạy theo yêu cầu kiểm tải). ⛔ Không chạy trên production.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 11112026 (tự bỏ gói chưa có câu ghi chiều nhận, vd 110; hỗ trợ đầy đủ các gói 101..110 đang bật cho PC08, TTDHT và KT001..KT050)
+-- CẬP NHẬT LẦN CUỐI: 13112026 (bước 2.3: hồ sơ gửi gói 101 của TTDHT khôi phục bản cũ chưa áp bộ mã, lệch với hồ sơ nhận); 11112026 (tự bỏ gói chưa có câu ghi chiều nhận, vd 110; hỗ trợ đầy đủ các gói 101..110 đang bật cho PC08, TTDHT và KT001..KT050)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -699,6 +701,32 @@ N'{
               AND (m.[Direction] = s.[Direction] OR m.[Direction] = 2)
         );
     PRINT N'-> 2.2. Đã thêm ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' hồ sơ ánh xạ mới (nhiều đối tác × gói tin).';
+
+    -- -------------------------------------------------------------------------------------
+    -- 2.3. HỒ SƠ GỬI ĐƯỢC KHÔI PHỤC MÀ CHƯA ÁP BỘ MÃ: LẤY BỘ KHUNG CỦA HỒ SƠ NHẬN CÙNG ĐỐI TÁC, CÙNG GÓI
+    --      Bản cũ của SHAREDATA-SEED-15 chưa có bộ mã, còn hồ sơ nhận là bản seed đã áp bộ mã chuẩn hóa (TTDHT gói 101).
+    --      Để lệch thì chiều gửi gửi mã thô (GOOD, conges, làn 2, 0), chiều nhận tra ngược không thấy nên đổi hết sang mặc định.
+    --      Hồ sơ do tệp này tạo mới (KT...) không đụng tới; UpdateUId giữ @SeedUser để khi dọn vẫn trả về xóa mềm.
+    -- -------------------------------------------------------------------------------------
+    UPDATE o
+    SET o.[TargetShapeJson]   = i.[TargetShapeJson],
+        o.[PartnerSchemaJson] = i.[PartnerSchemaJson],
+        o.[Remark]            = i.[Remark],
+        o.[UpdateTime]        = GETDATE(),
+        o.[UpdateUId]         = @SeedUser
+    FROM [dbo].[ShareDataMapping] o
+    JOIN [dbo].[ShareDataMapping] i
+        ON i.[PartnerId] = o.[PartnerId]
+       AND i.[DatatypeId] = o.[DatatypeId]
+       AND i.[Direction] = 1
+       AND i.[IsDelete] IS NULL
+       AND i.[TargetShapeJson] LIKE N'%"codeSet"%'
+    WHERE o.[Direction] = 0
+      AND o.[IsDelete] IS NULL
+      AND o.[UpdateUId] = @SeedUser
+      AND ISNULL(o.[CreateUId], N'') <> @SeedUser
+      AND ISNULL(o.[TargetShapeJson], N'') NOT LIKE N'%"codeSet"%';
+    PRINT N'-> 2.3. Đã áp bộ mã cho ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' hồ sơ gửi được khôi phục (lấy bộ khung của hồ sơ nhận cùng đối tác, cùng gói).';
 END;
 GO
 

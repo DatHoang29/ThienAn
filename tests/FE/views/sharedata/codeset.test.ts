@@ -1,5 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
-import { mockAuth } from '../../setup';
+import { mockAuth, readVxeColumnAligns, expectedColumnAligns } from '../../setup';
 
 /**
  * Test E2E cho Dialog "Chỉnh sửa bộ mã" (editCodeSet.vue)
@@ -162,5 +162,67 @@ test.describe('ShareData — Dialog Chỉnh sửa bộ mã (editCodeSet.vue) @sh
                 expect(['auto', 'scroll']).toContain(formOverflowY);
             });
         }
+
+        test('2. Trang 50 dòng cuộn tới đáy thấy đủ dòng 50 ở cả cột cố định chọn và Hành động', async ({ context, page }) => {
+            await setupCodeSetMock(context, page);
+            const records = Array.from({ length: 50 }, (_, i) => ({
+                id: `CS_${i + 1}`, code: `CS_TRANG_THAI_PHUONG_TIEN_QUA_TRAM_${i + 1}`,
+                name: `Bộ mã trạng thái phương tiện qua trạm thu phí cửa khẩu Hữu Nghị - Chi Lăng số ${i + 1}`,
+                scope: 1, valueCount: 12, createTime: '2026-11-13 14:58:17', createUserName: 'admin', updateTime: '2026-11-13 15:02:44', updateUserName: 'admin',
+            }));
+            await page.route('**/api/sharedata/sharedatacodeset/page*', (r) =>
+                r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records, total: 2048 } }) })
+            );
+            /* Narrow screen: columns overflow horizontally, so vxe-table renders the fixed panes. */
+            await page.setViewportSize({ width: 700, height: 620 });
+            await page.goto('/#/sharedata/codeSet');
+
+            const body = page.locator('.vxe-table--main-wrapper .vxe-table--body-wrapper').first();
+            await expect(body.locator('tr.vxe-body--row')).toHaveCount(50, { timeout: 60_000 });
+            const box = (await body.boundingBox())!;
+            await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+            for (let i = 0; i < 40; i++) await page.mouse.wheel(0, 400);
+            await page.waitForTimeout(500);
+
+            /* Check every body pane: main, fixed-left (checkbox) and fixed-right (Hành động). */
+            const panes = await page.evaluate(() =>
+                [...document.querySelectorAll('.full-table .vxe-table--body-wrapper')].map((el) => {
+                    const b = el as HTMLElement;
+                    const rows = b.querySelectorAll('tr.vxe-body--row');
+                    const last = rows[rows.length - 1].getBoundingClientRect();
+                    /* Visible area = intersection of the pane with every clipping ancestor. */
+                    let bottom = b.getBoundingClientRect().bottom;
+                    for (let p = b.parentElement; p; p = p.parentElement) {
+                        if (getComputedStyle(p).overflowY !== 'visible') bottom = Math.min(bottom, p.getBoundingClientRect().bottom);
+                    }
+                    return { pane: b.className, hiddenPx: Math.round(last.bottom - bottom) };
+                })
+            );
+            expect(panes.some((p) => p.pane.includes('fixed-'))).toBe(true);
+            for (const p of panes) expect(p.hiddenPx, `dòng 50 bị che ở ${JSON.stringify(p)}`).toBeLessThanOrEqual(1);
+        });
+
+        test('3. Căn lề cột: tiêu đề giữa; Mã, Tên căn trái; số giá trị, thông tin, hành động căn giữa; bảng giá trị trong dialog có tiêu đề giữa', async ({ context, page }) => {
+            await setupCodeSetMock(context, page);
+            const records = [
+                { id: 'CS_1', code: 'lane_code', name: 'Mã làn đường cao tốc', scope: 1, valueCount: 12 },
+                { id: 'CS_2', code: 'vehicle_status_at_border_gate', name: 'Trạng thái', scope: 1, valueCount: 3 },
+            ];
+            await page.route('**/api/sharedata/sharedatacodeset/page*', (r) =>
+                r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records, total: 2 } }) })
+            );
+            await page.setViewportSize({ width: 1600, height: 900 });
+            await page.goto('/#/sharedata/codeSet');
+            await expect(page.locator('.vxe-table--main-wrapper tr.vxe-body--row')).toHaveCount(2, { timeout: 60_000 });
+
+            const grid = await readVxeColumnAligns(page, '.full-table');
+            expect(grid).toEqual(expectedColumnAligns(['Mã', 'Tên'], ['', 'Số giá trị', 'Thông tin', 'Hành động']));
+
+            await page.locator('.vxe-toolbar button, .el-button').filter({ hasText: /Thêm|Add/ }).first().click();
+            const dialog = page.locator('.el-overlay:not([style*="display: none"]) .el-dialog');
+            await expect(dialog.locator('.vxe-table.cs-values')).toBeVisible({ timeout: 10_000 });
+            const values = await readVxeColumnAligns(page, '.el-overlay:not([style*="display: none"]) .el-dialog .vxe-table.cs-values');
+            expect(Object.values(values).map((v) => v.split('|')[0])).toEqual(Object.keys(values).map(() => 'center'));
+        });
     });
 });

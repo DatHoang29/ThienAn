@@ -1,5 +1,5 @@
 import { test, expect, type Route } from '@playwright/test';
-import { mockAuth, resolveWebVueSrc } from '../../setup';
+import { mockAuth, resolveWebVueSrc, readVxeColumnAligns, expectedColumnAligns } from '../../setup';
 import fs from 'node:fs';
 
 /**
@@ -391,5 +391,99 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		// Khẳng định trang nạp sạch sẽ, không có bất kỳ SyntaxError hay lỗi biên dịch vue-i18n nào
 		expect(pageErrors.filter((e) => e.includes('SyntaxError') || e.includes('Invalid linked format'))).toEqual([]);
 		await page.screenshot({ path: 'test-results/snapshot-2-modal-edit-subscription-tabs.png', fullPage: false });
+	});
+
+	test('TC4 — Bảng đăng ký nhiều dòng cuộn tới đáy thấy đủ dòng cuối ở cả cột cố định Hành động', async ({ context, page }) => {
+		test.slow();
+		const fulfillJson = (route: Route, result: unknown) =>
+			route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+		await mockAuth(context, page, { userInfo: { defaultMenu: '/sharedata/sharing', authBtnList: ['*', 'sharedataSharing:add', 'sharedataSharing:update', 'sharedataSharing:delete'] } as any });
+		await page.route('**/api/system/sysmenu/loginmenutree*', (route) =>
+			fulfillJson(route, [
+				{
+					id: 'menu_sharedata', pid: '0', path: '/sharedata', name: 'sharedata', component: 'layout/routerView/parent',
+					meta: { title: 'lz.menu.sharedata', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+					children: [
+						{
+							id: 'menu_sharedata_sharing', pid: 'menu_sharedata', path: '/sharedata/sharing', name: 'sharedataSharing', component: 'sharedata/sharing/index',
+							meta: { title: 'lz.menu.sharedataSharing', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+						},
+					],
+				},
+			])
+		);
+		const packets = Array.from({ length: 40 }, (_, i) => ({ id: `PKT_${i + 1}`, code: `${100 + i}_commonData`, name: `Dữ liệu giao thông tuyến cao tốc Hữu Nghị - Chi Lăng gói ${i + 1}` }));
+		const subs = packets.map((p, i) => ({
+			id: `SUB_OUT_${i + 1}`, partnerId: 'PARTNER_01', datatypeId: p.id, direction: 0, mode: 1, state: 2, mappingState: 1,
+			mappingName: `Hồ sơ ánh xạ gửi đi gói ${i + 1}`, schedule: { kind: 'continuous', intervalSeconds: 60 },
+			createUserName: 'Quản trị hệ thống', createTime: '2026-11-13T14:58:17', updateUserName: 'Quản trị hệ thống', updateTime: '2026-11-13T14:58:17',
+		}));
+		await page.route('**/api/sharedata/sharedatapartner/list*', (route) =>
+			fulfillJson(route, [{ id: 'PARTNER_01', code: 'CSGT01', name: 'Cục CSGT Đường bộ', address: '10.10.1.25', port: 8443, status: 1, sessionState: 1 }])
+		);
+		await page.route('**/api/sharedata/sharedatapacket/list*', (route) => fulfillJson(route, packets));
+		await page.route('**/api/sharedata/sharedatasubscription/list*', (route) => fulfillJson(route, subs));
+		await page.setViewportSize({ width: 1280, height: 620 });
+		await page.goto('/#/sharedata/sharing');
+
+		const body = page.locator('.sub-table .vxe-table--main-wrapper .vxe-table--body-wrapper').first();
+		await expect(body.locator('tr.vxe-body--row')).toHaveCount(40, { timeout: 60_000 });
+		const box = (await body.boundingBox())!;
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		for (let i = 0; i < 40; i++) await page.mouse.wheel(0, 400);
+		await page.waitForTimeout(500);
+
+		/* Check every body pane: main and fixed-right (Hành động). */
+		const panes = await page.evaluate(() =>
+			[...document.querySelectorAll('.sub-table .vxe-table--body-wrapper')].map((el) => {
+				const b = el as HTMLElement;
+				const rows = b.querySelectorAll('tr.vxe-body--row');
+				const last = rows[rows.length - 1].getBoundingClientRect();
+				/* Visible area = intersection of the pane with every clipping ancestor. */
+				let bottom = b.getBoundingClientRect().bottom;
+				for (let p = b.parentElement; p; p = p.parentElement) {
+					if (getComputedStyle(p).overflowY !== 'visible') bottom = Math.min(bottom, p.getBoundingClientRect().bottom);
+				}
+				return { pane: b.className, hiddenPx: Math.round(last.bottom - bottom) };
+			})
+		);
+		expect(panes.some((p) => p.pane.includes('fixed-right'))).toBe(true);
+		for (const p of panes) expect(p.hiddenPx, `dòng cuối bị che ở ${JSON.stringify(p)}`).toBeLessThanOrEqual(1);
+	});
+
+	test('TC5 — Căn lề cột bảng đăng ký: tiêu đề giữa; Gói tin, Chế độ, Hồ sơ ánh xạ căn trái; công tắc, trạng thái, hành động căn giữa', async ({ context, page }) => {
+		const fulfillJson = (route: Route, result: unknown) =>
+			route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+		await mockAuth(context, page, { userInfo: { defaultMenu: '/sharedata/sharing', authBtnList: ['*', 'sharedataSharing:add', 'sharedataSharing:update', 'sharedataSharing:delete'] } as any });
+		await page.route('**/api/system/sysmenu/loginmenutree*', (route) =>
+			fulfillJson(route, [
+				{
+					id: 'menu_sharedata', pid: '0', path: '/sharedata', name: 'sharedata', component: 'layout/routerView/parent',
+					meta: { title: 'lz.menu.sharedata', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+					children: [
+						{
+							id: 'menu_sharedata_sharing', pid: 'menu_sharedata', path: '/sharedata/sharing', name: 'sharedataSharing', component: 'sharedata/sharing/index',
+							meta: { title: 'lz.menu.sharedataSharing', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+						},
+					],
+				},
+			])
+		);
+		const packets = [{ id: 'PKT_1', code: 'KT038_110WPDATA_IN', name: 'KT038 - 110_wpData - Nhận về' }, { id: 'PKT_2', code: 'P2', name: 'Ngắn' }];
+		const subs = packets.map((p, i) => ({
+			id: `SUB_OUT_${i + 1}`, partnerId: 'PARTNER_01', datatypeId: p.id, direction: 0, mode: 1, state: 2, mappingState: 1,
+			mappingName: i ? 'A' : 'Hồ sơ ánh xạ gửi đi KT038', schedule: { kind: 'continuous', intervalSeconds: 60 },
+		}));
+		await page.route('**/api/sharedata/sharedatapartner/list*', (route) =>
+			fulfillJson(route, [{ id: 'PARTNER_01', code: 'CSGT01', name: 'Cục CSGT Đường bộ', address: '10.10.1.25', port: 8443, status: 1, sessionState: 1 }])
+		);
+		await page.route('**/api/sharedata/sharedatapacket/list*', (route) => fulfillJson(route, packets));
+		await page.route('**/api/sharedata/sharedatasubscription/list*', (route) => fulfillJson(route, subs));
+		await page.setViewportSize({ width: 1600, height: 900 });
+		await page.goto('/#/sharedata/sharing');
+		await expect(page.locator('.sub-table .vxe-table--main-wrapper tr.vxe-body--row')).toHaveCount(2, { timeout: 60_000 });
+
+		const actual = await readVxeColumnAligns(page, '.sub-table .vxe-grid');
+		expect(actual).toEqual(expectedColumnAligns(['Loại dữ liệu (gói tin)', 'Chế độ', 'Hồ sơ ánh xạ'], ['Bật/Tắt', 'Trạng thái', 'Thông tin', 'Hành động']));
 	});
 });

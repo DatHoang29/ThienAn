@@ -23,9 +23,9 @@ Với mã nguồn đã index (.cs/.vue/.ts/.js), phải dùng tool Gortex (`mcp_
 
 **How to apply:** Đầu phiên chạy ToolSearch `select:mcp__gortex__explore,mcp__gortex__search_symbols,mcp__gortex__get_symbol_source,mcp__gortex__search_text,...` (xem `.agents/rules/gortex-tool-map.md`). Hook `.agents/hooks/gortex-enforce.mjs` sẽ chặn thật; đừng vòng qua. Khi yêu cầu mơ hồ về FE/BE, hỏi lại thay vì suy từ file IDE đang mở. Xem feedback-review-docs-vs-code.
 
-## Sửa thì viết prompt
+## Sửa thì viết prompt (ĐÃ BỎ 13/11/2026)
 
-> Khi cần sửa sau review (mã HOẶC tài liệu .md), viết prompt sửa trong chat, không tự sửa; chỉ sửa khi user nói \"sửa luôn\"
+> Đã bỏ 13/11/2026: người dùng nói "không cần viết prompt nha, bỏ rule đó đi" — cần sửa thì viết test kiểm tra trước rồi sửa thẳng; phần dưới chỉ còn là lịch sử
 
 Khi review/đối chiếu phát hiện chỗ cần sửa, KHÔNG tự sửa — cả mã nguồn lẫn tài liệu Markdown. Viết prompt sửa (file, vị trí, cũ→mới, việc đã sửa sẵn, cách kiểm tra).
 
