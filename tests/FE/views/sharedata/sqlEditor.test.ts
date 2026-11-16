@@ -817,6 +817,64 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         expect(scroller.y + scroller.height - (resizer.y + resizer.height)).toBeLessThan(12);
     });
 
+    /**
+     * Author: DatHQ
+     * Description: Khung soạn SQL chỉ chặn chiều cao tối thiểu. Khung nhìn thấp như khi phóng to trang thì khung SQL không bị cắt,
+     *              thanh kéo vẫn thấy và kéo được; kéo lên dừng ở 120px, kéo xuống cao quá cả khung chi tiết (khung chi tiết cuộn).
+     * Created date: 16/11/2026
+     */
+    test('22b. Phóng to trang: khung soạn SQL không bị cắt, thanh kéo kéo được, chỉ chặn tối thiểu 120px, không chặn tối đa', async ({ page }) => {
+        const longSql = Array.from({ length: 28 }, (_, i) => (i === 0 ? 'SELECT TOP (@pageSize)' : i < 27 ? `    i.Col${i} AS col${i},` : '    i.ID AS id FROM TmsIncident i')).join('\n');
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
+            r.fulfill(json({ code: 200, result: { extractSql: longSql, status: 1, fields: SAVED_FIELDS } }))
+        );
+        await openSqlCenter(page);
+        // Màn 1600x900 phóng to 175% còn khoảng 914x514 điểm ảnh CSS
+        await page.setViewportSize({ width: 914, height: 514 });
+        const section = page.locator('.sql-section');
+        const editor = page.locator('.sql-section .sql-monaco-editor');
+        const resizer = page.locator('.sql-section .sql-editor-resizer');
+        const resizerOverflow = async () => {
+            const sectionBox = (await section.boundingBox())!;
+            const resizerBox = (await resizer.boundingBox())!;
+            return resizerBox.y + resizerBox.height - (sectionBox.y + sectionBox.height);
+        };
+        const editorHeight = async () => (await editor.boundingBox())!.height;
+        const drag = async (deltaY: number) => {
+            await resizer.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+            const box = (await resizer.boundingBox())!;
+            const x = box.x + box.width / 2;
+            const y = box.y + box.height / 2;
+            await page.mouse.move(x, y);
+            await page.mouse.down();
+            await page.mouse.move(x, y + deltaY, { steps: 8 });
+            // Chờ một khung hình cho lần kéo cuối được vẽ trước khi nhả chuột
+            await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+            await page.mouse.up();
+        };
+
+        // Khung SQL ôm trọn trình soạn và thanh kéo, không cắt phần dưới
+        await expect.poll(resizerOverflow, { timeout: 5_000 }).toBeLessThanOrEqual(1);
+        await expect(resizer).toBeVisible();
+
+        // Kéo lên quá đà thì dừng ở chiều cao tối thiểu 120px
+        await drag(-200);
+        await expect.poll(editorHeight, { timeout: 5_000 }).toBeLessThanOrEqual(121);
+        expect(await editorHeight()).toBeGreaterThanOrEqual(119);
+
+        // Kéo xuống hai lần: cao hơn cả khung chi tiết đang cuộn, khung SQL vẫn ôm trọn thanh kéo
+        await drag(220);
+        await drag(220);
+        const frameHeight = await page.locator('.packet-details-wrapper').evaluate((el) => el.clientHeight);
+        await expect.poll(editorHeight, { timeout: 5_000 }).toBeGreaterThan(500);
+        expect(await editorHeight()).toBeGreaterThan(frameHeight);
+        expect(await resizerOverflow()).toBeLessThanOrEqual(1);
+        // Khối Trường dữ liệu bị đẩy xuống dưới khung SQL, không bị đè
+        const sectionBox = (await section.boundingBox())!;
+        const fieldsBox = (await page.locator('.fields-section').boundingBox())!;
+        expect(fieldsBox.y).toBeGreaterThanOrEqual(sectionBox.y + sectionBox.height - 1);
+    });
+
     test('27. Lấy cột của bảng nguồn gửi mã định danh bảng (Id) trên URL, không gửi tên bảng', async ({ page }) => {
         const urls: string[] = [];
         await page.route('**/api/sharedata/sharedatapacket/getmetadatafields*', async (r) => {

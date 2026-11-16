@@ -466,6 +466,7 @@ Yêu cầu từ họp 16/09/2026, nhắc lại 02/11/2026: clone Worker, 4 con c
 - PDU/định dạng nhật ký nhận: `InboundCommandHandler` gán Format theo đăng ký nhận (mặc định Data), PduType DATA_PACKET/FILE_PACKET; dòng cũ vẫn trống. Trang Lịch sử cột Định dạng hiện JSON/Tập tin (`formatText`).
 - Ô Mốc bắt đầu khối 3 khóa: chưa tái hiện được con trỏ nhấp nháy (Chromium, WebKit: tiêu điểm rơi vào TBODY); test 72b có kiểm bấm chuột thật không rơi vào ô nhập.
 - Hộp thoại đối tác (`sharing/component/editPartner.vue`): câu báo lỗi để `position: static` trong `.partner-tabs`, câu dài xuống dòng đẩy hàng dưới thay vì đè (câu "Trường … không được bỏ trống" lấy từ bảng dịch CSDL, dài hơn câu trong tệp ngôn ngữ FE). Test TC18 `partner.test.ts` kiểm câu báo nằm trong khung ô.
+- Khung soạn SQL (`dataSource/component/sqlEditor.vue`, dùng cho cả câu gửi lẫn câu ghi tab Nhận về): 16/11 bỏ trần khi kéo (trước chặn `max(300, chiều cao khung chi tiết − 260)`) và bỏ `max-height: calc(100% - 240px)` của `.sql-section` ở `dataSource/index.vue` (phóng to trang thì khung SQL bị ép còn một dòng hoặc mất hẳn, cắt luôn thanh kéo). Chỉ chặn tối thiểu 120px; cao hơn khung chi tiết thì khung chi tiết cuộn. Tự co theo nội dung lúc mở/gõ vẫn tối đa 200px (câu ghi 260–480px) tới khi người dùng kéo; nháy đúp thanh kéo trả về tự co. Test 22b `sqlEditor.test.ts` (khung nhìn 914x514).
 
 ## ShareData: đối chiếu nối đuôi mã với tài liệu (16/11/2026)
 
