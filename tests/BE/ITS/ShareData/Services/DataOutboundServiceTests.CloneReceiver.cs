@@ -118,6 +118,53 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
+        /// Cấp HttpClient gọi thẳng WebAPI trong tiến trình test; lần gửi đầu thì dừng dịch vụ gửi lúc Worker đang chờ đối tác trả lời:
+        /// đối tác đã lưu gói (partnerSaved) hoặc yêu cầu chưa tới nơi, lệnh gửi bị hủy theo token dừng nên phản hồi không về tới bản gửi.
+        /// </summary>
+        private sealed class StopWhileAwaitingResponseApiClientFactory(Host host, CancellationTokenSource stopping, bool partnerSaved) : IHttpClientFactory
+        {
+            private int _sentCount;
+
+            /// <summary>Lần gửi đầu: (tùy ca) chuyển yêu cầu vào WebAPI, dừng dịch vụ rồi chờ tới khi lệnh gửi bị hủy; các lần sau gửi bình thường.</summary>
+            private sealed class StopWhileAwaitingResponseHandler(StopWhileAwaitingResponseApiClientFactory owner) : DelegatingHandler
+            {
+                protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+                {
+                    if (!owner.TakeFirstTurn())
+                    {
+                        return await base.SendAsync(request, cancellationToken);
+                    }
+
+                    if (owner.PartnerSaved)
+                    {
+                        using var delivered = await base.SendAsync(request, cancellationToken);
+                        await delivered.Content.LoadIntoBufferAsync();
+                    }
+
+                    // Dừng dịch vụ lúc đang chờ phản hồi: lệnh gửi phải bị hủy theo token dừng, không hủy thì hết 30 giây báo lỗi để test không treo
+                    owner.Stop();
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                    throw new TimeoutException("Lệnh gửi không bị hủy khi dịch vụ dừng.");
+                }
+            }
+
+            /// <summary>Đối tác đã lưu gói trước khi dịch vụ dừng (true) hay yêu cầu chưa tới nơi (false).</summary>
+            private bool PartnerSaved => partnerSaved;
+
+            public HttpClient CreateClient(string name)
+            {
+                var handler = new StopWhileAwaitingResponseHandler(this);
+                return host.CreateApiClient(handler);
+            }
+
+            /// <summary>Đếm lần gửi; trả true ở lần gửi đầu tiên.</summary>
+            private bool TakeFirstTurn() => Interlocked.Increment(ref _sentCount) == 1;
+
+            /// <summary>Dừng dịch vụ gửi (hủy token của lượt chạy).</summary>
+            private void Stop() => stopping.Cancel();
+        }
+
+        /// <summary>
         /// Cấp HttpClient gọi thẳng WebAPI trong tiến trình test; lần gửi đầu tới nơi và nhận phản hồi thành công xong thì chạy việc chen vào
         /// trước khi Worker lưu số thứ tự và mốc (phiên khác khóa dòng mốc, lượt khác lấy khóa, tiến trình bị tắt cứng).
         /// </summary>
@@ -867,6 +914,65 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(packet.RowCodes.Order().ToList(), rows);
             Assert.Equal(new int?[] { 1, 2 }, serials);
             Assert.Equal(3, outbound.SerialNbr);
+            Assert.Null(outbound.ProcessingUntil);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Tắt dịch vụ gửi đúng lúc đang chờ đối tác trả lời (lệnh gửi bị hủy theo token dừng), đối tác đã lưu gói hoặc yêu cầu chưa tới nơi:
+        ///              Worker không biết nên coi như đối tác có thể đã nhận, vẫn tiêu số thứ tự, giữ nguyên mốc, nhả khóa dù dịch vụ đang dừng.
+        ///              Bật lại thì gửi lại các dòng đó với số kế tiếp: không kẹt, không sót dòng; đối tác đã lưu gói thì nhận lại hai dòng đầu một lần nữa.
+        /// Created date: 16/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ProcessSubscriptions_WhenServiceStopsWhileAwaitingPartnerResponse_ConsumesSerialKeepsCursorThenResends_Test(bool partnerSaved)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            using var receiverScope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var inboundDb = InboundDb(db);
+            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 2);
+            var markerCode = await SetMarkerWriteSqlAsync(db, packet);
+            var partners = await SeedReceiverPartnersAsync(db, packet, "A101");
+            var partner = partners[0];
+            using var stopping = new CancellationTokenSource();
+            var stopWhileAwaiting = new StopWhileAwaitingResponseApiClientFactory(_host, stopping, partnerSaved);
+            var stoppedSender = CreateReceiverClone(scope, null, stopWhileAwaiting);
+            var senders = new[] { CreateReceiverClone(scope, null) };
+            var receiver = receiverScope.ServiceProvider.GetRequiredService<DataInboundService>();
+            var firstPageRows = packet.RowCodes.Order().Take(2).ToList();
+            var expectedRows = partnerSaved
+                ? packet.RowCodes.Concat(firstPageRows).Order().ToList()
+                : packet.RowCodes.Order().ToList();
+            var expectedSerials = partnerSaved ? new int?[] { 1, 2, 3 } : new int?[] { 2, 3 };
+
+            // Act: lượt đầu dừng dịch vụ lúc đang chờ đối tác trả lời gói số 1 (R01, R02); bật lại (bản mới) chạy tiếp 3 lượt
+            var stoppedRun = IsolatedFlow.Run(() => stoppedSender.ProcessSubscriptions(stopping.Token));
+            var stopError = await Record.ExceptionAsync(() => stoppedRun);
+            var afterStop = await db.Queryable<ShareDataSubscription>().InSingleAsync(partner.Outbound.ID);
+            await MakeSubscriptionDue(db, partner.Outbound.ID);
+            for (var round = 0; round < 3; round++)
+            {
+                await RunRoundAsync(db, senders, receiver, packet, false, partners);
+            }
+
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            // Assert
+            var rows = await WrittenRowsAsync(inboundDb, markerCode, partner);
+            var received = await ReceivedPacketsAsync(inboundDb, packet, partner);
+            var serials = received.Select(r => r.SerialNbr).Order().ToList();
+            var outbound = await db.Queryable<ShareDataSubscription>().InSingleAsync(partner.Outbound.ID);
+            Assert.True(stopError is null or OperationCanceledException, $"Dừng dịch vụ chỉ được hủy lượt chạy, nhận được: {stopError}");
+            Assert.True(stopping.IsCancellationRequested);
+            Assert.Equal(2, afterStop.SerialNbr);
+            Assert.Null(afterStop.ProcessingUntil);
+            Assert.Equal(expectedRows, rows);
+            Assert.Equal(expectedSerials, serials);
+            Assert.Equal(4, outbound.SerialNbr);
             Assert.Null(outbound.ProcessingUntil);
         }
 
