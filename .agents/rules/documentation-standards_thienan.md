@@ -64,6 +64,9 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
    - ⛔ TUYỆT ĐỐI KHÔNG tạo `Phụ lục A/B/C`, không tạo mục "nhật ký việc đã xử lý" thừa thãi làm loãng nội dung.
    - Quyết định quan trọng và phương án bị bác BẮT BUỘC ghi thẳng vào MasterPlan, không để trong báo cáo rà soát.
 5. **Phạm Vi Đối Chiếu**: Chỉ đối chiếu code working tree, test và DB local; không lấy staging làm phát hiện.
+6. **Việc Cần Làm Ghi Tên Tệp, Không Mã Trơn (Rule 19.117)**: áp cho mọi báo cáo, trả lời gửi người dùng.
+   - Cần người dùng chạy hoặc mở tệp nào (`.sql`, cấu hình, tài liệu) thì ghi tên tệp kèm link; mã trong bảng README chỉ được đi kèm, tên tệp trong ngoặc: `K7 (sharedata-kiem-tai-go-ket-ShareDataSubscription.sql)`.
+   - ⛔ **CẤM** báo mã trơn như "chạy K7", "sau D10, D12": người đọc phải mở README tra mới biết là tệp nào.
 
 ---
 

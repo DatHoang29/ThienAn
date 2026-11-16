@@ -54,6 +54,7 @@ description: Single Source of Truth for ThienAn project — P0 safeguards; domai
 | **76** | **Câu báo lỗi không nhắc dạng cũ** (19.115) | ⛔ Câu báo, tooltip, placeholder nhắc cách làm trước; dữ liệu dạng cũ xử lý như chưa hợp lệ; lưu ý ghi vào `.md` phân hệ. frontend §5 |
 | **77** | **Không lồng lời gọi trên một dòng** (19.116) | C#: lời gọi nằm trong tham số của lời gọi khác thì tách mỗi bước thành biến `var`; chuỗi LINQ/SqlSugar xuống dòng không tính. backend §4.31 |
 | **78** | **Spinner loading chuẩn** (20.33) | Mọi `vxe-grid` / `el-table` dùng spinner 8-dots SVG 50px màu primary, chữ "Đang tải..."; bắt buộc test E2E. frontend §12 |
+| **79** | **Báo việc cần làm ghi tên tệp** (19.117) | Cần người dùng chạy, mở tệp nào thì ghi tên tệp kèm link, mã README chỉ đi kèm: `K7 (sharedata-kiem-tai-go-ket-ShareDataSubscription.sql)`; ⛔ báo mã trơn `K1`, `K2`, `D10`. documentation §2 |
 
 ## Luật cốt lõi theo miền (áp cho mọi mã mới; mã lân cận sai thì không chép theo)
 
