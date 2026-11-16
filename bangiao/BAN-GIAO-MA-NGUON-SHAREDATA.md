@@ -105,14 +105,14 @@ Tệp chính là `DataOutboundService.cs`. Bắt đầu đọc từ `ExportSubsc
 | Bước | Hàm | Tệp | Ghi chú |
 | --- | --- | --- | --- |
 | 1 | `ProcessSubscriptions()` | DataOutboundService.cs | Chọn các đăng ký đến hạn. Có khai `ShareData:SelfPartnerCode` thì chỉ lấy đăng ký của đối tác đó. |
-| 2 | `ExportSubscription` | DataOutboundService.cs | Chiếm khóa qua `ProcessingUntil`, luôn nhả ở `ReleaseLock`. Mỗi lượt gửi đúng một trang theo `@pageSize` (từ 08/11/2026), trang sau gửi ở lượt sau. |
+| 2 | `ExportSubscription` | DataOutboundService.cs | Chiếm khóa qua `ProcessingUntil`, luôn nhả ở `ReleaseLock`. Mỗi lượt gửi đúng một trang theo `@pageSize` (từ 08/11/2026), trang sau gửi ở lượt sau. Khóa do lượt trước bỏ lại tới hết hạn (tiến trình bị tắt cứng) thì nhận khóa với số thứ tự kế tiếp. |
 | 3 | `GetExportConfig`, `ReadCursorSnapshot`, `GetLastSend`, `GetGroupCursors` | DataOutboundService.cs | Đọc cấu hình và mốc của lượt |
-| 4 | `ExportPage` | DataOutboundService.cs | Một trang: trích xuất, ánh xạ, gửi, chốt mốc |
+| 4 | `ExportPage` | DataOutboundService.cs | Một trang: trích xuất, ánh xạ, gửi, chốt mốc. Gửi xong thì nhật ký, số thứ tự, mốc ghi không theo token dừng dịch vụ: tắt dịch vụ lúc này vẫn ghi xong. |
 | 5 | `Extract`, `ExecuteDynamicQuery` | DataOutboundExtractionProcess.cs | Chạy câu SQL, đọc cột `__lastKey` của trang để làm mốc |
 | 6 | `MapPage`, `Map`, `Transform`, `RenderShapeNode`, `MapCode`, `ConvertDataType` | DataMappingProcess.cs, DataMappingProcess.Expression.cs | Bộ khung hỗ trợ `$field`, `$extend`, `$each`, `$meta` |
 | 7 | `Send` | DataOutboundTransport.cs | Định dạng, **lưu tệp bằng chứng trước**, rồi mới gửi. Lưu lỗi thì hủy gửi và giữ mốc (ESH-1402). Kênh File không khai `DirectoryPath` thì tệp bằng chứng chính là đầu ra. |
 |  | `BuildRequest`, `Build`, `BuildContext` | DataOutboundTransport.cs | Dựng yêu cầu và ngữ cảnh gửi từ `ConnectionConfig` của đối tác. |
-| 8 | `CommitPage`, `CommitSuccess`, `CommitGroupCursor` | DataOutboundService.cs | Mốc chỉ tiến, không lùi. Xem [luồng nối đuôi](#sd-moc). |
+| 8 | `CommitPage`, `CommitSuccess`, `CommitGroupCursor`, `ConsumeSentSerial` | DataOutboundService.cs | Mốc chỉ tiến, không lùi. Xem [luồng nối đuôi](#sd-moc). Gói đã rời Worker mà không lưu được kết quả (mất trả lời, lưu số thứ tự hay mốc lỗi, mất khóa) thì `ConsumeSentSerial` vẫn tăng số thứ tự, giữ mốc: lượt sau gửi lại trang với số kế tiếp, đối tác có thể nhận lại các dòng của trang đó. |
 | 9 | `TryLogConfigWarning`, `ComputeConfigHash` | DataOutboundService.cs | Ghi cảnh báo ESH-1403 về cấu hình kết nối bị bỏ qua, mỗi đối tác và mỗi nội dung cấu hình một lần. |
 | 10 | `ComputeNextTimeRun`, `ResolveVietnamTimeZone` | DataOutboundScheduler.cs | Tính lần chạy kế tiếp theo khung giờ |
 
@@ -140,12 +140,12 @@ Văn Hiếu làm chính. API chỉ lưu gói thô, mọi xử lý nằm ở Work
 
 | Bước | Hàm | Tệp | Ghi chú |
 | --- | --- | --- | --- |
-| 1 | `HandleAsync(ShareDataAddInboundInput)` | InboundCommandHandler.cs | Lưu `ShareDataInboundPacket` trạng thái Pending |
-| 2 | `ProcessPendingPackets`, `ReleaseStuckPacketsAsync`, `ProcessGroupAsync`, `ProcessPacketAsync`, `ResolveContextAsync` | DataInboundService.cs | Lấy lô chờ, gỡ gói treo, tra đối tác và hồ sơ ánh xạ |
+| 1 | `HandleAsync(ShareDataAddInboundInput)` | InboundCommandHandler.cs | Lưu `ShareDataInboundPacket` trạng thái Pending. Nhật ký nhận ghi loại gói (PDU) và định dạng theo đăng ký nhận. |
+| 2 | `ProcessPendingPackets`, `ReleaseStuckPacketsAsync`, `ProcessGroupAsync`, `ProcessPacketAsync`, `CanRetryTransientWrite`, `ResolveContextAsync` | DataInboundService.cs | Lấy lô chờ, gỡ gói treo, tra đối tác và hồ sơ ánh xạ. Mỗi nhóm đối tác, loại gói ghi theo `SerialNbr` tăng dần, kể cả khi hai dịch vụ cùng nhận: còn gói số nhỏ hơn đang chờ hoặc đang ghi thì chưa nhận gói sau; gói lỗi không chặn. Dịch vụ dừng giữa lúc ghi thì gói về Pending. Lỗi CSDL tạm thời khi gói nhận chưa quá 30 phút thì gói về Pending để lượt sau ghi lại, quá 30 phút thì Failed (ESH-1505). |
 | 3 | `ParsePayloadRecords` | DataInboundService.Parse.cs | Không có bộ khung thì đoán khóa `payload` hoặc `data`, đây là đường lùi |
 |  | `BuildShapeBinding`, `Walk`, `TryNavigate`, `JsonToObject`, `HasFieldBinding` | DataInboundService.Parse.cs | Đọc bộ khung chiều nhận và đi theo đường dẫn trong gói. `HasFieldBinding` phải giữ cùng ngữ nghĩa với hàm cùng tên ở `DataMappingProcess`. |
 |  | `ReadRecord` | DataInboundService.Parse.cs | Gỡ ép kiểu rồi mới tra ngược bộ mã. **Đừng đổi thứ tự này.** |
-| 4 | `WriteRecordsBySqlAsync`, `BuildWriteParameters`, `RollbackQuietly` | DataInboundService.WriteSql.cs | Chạy `ShareDataSql.WriteSql` trong một giao dịch. Tham số: `@records @now @tenantId @operator @partnerId @partnerCode @datatypeId @serialNbr @packetId` |
+| 4 | `WriteRecordsBySqlAsync`, `BuildWriteParameters`, `RollbackQuietly`, `IsTransientSqlError` | DataInboundService.WriteSql.cs | Chạy `ShareDataSql.WriteSql` trong một giao dịch. Tham số: `@records @now @tenantId @operator @partnerId @partnerCode @datatypeId @serialNbr @packetId`. Deadlock (1205), hết giờ (-2), phiên bị cắt (mức lỗi từ 20) đánh dấu là lỗi tạm thời trên `InboundWriteException`. |
 | 5 | `MarkPacketAsync`, `FailPacketAsync`, `LogInboundResult`, `LogAlertInbound` | DataInboundService.cs, DataInboundService.Logging.cs | Đánh trạng thái và ghi nhật ký |
 
 `AddWorkerInfrastructure` chỉ tạo kết nối CSDL nhận khi có `ConnectionStrings:InboundConnection`. Xem [cấu hình vận hành](#sd-cau-hinh).
@@ -159,7 +159,7 @@ Văn Hiếu làm chính. API chỉ lưu gói thô, mọi xử lý nằm ở Work
 | Hàm | Tệp | Ghi chú |
 | --- | --- | --- |
 | `Dispatch` | DeliveryDispatcher.cs | Rẽ nhánh theo `ConnectionType` |
-| `HttpDeliverySender.Send`, `TryDetectBusinessError` | HttpDeliverySender.cs | HTTP 2xx nhưng thân phản hồi báo lỗi nghiệp vụ thì vẫn tính là lỗi |
+| `HttpDeliverySender.Send`, `TryDetectBusinessError`, `CouldHaveReachedPartner` | HttpDeliverySender.cs | HTTP 2xx nhưng thân phản hồi báo lỗi nghiệp vụ thì vẫn tính là lỗi. Đứt kết nối giữa chừng, hết giờ chờ hay bị hủy khi đang chờ trả lời thì đánh dấu `IsPossiblyDelivered` (gói có thể đã tới đối tác) để Worker tăng số thứ tự. |
 | `AddIdentityHeaders`, `TryBuildEndpointUri`, `FormatDetailedHttpException`, `LogFullRequest` | HttpDeliverySender.cs | Header định danh, ghép URL, câu lỗi chi tiết, log mức Debug. |
 | `KafkaDeliverySender.Send` | KafkaDeliverySender.cs | Chỉ `Persisted` mới tính thành công. |
 | `FtpDeliverySender.Send` | FtpDeliverySender.cs | Dùng `FtpWebRequest`, API .NET đã lỗi thời. |
