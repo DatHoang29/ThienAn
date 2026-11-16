@@ -110,7 +110,7 @@ Dừng thì thay `net start` bằng `net stop`.
 
 ## Lưu ý khi có hai dịch vụ cùng nhận
 
-`ShareDataWorker` và `ShareDataWorker_Inbound_1` chạy cùng lúc là hai dịch vụ cùng nhận. Mỗi gói vẫn chỉ được ghi một lần, nhưng các gói của cùng một đối tác có thể được ghi không theo đúng thứ tự gửi. Cần đúng thứ tự thì chỉ chạy một trong hai dịch vụ này.
+`ShareDataWorker` và `ShareDataWorker_Inbound_1` chạy cùng lúc là hai dịch vụ cùng nhận. Mỗi gói chỉ được ghi một lần, và các gói cùng đối tác, cùng loại vẫn ghi đúng thứ tự gửi: gói số sau chờ gói số trước ghi xong mới được ghi. Một gói bị bỏ dở (dịch vụ tắt cứng giữa lúc ghi) giữ các gói sau của cùng loại chờ khoảng 10 phút, tới khi gói đó được trả về để ghi lại.
 
 ## Thêm dịch vụ gửi
 
