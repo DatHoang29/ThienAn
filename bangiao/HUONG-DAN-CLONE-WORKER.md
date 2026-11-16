@@ -10,7 +10,7 @@ Các dịch vụ gửi tự chia nhau gửi cho mọi đối tác; khóa đăng 
 
 Clone chỉ đổi cách chạy dịch vụ. Trên web, người dùng vẫn tạo đối tác, gói tin, đăng ký như bình thường; không có cấu hình nào theo từng dịch vụ.
 
-Ví dụ dưới đây dùng 6 dịch vụ đặt ở `D:\ShareData\Builds`: 1 dịch vụ hai chiều, 1 dịch vụ chỉ nhận, 4 dịch vụ chỉ gửi. Đổi đường dẫn theo máy chủ thực tế.
+Ví dụ dưới đây dùng 6 dịch vụ đặt cạnh nhau trong cùng một thư mục trên máy chủ: 1 dịch vụ hai chiều, 1 dịch vụ chỉ nhận, 4 dịch vụ chỉ gửi.
 
 ## 1. Publish
 
@@ -24,15 +24,15 @@ Máy chủ cần có ASP.NET Core Runtime 10 (máy đang chạy WebAPI thì đã
 
 ## 2. Clone thư mục
 
-Chép thư mục publish thành 6 thư mục, tên thư mục trùng tên dịch vụ:
+Chép thư mục publish thành 6 thư mục nằm cạnh nhau trong cùng một thư mục trên máy chủ (đường dẫn không có khoảng trắng), tên thư mục trùng tên dịch vụ:
 
 ```text
-D:\ShareData\Builds\ShareDataWorker
-D:\ShareData\Builds\ShareDataWorker_Inbound_1
-D:\ShareData\Builds\ShareDataWorker_Outbound_1
-D:\ShareData\Builds\ShareDataWorker_Outbound_2
-D:\ShareData\Builds\ShareDataWorker_Outbound_3
-D:\ShareData\Builds\ShareDataWorker_Outbound_4
+ShareDataWorker
+ShareDataWorker_Inbound_1
+ShareDataWorker_Outbound_1
+ShareDataWorker_Outbound_2
+ShareDataWorker_Outbound_3
+ShareDataWorker_Outbound_4
 ```
 
 ## 3. Sửa `appsettings.json` trong từng thư mục
@@ -60,28 +60,30 @@ Các khóa còn lại giống nhau ở cả 6 bản:
 | `ConnectionStrings:DefaultConnection` | CSDL chính |
 | `ConnectionStrings:InboundConnection` | CSDL nhận, phải trùng với CSDL nhận của WebAPI |
 | `Nats:Url` | Máy chủ NATS. Dịch vụ chạy trên máy chủ thì dùng địa chỉ NATS trong mạng nội bộ; địa chỉ công khai có thể không nối được từ mạng nội bộ. Các khóa `Nats` còn lại và tệp xác thực `Configuration/nats.creds` giữ nguyên như bản publish |
-| `FileStorage:BasePath` | Thư mục lưu tệp đã gửi. Để mặc định `sharedata/send` thì mỗi dịch vụ lưu trong thư mục của chính nó, ví dụ `D:\ShareData\Builds\ShareDataWorker_Outbound_1\sharedata\send`. Muốn gom một chỗ thì đặt cùng một đường dẫn tuyệt đối, ví dụ `D:\ShareData\send` |
+| `FileStorage:BasePath` | Thư mục lưu tệp đã gửi. Để mặc định `sharedata/send` thì mỗi dịch vụ lưu trong thư mục của chính nó, ví dụ `ShareDataWorker_Outbound_1\sharedata\send`. Muốn gom một chỗ thì đặt cùng một đường dẫn tuyệt đối trên máy chủ cho cả 6 bản |
 
 Dịch vụ chạy trước khi NATS sẵn sàng cũng không phải khởi động lại: nối được NATS là tự phát heartbeat và nghe tín hiệu có dữ liệu mới.
 
 ## 4. Đăng ký dịch vụ (một lần)
 
-Mở PowerShell bằng quyền Administrator. Dùng `sc.exe`, không dùng `sc`; sau dấu `=` phải có một khoảng trắng.
+Mở PowerShell bằng quyền Administrator tại thư mục chứa 6 thư mục dịch vụ; `$Root` lấy đường dẫn thư mục đó. Dùng `sc.exe`, không dùng `sc`; sau dấu `=` phải có một khoảng trắng.
 
 ```powershell
-sc.exe create ShareDataWorker binPath= "D:\ShareData\Builds\ShareDataWorker\ShareDataWorker.exe" start= auto
-sc.exe create ShareDataWorker_Inbound_1 binPath= "D:\ShareData\Builds\ShareDataWorker_Inbound_1\ShareDataWorker.exe" start= auto
-sc.exe create ShareDataWorker_Outbound_1 binPath= "D:\ShareData\Builds\ShareDataWorker_Outbound_1\ShareDataWorker.exe" start= auto
-sc.exe create ShareDataWorker_Outbound_2 binPath= "D:\ShareData\Builds\ShareDataWorker_Outbound_2\ShareDataWorker.exe" start= auto
-sc.exe create ShareDataWorker_Outbound_3 binPath= "D:\ShareData\Builds\ShareDataWorker_Outbound_3\ShareDataWorker.exe" start= auto
-sc.exe create ShareDataWorker_Outbound_4 binPath= "D:\ShareData\Builds\ShareDataWorker_Outbound_4\ShareDataWorker.exe" start= auto
+$Root = (Get-Location).Path
+sc.exe create ShareDataWorker binPath= "$Root\ShareDataWorker\ShareDataWorker.exe" start= auto
+sc.exe create ShareDataWorker_Inbound_1 binPath= "$Root\ShareDataWorker_Inbound_1\ShareDataWorker.exe" start= auto
+sc.exe create ShareDataWorker_Outbound_1 binPath= "$Root\ShareDataWorker_Outbound_1\ShareDataWorker.exe" start= auto
+sc.exe create ShareDataWorker_Outbound_2 binPath= "$Root\ShareDataWorker_Outbound_2\ShareDataWorker.exe" start= auto
+sc.exe create ShareDataWorker_Outbound_3 binPath= "$Root\ShareDataWorker_Outbound_3\ShareDataWorker.exe" start= auto
+sc.exe create ShareDataWorker_Outbound_4 binPath= "$Root\ShareDataWorker_Outbound_4\ShareDataWorker.exe" start= auto
 ```
 
-Máy chủ đã có sẵn dịch vụ `ShareDataWorker` thì không tạo lại dòng đầu, chỉ dừng dịch vụ rồi trỏ sang thư mục mới:
+Máy chủ đã có sẵn dịch vụ `ShareDataWorker` thì không tạo lại dòng `sc.exe create` đầu, chỉ dừng dịch vụ rồi trỏ sang thư mục mới (cũng mở PowerShell tại thư mục chứa 6 thư mục dịch vụ):
 
 ```powershell
+$Root = (Get-Location).Path
 net stop ShareDataWorker
-sc.exe config ShareDataWorker binPath= "D:\ShareData\Builds\ShareDataWorker\ShareDataWorker.exe"
+sc.exe config ShareDataWorker binPath= "$Root\ShareDataWorker\ShareDataWorker.exe"
 ```
 
 ## 5. Chạy và dừng
