@@ -951,4 +951,30 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         });
     }
 
+    /**
+     * Description: Cột Định dạng tab Truyền nhận hiện chữ như hộp Chi tiết (0 là JSON, 1 là Tập tin), không hiện mã số; dòng chưa ghi định dạng để trống.
+     * Created date: 16/11/2026
+     */
+    test('Cột Định dạng tab Truyền nhận hiện JSON, Tập tin thay cho mã số 0, 1; chưa ghi thì để trống', async ({ page }) => {
+        const record = (id: string, format: number | null) => ({
+            id, logType: 1, action: 10, success: 1, transferDirection: 0, occurredAt: '2026-11-16T09:55:04', partnerName: 'Kiểm tải 009', datatypeId: 'PKT_01',
+            serialNbr: 9883, pduType: 'DATA_PACKET', format, byteSize: 631, recordCount: 3,
+        });
+        const records = [record('LOG_DATA', 0), record('LOG_FILE', 1), record('LOG_NONE', null)];
+        await page.route('**/api/sharedata/sharedataactivitylog/page*', (r) =>
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records, total: 3 } }) })
+        );
+        await page.setViewportSize({ width: 1920, height: 900 });
+        await page.goto('/sharedata/history');
+        await page.locator('.history-tabs .el-tabs__item').nth(1).click();
+        const rows = page.locator('.xGrid-style .vxe-table--main-wrapper tr.vxe-body--row');
+        await expect(rows).toHaveCount(3, { timeout: 30_000 });
+
+        const headers = await page.locator('.xGrid-style .vxe-table--main-wrapper .vxe-table--header-wrapper th').allInnerTexts();
+        const formatIndex = headers.findIndex((h) => h.trim() === 'Định dạng');
+        expect(formatIndex).toBeGreaterThan(-1);
+        const formatCells = rows.locator(`td:nth-child(${formatIndex + 1})`);
+        await expect(formatCells).toHaveText(['JSON', 'Tập tin', '']);
+    });
+
 });

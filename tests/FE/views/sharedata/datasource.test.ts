@@ -801,9 +801,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
      *              (kể cả khi đăng ký gửi đang bật) vẫn hiện ô ngày chọn được, không hiện mốc đang chạy, không có nút sửa, không gọi API đặt mốc;
      *              tab đối tác đã có mốc thì khóa ô Mốc lần đầu, ô ghi đã có mốc, rê chuột vào biểu tượng i xem giải thích và Mốc lần đầu đang lưu (không nêu mốc đang chạy);
      *              tab Mẫu chung và đối tác chưa có mốc thì ô chọn được. Ô không có nhãn riêng, không có biểu tượng i: chữ trong ô tự nói nghĩa;
-     *              tiêu đề cột So mẫu chung nằm trên một dòng.
+     *              tiêu đề cột So mẫu chung nằm trên một dòng; ô đã khóa thì không bấm mở được bảng chọn ngày, rê chuột hiện biểu tượng cấm.
      * Created date: 03/11/2026
-     * Modified date: 04/11/2026
+     * Modified date: 16/11/2026
      */
     const cursorCellCases = [
         { name: '72a. Đối tác đã có mốc đang chạy: ô Mốc lần đầu khóa, ghi đã có mốc, không hiện Mốc lần đầu đã đặt và mốc đang chạy', savedValue: '2026-10-27 10:05:00.000_Z02', startValue: '2026-10-28 00:00:00.000_', locked: false },
@@ -865,6 +865,20 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             // Tab Mẫu chung: chỉ đặt mốc bắt đầu, để trống là gửi toàn bộ dữ liệu; khi đăng ký gửi đang bật thì cả 3 mục 1, 2, 3 khóa mờ và vô hiệu hóa thao tác
             if (c.locked) {
                 await expect(picker).toBeDisabled({ timeout: 10_000 });
+                // Ô khóa thì không bấm được: rê chuột hiện biểu tượng cấm, bấm không mở bảng chọn ngày, không nhận con trỏ nhập
+                await expect(picker).toHaveCSS('cursor', 'not-allowed');
+                await expect(mainTable.locator('.cvi-picker')).toHaveCSS('cursor', 'not-allowed');
+                await mainTable.locator('.cvi-picker').click({ force: true });
+                await expect(page.locator('.cvi-date-popper:visible')).toHaveCount(0);
+                await expect(picker).not.toBeFocused();
+                // Bấm chuột thật vào giữa ô: tiêu điểm không rơi vào ô nhập nào nên không có con trỏ nhập nhấp nháy
+                // Chrome trên macOS vẫn vẽ con trỏ nhập trong ô disabled khi bấm: ô không nhận chuột, con trỏ trong suốt, không bôi chọn được
+                await expect(picker).toHaveCSS('pointer-events', 'none');
+                await expect(picker).toHaveCSS('caret-color', 'rgba(0, 0, 0, 0)');
+                await expect(picker).toHaveCSS('user-select', 'none');
+                const pickerBox = await picker.boundingBox();
+                await page.mouse.click(pickerBox!.x + pickerBox!.width / 2, pickerBox!.y + pickerBox!.height / 2);
+                await expect.poll(() => page.evaluate(() => document.activeElement?.tagName ?? '')).not.toMatch(/^(INPUT|TEXTAREA)$/);
                 await expect(pageSizeInput).toBeDisabled();
                 await expect(sqlSection).toHaveClass(/is-scope-locked/);
                 await expect(sqlSection.locator('.sql-editor-container')).toHaveClass(/is-readonly/);

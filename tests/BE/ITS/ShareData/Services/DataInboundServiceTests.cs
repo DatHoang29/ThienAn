@@ -1674,51 +1674,80 @@ public class DataInboundServiceTests(Host host)
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Câu ghi của gói gặp lỗi CSDL tạm thời lúc đang chờ khóa dòng đích (bị chọn làm nạn nhân deadlock, hoặc mất kết nối),
-    ///              như gói 106 lỗi khi tranh khóa với tệp dọn dữ liệu chạy cùng lúc: lỗi qua đi thì lượt chạy sau ghi được gói, dữ liệu có ở bảng đích
-    ///              và gói Done, không thành lỗi vĩnh viễn làm mất dữ liệu của gói.
+    /// Description: Câu ghi của gói gặp lỗi CSDL tạm thời lúc đang chờ khóa dòng đích (bị chọn làm nạn nhân deadlock, phiên bị cắt, hết giờ chờ câu lệnh),
+    ///              như gói 106 lỗi khi tranh khóa với tệp dọn dữ liệu chạy cùng lúc. Gói nhận chưa quá 30 phút thì trả về chờ: lỗi qua đi thì lượt chạy sau
+    ///              ghi được gói, dữ liệu có ở bảng đích, gói Done và không có cảnh báo lỗi ghi. Gói nhận quá 30 phút thì chuyển lỗi kèm cảnh báo ESH-1505 như cũ.
     ///              Phiên khác giữ khóa cập nhật dòng TmsZoneStatus mà câu ghi mẫu gói 101 cần. Ca deadlock: phiên đó xin tiếp khóa dòng TmsZone
-    ///              câu ghi vừa sửa, phiên đó ưu tiên cao nên câu ghi bị chọn làm nạn nhân. Ca mất kết nối: cắt phiên câu ghi đang chờ khóa.
+    ///              câu ghi vừa sửa, phiên đó ưu tiên cao nên câu ghi bị chọn làm nạn nhân. Ca phiên bị cắt: cắt phiên câu ghi đang chờ khóa.
+    ///              Ca hết giờ: thời gian chờ câu ghi đặt mức thấp nhất (10 giây), giữ khóa tới khi câu ghi hết giờ.
     /// Created date: 16/11/2026
     /// </summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ProcessPendingPackets_WhenWriteHitsTransientDatabaseError_WritesPacketOnNextRun_Test(bool deadlock)
+    [InlineData("deadlock", 0, BaseEnums.InboundProcessState.Done, "Đoạn mới", "75.25", 0)]
+    [InlineData("kill", 0, BaseEnums.InboundProcessState.Done, "Đoạn mới", "75.25", 0)]
+    [InlineData("timeout", 0, BaseEnums.InboundProcessState.Done, "Đoạn mới", "75.25", 0)]
+    [InlineData("deadlock", 31, BaseEnums.InboundProcessState.Failed, "Đoạn cũ", "40.50", 1)]
+    public async Task ProcessPendingPackets_WhenWriteHitsTransientDatabaseError_RetriesPacketReceivedWithinThirtyMinutes_Test(
+        string error, int receivedMinutesAgo, BaseEnums.InboundProcessState expectedState, string expectedZoneName, string expectedAverageSpeed, int expectedWriteAlerts)
     {
         // Arrange
         var unique = Guid.NewGuid().ToString("N")[..8];
-        var (partnerCode, packetCode) = await SeedZoneStatusPacketAsync(unique);
+        var (subscriptionId, partnerCode, packetCode) = await SeedZoneStatusPacketAsync(unique);
+        var isolatedGroup = $"sd_cfg_tmp_write_{unique}";
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
+            })
+            .Build();
+        var writeTimeoutRow = new SysOpConfig
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            GroupCode = isolatedGroup,
+            Code = ShareDataConst.ConfigKeyInboundWriteTimeoutSec,
+            Value = "10",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(writeTimeoutRow).ExecuteCommandAsync();
+        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+        var workerConfig = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
+        var firstReceiver = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
+        var failingReceiver = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
+        var nextReceiver = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
         var zoneId = $"ZONE_TMP_{unique}";
         var zoneStatusId = $"{zoneId}_S";
         var firstContent = ZoneStatusContent(zoneId, "Đoạn cũ", 60, "40.50", "GOOD", "2026-11-16T08:00:00");
         var secondContent = ZoneStatusContent(zoneId, "Đoạn mới", 90, "75.25", "CONGES", "2026-11-16T08:01:00");
         await SeedPendingPacket(partnerCode, packetCode, 1, firstContent, DateTime.Now);
-        using var firstScope = _host.Services.CreateScope();
-        var firstReceiver = firstScope.ServiceProvider.GetRequiredService<DataInboundService>();
         await firstReceiver.ProcessPendingPackets(CancellationToken.None);
         var secondPacket = await SeedPendingPacket(partnerCode, packetCode, 2, secondContent, DateTime.Now);
+        // Giờ nhận gói: SqlSugar bỏ CreateTime khi cập nhật nên đặt bằng câu SQL
+        var receivedAt = DateTime.Now.AddMinutes(-receivedMinutesAgo);
+        await _inboundDb.Ado.ExecuteCommandAsync(
+            "UPDATE dbo.ShareDataInboundPacket SET CreateTime = @receivedAt WHERE ID = @id",
+            new { receivedAt, id = secondPacket.ID });
         using var holder = _inboundDb.CopyNew();
         using var admin = _inboundDb.CopyNew();
         await holder.Ado.BeginTranAsync();
         await holder.Ado.ExecuteCommandAsync("SET DEADLOCK_PRIORITY HIGH");
         await holder.Ado.GetDataTableAsync("SELECT ID FROM dbo.TmsZoneStatus WITH (UPDLOCK, ROWLOCK) WHERE ID = @id", new { id = zoneStatusId });
         var holderSession = await holder.Ado.GetIntAsync("SELECT @@SPID");
-        using var failingScope = _host.Services.CreateScope();
-        using var nextScope = _host.Services.CreateScope();
-        var failingReceiver = failingScope.ServiceProvider.GetRequiredService<DataInboundService>();
-        var nextReceiver = nextScope.ServiceProvider.GetRequiredService<DataInboundService>();
 
         // Act: câu ghi gói số 2 đang chờ khóa dòng đích thì gặp lỗi tạm thời; lỗi qua đi rồi mới tới lượt chạy sau
         var failingRun = failingReceiver.ProcessPendingPackets(CancellationToken.None);
         var writerSession = await WaitUntilBlockedByAsync(holderSession);
-        if (deadlock)
+        switch (error)
         {
-            await holder.Ado.GetDataTableAsync("SELECT ID FROM dbo.TmsZone WITH (UPDLOCK, ROWLOCK) WHERE ID = @id", new { id = zoneId });
-        }
-        else
-        {
-            await admin.Ado.ExecuteCommandAsync($"KILL {writerSession}");
+            case "deadlock":
+                await holder.Ado.GetDataTableAsync("SELECT ID FROM dbo.TmsZone WITH (UPDLOCK, ROWLOCK) WHERE ID = @id", new { id = zoneId });
+                break;
+            case "kill":
+                await admin.Ado.ExecuteCommandAsync($"KILL {writerSession}");
+                break;
+            default:
+                // Giữ khóa tới khi câu ghi hết giờ chờ
+                await failingRun;
+                break;
         }
 
         await holder.Ado.RollbackTranAsync();
@@ -1728,16 +1757,18 @@ public class DataInboundServiceTests(Host host)
 
         // Assert
         var saved = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(secondPacket.ID);
-        var zone = await _inboundDb.Ado.GetDataTableAsync("SELECT Name, MaxSpeed FROM dbo.TmsZone WHERE ID = @id", new { id = zoneId });
+        var zone = await _inboundDb.Ado.GetDataTableAsync("SELECT Name FROM dbo.TmsZone WHERE ID = @id", new { id = zoneId });
         var status = await _inboundDb.Ado.GetDataTableAsync("SELECT AverageSpeed FROM dbo.TmsZoneStatus WHERE ID = @id", new { id = zoneStatusId });
         var zoneName = zone.Rows[0]["Name"].ToString();
-        var maxSpeed = Convert.ToInt32(zone.Rows[0]["MaxSpeed"]);
         var averageSpeed = status.Rows[0]["AverageSpeed"].ToString();
+        var writeAlerts = await _db.Queryable<ShareDataAlertLog>()
+            .Where(a => a.SubscriptionId == subscriptionId && a.AlertCode == ShareDataAlertCode.Inbound.WriteFailed)
+            .CountAsync();
         Assert.NotEqual(BaseEnums.InboundProcessState.Done, afterError.ProcessState);
-        Assert.Equal(BaseEnums.InboundProcessState.Done, saved.ProcessState);
-        Assert.Equal("Đoạn mới", zoneName);
-        Assert.Equal(90, maxSpeed);
-        Assert.Equal("75.25", averageSpeed);
+        Assert.Equal(expectedState, saved.ProcessState);
+        Assert.Equal(expectedZoneName, zoneName);
+        Assert.Equal(expectedAverageSpeed, averageSpeed);
+        Assert.Equal(expectedWriteAlerts, writeAlerts);
     }
 
     /// <summary>
@@ -1745,7 +1776,7 @@ public class DataInboundServiceTests(Host host)
     /// Description: Đối tác, gói mang câu ghi mẫu gói 101 của tệp seed (TmsZone, TmsTrafficStatistic, TmsZoneStatus) và đăng ký nhận đang hoạt động.
     /// Created date: 16/11/2026
     /// </summary>
-    private async Task<(string PartnerCode, string PacketCode)> SeedZoneStatusPacketAsync(string unique)
+    private async Task<(string SubscriptionId, string PartnerCode, string PacketCode)> SeedZoneStatusPacketAsync(string unique)
     {
         var partner = new ShareDataPartner
         {
@@ -1776,7 +1807,7 @@ public class DataInboundServiceTests(Host host)
             State = BaseEnums.SubSubscriptionState.Active
         };
         await _db.Insertable(subscription).ExecuteCommandAsync();
-        return (partner.Code, packet.Code);
+        return (subscription.ID, partner.Code, packet.Code);
     }
 
     /// <summary>
@@ -2013,7 +2044,7 @@ public class DataInboundServiceTests(Host host)
     {
         // Arrange
         var unique = Guid.NewGuid().ToString("N")[..8];
-        var (partnerCode, packetCode) = await SeedZoneStatusPacketAsync(unique);
+        var (_, partnerCode, packetCode) = await SeedZoneStatusPacketAsync(unique);
         var zoneId = $"ZONE_ORD_{unique}";
         var zoneStatusId = $"{zoneId}_S";
         var olderContent = ZoneStatusContent(zoneId, "Đoạn gói 2", 60, "40.50", "GOOD", "2026-11-16T08:00:00");
@@ -2042,6 +2073,7 @@ public class DataInboundServiceTests(Host host)
 
         // Act: dịch vụ chỉ nhận ghi gói số 3; quá thời gian gói kẹt, dịch vụ hai chiều chạy lại thì gói số 2 được trả về chờ rồi ghi
         await receiveOnly.ProcessPendingPackets(CancellationToken.None);
+        var afterReceiveOnly = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(newer.ID);
         await _inboundDb.Updateable<ShareDataInboundPacket>()
             .SetColumns(p => p.ProcessedAt == stuckSince)
             .Where(p => p.ID == older.ID)
@@ -2056,6 +2088,7 @@ public class DataInboundServiceTests(Host host)
         var zoneName = zone.Rows[0]["Name"].ToString();
         var averageSpeed = status.Rows[0]["AverageSpeed"].ToString();
         var condition = status.Rows[0]["Condition"].ToString();
+        Assert.Equal(BaseEnums.InboundProcessState.Pending, afterReceiveOnly.ProcessState);
         Assert.Equal(BaseEnums.InboundProcessState.Done, savedNewer.ProcessState);
         Assert.NotEqual(BaseEnums.InboundProcessState.Pending, savedOlder.ProcessState);
         Assert.NotEqual(BaseEnums.InboundProcessState.Processing, savedOlder.ProcessState);

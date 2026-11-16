@@ -43,6 +43,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// <summary>Giờ của dòng nguồn: số giây tròn để kiểu datetime ở hai CSDL không lệch phần nghìn giây.</summary>
         private static readonly DateTime RoundTripTime = new(2099, 1, 1, 8, 0, 0);
 
+        /// <summary>Mốc giờ dòng nguồn TmsTrafficData của bài chạy vòng 103/106: năm 9000 cộng số giây từ đầu năm 2026, tăng dần giữa các lần chạy, sau mọi dòng của test khác.</summary>
+        private static readonly DateTime TrafficDataTimeBase = new(9000, 1, 1);
+
+        /// <summary>Gốc đếm giây cho mốc giờ dòng nguồn TmsTrafficData của bài chạy vòng 103/106.</summary>
+        private static readonly DateTime TrafficDataTimeEpoch = new(2026, 1, 1);
+
         /// <summary>Một phép đối chiếu: câu đọc ở CSDL nguồn và câu đọc ở CSDL nhận, cùng cột cùng thứ tự, lọc theo @prefix.</summary>
         private sealed record RoundTripCheck(string SourceSql, string InboundSql)
         {
@@ -398,6 +404,104 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 Assert.NotEmpty(sourceRows);
                 Assert.Equal(sourceRows, inboundRows);
             }
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Đặt Mốc lần đầu của câu nối đuôi tới giờ dòng nguồn của bài test, để gói chỉ gửi dòng của lần chạy này, không gửi dòng các lần chạy trước.
+        /// Created date: 16/11/2026
+        /// </summary>
+        private static async Task SetTrafficDataCursorStartAsync(ISqlSugarClient db, ClonePacket packet, string cursorStart)
+        {
+            var variables = await ShareDataSqlSeed.GetVariablesAsync(db, packet.PacketId, null);
+            var lastKey = variables.Single(v => v.Code == "lastKey");
+            lastKey.DefaultValue = cursorStart;
+            await ShareDataSqlSeed.SetVariablesAsync(db, packet.PacketId, null, variables);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Dòng mới của TmsTrafficData sau khi đã dọn trùng bên nhận: một dòng đo xe đủ trường gói 103 kèm số đo cân, một dòng chỉ có số đo cân
+        ///              (gói 106), thời gian phát hiện có mili-giây lẻ. Gói 103 gửi và ghi trước qua controller nhận thật, rồi tới gói 106; sau đó nguồn sửa
+        ///              cả hai dòng nên hai gói gửi lại dưới số thứ tự kế tiếp. Câu trích và câu ghi đúng tệp seed hiện hành.
+        ///              Gói 106 cùng thời điểm, làn, vị trí với dòng gói 103 đã ghi thì gộp số đo vào đúng dòng đó, mili-giây lẻ vẫn khớp, gửi lại không thêm dòng:
+        ///              đọc lại bên nhận bằng cùng câu SELECT ra đúng hai dòng như nguồn, mỗi gói nhận đều Done.
+        /// Created date: 16/11/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenNewTrafficDataRowsRoundTripAfterCleanup_EachRecordKeepsOneInboundRow_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var inboundDb = InboundDb(db);
+            var unique = Guid.NewGuid().ToString("N")[..6];
+            var prefix = $"TD{unique}";
+            var elapsed = DateTime.Now - TrafficDataTimeEpoch;
+            var elapsedSeconds = Math.Floor(elapsed.TotalSeconds);
+            var sentAt = TrafficDataTimeBase.AddSeconds(elapsedSeconds);
+            var resentAt = sentAt.AddMinutes(1);
+            var sentAtText = sentAt.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+            var cursorStart = $"{sentAtText}_";
+            var vdsPacket = await SeedRoundTripPacketAsync(db, "103", unique, prefix);
+            var wimPacket = await SeedRoundTripPacketAsync(db, "106", unique, prefix);
+            await SetTrafficDataCursorStartAsync(db, vdsPacket, cursorStart);
+            await SetTrafficDataCursorStartAsync(db, wimPacket, cursorStart);
+
+            var vdsId = $"{prefix}_V";
+            var wimId = $"{prefix}_W";
+            var vdsDetectTime = new DateTime(2099, 1, 2, 7, 15, 7, 613);
+            var wimDetectTime = new DateTime(2099, 1, 2, 7, 15, 8, 457);
+            var vdsRow = new TmsTrafficData { ID = vdsId, EquipmentId = $"{prefix}_EQ", DetectTime = vdsDetectTime, Type = "CAR", LicensePlate = $"{prefix}-1", Speed = 75.5f, Lane = "L1", Direction = "NORTH", Location = prefix, Height = 150, Width = 180, Length = 450 };
+            var wimRow = new TmsTrafficData { ID = wimId, DetectTime = wimDetectTime, Lane = "L2", Location = prefix, Speed = 60.5f, Height = 140, Width = 170, Length = 900 };
+            await db.Insertable(vdsRow).ExecuteCommandAsync();
+            await db.Insertable(wimRow).ExecuteCommandAsync();
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, vdsId, sentAt);
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, wimId, sentAt);
+
+            var vdsPartnerCode = ClonePartnerCode(vdsPacket, "TDV");
+            var vdsShape = RoundTripShapeJson("103", vdsPartnerCode, vdsPacket.PacketCode);
+            var vdsPartner = await SeedReceiverPartnerAsync(db, vdsPacket, "TDV", ReceiveEndpoint, vdsShape);
+            var wimPartnerCode = ClonePartnerCode(wimPacket, "TDW");
+            var wimShape = RoundTripShapeJson("106", wimPartnerCode, wimPacket.PacketCode);
+            var wimPartner = await SeedReceiverPartnerAsync(db, wimPacket, "TDW", ReceiveEndpoint, wimShape);
+            // Gói 106 chưa tới hạn ở lượt đầu: dòng gói 103 phải có ở bên nhận trước
+            var notDueUntil = DateTime.Now.AddDays(1);
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == notDueUntil)
+                .Where(s => s.ID == wimPartner.Outbound.ID)
+                .ExecuteCommandAsync();
+            var sender = CreateReceiverClone(scope, null);
+            var receiver = CreateInboundService(scope);
+            const string checkSql = "SELECT ID, DetectTime, Type, LicensePlate, Speed, Lane, Direction, Location, EquipmentId, Height, Width, Length FROM TmsTrafficData WHERE Location LIKE @prefix ORDER BY ID";
+
+            // Act: gói 103 gửi và ghi trước, rồi tới gói 106; nguồn sửa cả hai dòng thì hai gói gửi lại dưới số thứ tự kế tiếp
+            await MakeSubscriptionDue(db, vdsPartner.Outbound.ID);
+            await sender.ProcessSubscriptions(CancellationToken.None);
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+            await MakeSubscriptionDue(db, wimPartner.Outbound.ID);
+            await sender.ProcessSubscriptions(CancellationToken.None);
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+            var afterFirstSend = await ReadRoundTripRowsAsync(inboundDb, checkSql, prefix);
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, vdsId, resentAt);
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, wimId, resentAt);
+            await MakeSubscriptionDue(db, vdsPartner.Outbound.ID);
+            await MakeSubscriptionDue(db, wimPartner.Outbound.ID);
+            await sender.ProcessSubscriptions(CancellationToken.None);
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            // Assert
+            var sourceRows = await ReadRoundTripRowsAsync(db, checkSql, prefix);
+            var inboundRows = await ReadRoundTripRowsAsync(inboundDb, checkSql, prefix);
+            var vdsReceived = await ReceivedPacketsAsync(inboundDb, vdsPacket, vdsPartner);
+            var wimReceived = await ReceivedPacketsAsync(inboundDb, wimPacket, wimPartner);
+            var received = vdsReceived.Concat(wimReceived).ToList();
+            Assert.Equal(2, sourceRows.Count);
+            Assert.Equal(sourceRows, afterFirstSend);
+            Assert.Equal(sourceRows, inboundRows);
+            Assert.Equal(2, vdsReceived.Count);
+            Assert.Equal(2, wimReceived.Count);
+            Assert.All(received, p => Assert.Equal(BaseEnums.InboundProcessState.Done, p.ProcessState));
         }
 
         /// <summary>

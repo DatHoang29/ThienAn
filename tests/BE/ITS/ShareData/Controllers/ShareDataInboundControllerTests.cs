@@ -52,10 +52,14 @@ public class ShareDataInboundControllerTests(Host host)
     /// <summary>
     /// Description: Kiểm chứng tiếp nhận gói tin hợp lệ qua CallApiAsync: lưu gói tin thô
     /// vào ShareDataInboundPacket (trạng thái Pending) và ghi ActivityLog đầy đủ dòng cha và dòng con Bước 1.
+    /// Bên gửi chỉ gửi header PartnerCode, PacketCode, SerialNbr: định dạng và loại PDU của gói, dòng cha, Bước 1 lấy theo đăng ký nhận.
     /// Created date: 17/10/2026
+    /// Modified date: 16/11/2026
     /// </summary>
-    [Fact]
-    public async Task ShareDataInboundController_WhenValidPacketReceived_LogsReceiveActivity_Test()
+    [Theory]
+    [InlineData(BaseEnums.PublishFormat.Data, "DATA_PACKET")]
+    [InlineData(BaseEnums.PublishFormat.File, "FILE_PACKET")]
+    public async Task ShareDataInboundController_WhenValidPacketReceived_LogsReceiveActivity_Test(BaseEnums.PublishFormat subscriptionFormat, string expectedPduType)
     {
         // Arrange
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
@@ -90,6 +94,7 @@ public class ShareDataInboundControllerTests(Host host)
             DatatypeId = packet.ID,
             Direction = BaseEnums.Direction.Inbound,
             State = BaseEnums.SubSubscriptionState.Active,
+            Format = subscriptionFormat,
             SerialNbr = 0,
             CreateTime = DateTime.Now
         };
@@ -116,14 +121,12 @@ public class ShareDataInboundControllerTests(Host host)
         };
         await db.Insertable(mapping).ExecuteCommandAsync();
 
+        // Đúng các trường bộ điều khiển nhận đọc được từ header và thân yêu cầu
         var input = new ShareDataAddInboundInput
         {
             PartnerCode = partner.Code,
             PacketCode = packet.Code,
-            PacketVersion = "1.0",
             SerialNbr = 1,
-            PduType = "DATA",
-            Format = BaseEnums.PublishFormat.Data,
             RawContent = "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}"
         };
 
@@ -136,6 +139,8 @@ public class ShareDataInboundControllerTests(Host host)
             .FirstAsync();
         Assert.NotNull(savedPacket);
         Assert.Equal(BaseEnums.InboundProcessState.Pending, savedPacket.ProcessState);
+        Assert.Equal(subscriptionFormat, savedPacket.Format);
+        Assert.Equal(expectedPduType, savedPacket.PduType);
 
         // Kiểm tra dòng nhật ký tiếp nhận (Dòng cha và Dòng con Bước 1)
         var parentLog = await db.Queryable<ShareDataActivityLog>()
@@ -146,6 +151,8 @@ public class ShareDataInboundControllerTests(Host host)
         Assert.Null(parentLog.StepNbr);
         Assert.Equal(BaseEnums.TransferDirection.RCV, parentLog.TransferDirection);
         Assert.Contains(packet.Code, parentLog.Description ?? string.Empty);
+        Assert.Equal(subscriptionFormat, parentLog.Format);
+        Assert.Equal(expectedPduType, parentLog.PduType);
 
         var step1Log = await db.Queryable<ShareDataActivityLog>()
             .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV && l.ParentId == parentLog.ID)
@@ -153,6 +160,8 @@ public class ShareDataInboundControllerTests(Host host)
         Assert.NotNull(step1Log);
         Assert.Equal(1, step1Log.StepNbr);
         Assert.Equal(parentLog.ID, step1Log.ParentId);
+        Assert.Equal(subscriptionFormat, step1Log.Format);
+        Assert.Equal(expectedPduType, step1Log.PduType);
     }
 
     /// <summary>
