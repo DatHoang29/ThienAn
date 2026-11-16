@@ -3021,6 +3021,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// Author: DatHQ
     /// Description: Đặt mốc theo nhóm: nhóm câu đang chạy không có thì từ chối, không ghi gì; Đặt lại xóa mốc của mọi nhóm cùng giờ chạy lần trước.
     /// Created date: 05/11/2026
+    /// Modified date: 16/11/2026
     /// </summary>
     [Fact]
     public async Task SetAndResetLastSend_WhenCursorGroups_RejectsUnknownGroupAndClearsEveryGroup_Test()
@@ -3045,9 +3046,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Task<List<ShareDataLastSend>> Cursors() => db.Queryable<ShareDataLastSend>().Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code).ToListAsync();
 
         // Act
-        await SetGroup("a", "k_a");
-        await SetGroup("b", "k_b");
-        var unknown = await Record.ExceptionAsync(() => SetGroup("khongCo", "k_x"));
+        await SetGroup("a", "2026-11-05 08:00:00.000_a");
+        await SetGroup("b", "2026-11-05 08:00:00.000_b");
+        var unknown = await Record.ExceptionAsync(() => SetGroup("khongCo", "2026-11-05 08:00:00.000_x"));
         var cursorsAfterSet = await Cursors();
         await db.Updateable<ShareDataSubscription>().SetColumns(s => s.LastTimeRun == DateTime.Now).Where(s => s.ID == subscription.ID).ExecuteCommandAsync();
         await services.CallApiAsync(new ResetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID! });
@@ -3059,7 +3060,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var savedSubscription = await db.Queryable<ShareDataSubscription>().InSingleAsync(subscription.ID);
         AssertRejectedWith(unknown, BaseMsg.ShareData.Validation.SqlIncrementalGroupNotFound);
         Assert.Equal(["a", "b"], groups);
-        Assert.Equal("k_a", groupA.LastKey);
+        Assert.Equal("2026-11-05 08:00:00.000_a", groupA.LastKey);
         Assert.Empty(cursorsAfterReset);
         Assert.Null(savedSubscription.LastTimeRun);
     }
@@ -4242,7 +4243,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     ///              kèm chữ ký công thức cột mốc, xóa LastTimeRun của đăng ký, và ghi nhật ký hoạt động; người dùng thường bị từ chối.
     ///              Mốc trống bị từ chối, mốc đang lưu giữ nguyên (bỏ mốc thì dùng Đặt lại).
     /// Created date: 29/10/2026
-    /// Modified date: 03/11/2026
+    /// Modified date: 16/11/2026
     /// </summary>
     [Fact]
     public async Task SetLastSend_WhenSuperAdmin_SetsCursorWithSignatureAndClearsLastTimeRun_Test()
@@ -4268,7 +4269,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         {
             PacketCode = packet.Code!,
             PartnerId = partner.ID,
-            LastKey = $"k_set_{unique}"
+            LastKey = $"2026-11-05 08:00:00.123_{unique}"
         };
 
         // Act 1: Người dùng thường gọi API -> bị từ chối
@@ -4293,7 +4294,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code)
             .FirstAsync();
         Assert.NotNull(lastSend);
-        Assert.Equal($"k_set_{unique}", lastSend.LastKey);
+        Assert.Equal($"2026-11-05 08:00:00.123_{unique}", lastSend.LastKey);
         Assert.NotNull(lastSend.CursorSignature);
 
         var auditLog = await db.Queryable<ShareDataActivityLog>()
@@ -4307,10 +4308,48 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>
+    /// Author: DatHQ
+    /// Description: Đặt mốc sai dạng công thức PA1 (ngày giờ kiểu 121 có thật, dấu _ rồi mã dòng) thì từ chối, giữ nguyên mốc đang có.
+    /// Created date: 16/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("k_set")]
+    [InlineData("2026-11-05 08:00:00_abc")]
+    [InlineData("2026-11-05 08:00:00.000")]
+    [InlineData("2026-13-05 08:00:00.000_abc")]
+    [InlineData("05/11/2026 08:00:00.000_abc")]
+    public async Task SetLastSend_WhenCursorNotTimeKeyFormat_RejectsAndKeepsCursor_Test(string lastKey)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, CursorCreateTimeSql);
+        var validKey = $"2026-11-05 08:00:00.000_{unique}";
+        var validInput = new SetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID, LastKey = validKey };
+        await services.CallApiAsync(validInput);
+        var invalidInput = new SetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID, LastKey = lastKey };
+
+        // Act
+        var error = await Record.ExceptionAsync(() => services.CallApiAsync(invalidInput));
+
+        // Assert
+        var cursors = await db.Queryable<ShareDataLastSend>()
+            .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code)
+            .ToListAsync();
+        var cursor = Assert.Single(cursors);
+        AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlVariableValueInvalid);
+        Assert.Equal(validKey, cursor.LastKey);
+    }
+
+    /// <summary>
     /// Description: Đặt mốc khóa như Đặt lại (ESH-2306): đăng ký gửi của đối tác còn bật thì từ chối, giữ nguyên mốc và LastTimeRun;
     ///              đã tắt thì đặt được, đăng ký đang bật của đối tác khác không khóa đối tác này.
     /// Created date: 01/11/2026
-    /// Modified date: 03/11/2026
+    /// Modified date: 16/11/2026
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -4351,7 +4390,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             PartnerCode = partner.Code,
             PacketCode = packet.Code,
-            LastKey = "k_old"
+            LastKey = "2026-11-01 08:00:00.000_old"
         }).ExecuteCommandAsync();
 
         SetUserContext(isSuperAdmin: true, account: $"super_{unique}");
@@ -4359,7 +4398,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         {
             PacketCode = packet.Code!,
             PartnerId = partner.ID,
-            LastKey = "k_new"
+            LastKey = "2026-11-05 08:00:00.000_new"
         };
 
         // Act
@@ -4376,7 +4415,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var cursor = await db.Queryable<ShareDataLastSend>()
             .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code)
             .FirstAsync();
-        Assert.Equal(ownActive ? "k_old" : "k_new", cursor.LastKey);
+        Assert.Equal(ownActive ? "2026-11-01 08:00:00.000_old" : "2026-11-05 08:00:00.000_new", cursor.LastKey);
         var savedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
         Assert.Equal(ownActive, savedSub.LastTimeRun != null);
     }

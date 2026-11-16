@@ -1,6 +1,6 @@
 # Bộ Câu hỏi & Trả lời phỏng vấn / Báo cáo PM (Chị T): Luồng Gửi (Outbound) & Luồng Nhận (Inbound) Dữ liệu
 
-> **Quyết định hiện hành đã chốt 14/10/2026:** **105 mặc định Snapshot** theo [mapping `All/update`](../doc/02-mapping-goi-tin-101-111.md), setting gói cho chọn Snapshot/Incremental và Worker dùng setting đã lưu; không có TOP cứng. **110 được tạo/cấu hình bình thường với bảng/dữ liệu mô phỏng**. Viết sẵn code Kafka producer, CSV/FTP, mã hóa, cleanup để dùng theo cấu hình và chạy Playwright sau sửa FE. Danh sách nhóm gói bên dưới là mặc định, không thay setting; hiện trạng đo/rà soát cũ không thay quyết định mới. Theo dõi triển khai tại [MasterPlan](../Plan/Sharedata_MasterPlan.md).
+> **Quyết định hiện hành đã chốt 14/10/2026:** **105 mặc định Snapshot** theo [mapping `All/update`](../doc/02-mapping-goi-tin-101-111.md), setting gói cho chọn Snapshot/Incremental và Worker dùng setting đã lưu (*cập nhật 16/11/2026: không còn ô setting, chế độ đi theo câu SQL đã lưu: có biến `@lastKey` là nối đuôi, không có là gửi toàn bộ; câu mẫu 101 nay nối đuôi*); không có TOP cứng. **110 được tạo/cấu hình bình thường với bảng/dữ liệu mô phỏng**. Viết sẵn code Kafka producer, CSV/FTP, mã hóa, cleanup để dùng theo cấu hình và chạy Playwright sau sửa FE. Danh sách nhóm gói bên dưới là mặc định, không thay setting; hiện trạng đo/rà soát cũ không thay quyết định mới. Theo dõi triển khai tại [MasterPlan](../Plan/Sharedata_MasterPlan.md).
 
 > **Mục đích:** Tài liệu "phao cứu sinh" (Cheat Sheet) tổng hợp toàn bộ các câu hỏi từ tổng quan đến chi tiết kỹ thuật mà PM (Chị T) hoặc các bên liên quan có thể hỏi về **Luồng Gửi dữ liệu (ShareData Outbound)** và **Luồng Nhận dữ liệu (ShareData Inbound, Phần 6)** của dự án Cao tốc Hữu Nghị – Chi Lăng.  
 > **Căn cứ kỹ thuật:** Dựa trên hiện trạng mã nguồn thực tế và Cơ sở dữ liệu Staging (`10.10.8.30:1433`).
@@ -69,8 +69,8 @@
 * **Trả lời trọng tâm:**  
   - **Đối tác:** Bất kỳ đơn vị bên ngoài nào được khai báo trong bảng `ShareDataPartner` (ví dụ: Cục Đường bộ Việt Nam - DRVN, Cảnh sát Giao thông, Trung tâm điều hành tuyến lân cận...).
   - **Gói tin:** Chuẩn hóa gồm **10 loại gói tin (từ 101 đến 110)**:
-    - *Nhóm hiện trạng (Snapshot):* 101 (Giao thông chung), 102 (Camera CCTV), 105 (Nhận dạng RFID), 108 (Biển báo VMS), 110 (chưa triển khai).
-    - *Nhóm biến động (Nối đuôi):* 103 (Dò xe VDS), 104 (Thời tiết), 106 (Cân tải trọng WIM), 107 (Sự cố giao thông), 109 (Thu phí ETC).
+    - *Nhóm hiện trạng (Snapshot):* 102 (Camera CCTV), 105 (Nhận dạng RFID), 108 (Biển báo VMS), 110 (chưa triển khai).
+    - *Nhóm biến động (Nối đuôi):* 101 (Giao thông chung; câu mẫu nối đuôi, cập nhật 16/11/2026), 103 (Dò xe VDS), 104 (Thời tiết), 106 (Cân tải trọng WIM), 107 (Sự cố giao thông), 109 (Thu phí ETC).
 
 ---
 
@@ -137,8 +137,8 @@
 
 ### Q9. Khác biệt giữa Gói gửi toàn bộ (Snapshot) và Gói gửi nối đuôi (Biến động)?
 * **Trả lời trọng tâm:**  
-  - **Khi setting là Snapshot:** mỗi lần đến lịch gửi lấy toàn bộ theo SQL cấu hình, không ép TOP cứng và không dùng LastSend để lọc dữ liệu. Mặc định 101, 102, **105**, 108 là Snapshot; **105 theo mapping `All/update`, đã chốt**. Người dùng được chọn Incremental và Worker phải dùng setting/cursor tương ứng. **110 được tạo/cấu hình bình thường**, bổ sung bảng/dữ liệu mô phỏng và test thông luồng; trạng thái triển khai được ghi riêng trong MasterPlan.
-  - **Gói Biến động / Nối đuôi (103, 104, 106, 107, 109):** Dữ liệu phát sinh liên tục theo dòng sự kiện (xe chạy qua cảm biến, thời tiết từng phút, sự cố). Hệ thống quét dữ liệu tăng dần theo mốc một chuỗi `thời gian_khóa` (cột `__lastKey`, PA1) lưu ở cột `LastKey` của bảng `ShareDataLastSend`. Phân trang tối đa **100 bản ghi/trang**.
+  - **Khi câu SQL không có biến mốc (Snapshot):** mỗi lần đến lịch gửi lấy toàn bộ theo SQL cấu hình, không ép TOP cứng và không dùng LastSend để lọc dữ liệu. Câu mẫu hiện tại của 102, **105**, 108, 110 là Snapshot (101 đã chuyển sang nối đuôi, cập nhật 16/11/2026); **105 theo mapping `All/update`, đã chốt**. Không có ô setting chọn chế độ: muốn nối đuôi thì sửa câu SQL dùng biến `@lastKey`, Worker dùng mốc tương ứng. **110 được tạo/cấu hình bình thường**, bổ sung bảng/dữ liệu mô phỏng và test thông luồng; trạng thái triển khai được ghi riêng trong MasterPlan.
+  - **Gói Biến động / Nối đuôi (101, 103, 104, 106, 107, 109):** Dữ liệu phát sinh liên tục theo dòng sự kiện (xe chạy qua cảm biến, thời tiết từng phút, sự cố). Hệ thống quét dữ liệu tăng dần theo mốc một chuỗi `thời gian_khóa` (cột `__lastKey`, PA1) lưu ở cột `LastKey` của bảng `ShareDataLastSend`. Phân trang tối đa **100 bản ghi/trang**.
 
 ---
 
@@ -159,11 +159,11 @@
 ### Q11. Ví dụ cụ thể: Lần 1 gửi dữ liệu A, lần 2 trong CSDL vẫn là A (không có dữ liệu mới) thì hệ thống có gửi không?
 * **Trả lời trọng tâm:**  
   Tùy thuộc vào chính sách của gói tin:
-  1. **Nếu là GÓI NỐI ĐUÔI (Biến động - 103, 104, 106, 107, 109):**
+  1. **Nếu là GÓI NỐI ĐUÔI (Biến động - 101, 103, 104, 106, 107, 109):**
      - **$\rightarrow$ TUYỆT ĐỐI KHÔNG GỬI!**
      - **Giải thích:** Lần 1 đã gửi A xong thì mốc `LastTime = T_A`, `LastKey = ID_A`. Sang lần 2, câu query áp điều kiện lọc `Watermark > T_A OR (Watermark = T_A AND ID > ID_A)` $\rightarrow$ Bản ghi A bị loại bỏ, kết quả trả về `0 bản ghi` (`RawRows.Count == 0`). Hệ thống **dừng ngay tại Chặng 1, không gọi HTTP sang đối tác**, chỉ ghi 1 dòng log phẳng `Success (0 bản ghi, NoNewData)`.
      - *Ngoại lệ:* Nếu bản ghi A được **UPDATE** trong CSDL (cột `UpdateTime` của A tăng lên thành $T_{A\_mới} > T_A$), kỳ quét sau hệ thống sẽ bắt được A như một bản ghi cập nhật mới và gửi đi.
-  2. **Nếu là GÓI SNAPSHOT (Hiện trạng - 101, 102, 105, 108, 110):**
+  2. **Nếu là GÓI SNAPSHOT (Hiện trạng - 102, 105, 108, 110):**
      - **$\rightarrow$ VẪN GỬI BÌNH THƯỜNG!**
      - **Giải thích:** Gói Snapshot không dùng mốc `LastSend`, mỗi chu kỳ là một bản chụp tức thời gửi sang để đối tác duy trì giám sát "nhịp tim" và hiện trạng tuyến đường mới nhất, ngay cả khi nội dung trạng thái không thay đổi.
 

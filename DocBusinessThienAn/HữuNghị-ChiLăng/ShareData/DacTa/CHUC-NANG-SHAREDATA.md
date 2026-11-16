@@ -386,7 +386,7 @@ Cột *Cách lấy* có hai giá trị:
 
 ---
 
-**Gói 101 — `101_commonData` · Dữ liệu giao thông chung · Cách lấy: Toàn bộ**
+**Gói 101 — `101_commonData` · Dữ liệu giao thông chung · Cách lấy: Chỉ bản ghi mới** *(cập nhật 16/11/2026: câu mẫu hiện tại nối đuôi theo `COALESCE(UpdateTime, CreateTime)` của `TmsZoneStatus`, mỗi kỳ tối đa `@pageSize` dòng; ngày rà 21/09/2026 câu này lấy toàn bộ)*
 Bảng: `TmsZoneStatus` (gốc) + `TmsZone` (nối theo `ZoneId = ID`) + `TmsTrafficStatistic` (nối theo `ZoneId`)
 
 | Khóa field | Lấy từ |

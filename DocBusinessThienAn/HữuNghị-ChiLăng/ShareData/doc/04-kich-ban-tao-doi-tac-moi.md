@@ -239,7 +239,7 @@ Làm trên tab **Kien** của gói 101, khối **4. Mốc đang chạy của Kie
 - [ ] **8.1** Khóa khi đăng ký đang bật. Mở lại gói 101 → chọn phạm vi đối tác **Kien**. **Thấy:**
   - **Lưu & phân tích** và **Dùng lại mẫu chung** mờ (bị khóa), có thông báo vàng *"Đang có đăng ký gửi bật sử dụng (Kien)..."*;
   - Ô `@lastKey` ở khối 3 ghi *"Đã có mốc, gửi tiếp"*;
-  - Khối 4 có 1 dòng `KIEN — Kien`, mốc nguyên chuỗi `yyyy-MM-dd HH:mm:ss.fff_<ID>`; hai nút biểu tượng **Đặt mốc** và **Đặt lại** ở cột Thao tác bị khóa (mờ).
+  - Khối 4 có 1 dòng `KIEN — Kien`, ô mốc ghi *"Đã gửi tới `DD/MM/YYYY HH:mm:ss.fff`"*, rê chuột vào thấy mã dòng trong tooltip; hai nút biểu tượng **Đặt mốc** và **Đặt lại** ở cột Thao tác bị khóa (mờ).
 - [ ] **8.2** Khóa ở các màn khác khi đăng ký đang bật. **Thấy:**
   - Hồ sơ ánh xạ `KIEN_101COMMONDATA_OUT` không sửa, xóa hay tắt được;
   - Sửa `kien_traffic_condition` thì báo vàng bộ mã đang dùng, bảng quy đổi bị khóa.

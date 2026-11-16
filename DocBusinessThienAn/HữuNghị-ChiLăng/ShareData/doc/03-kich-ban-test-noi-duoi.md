@@ -162,7 +162,7 @@ ORDER BY u.sortKey ASC
 
 ## 8. Khối 4. Mốc đang chạy *(làm khi PC08 còn cấu hình riêng)*
 
-- [ ] **8.1** Tab **Mẫu chung**: khối 4 không có PC08. Tab PC08: khối 4 có 1 dòng PC08, mốc nguyên chuỗi.
+- [ ] **8.1** Tab **Mẫu chung**: khối 4 không có PC08. Tab PC08: khối 4 có 1 dòng PC08, ô mốc ghi "Đã gửi tới" kèm ngày giờ, rê chuột thấy mã dòng.
 - [ ] **8.2** Đăng ký đang bật. **Thấy:** **Đặt mốc**, **Đặt lại** mờ.
 - [ ] **8.3** Tắt đăng ký, tải lại trang → **Đặt mốc**:
   - chọn giờ **sớm hơn** mốc. **Thấy:** "Gửi lại dữ liệu từ … tới …";

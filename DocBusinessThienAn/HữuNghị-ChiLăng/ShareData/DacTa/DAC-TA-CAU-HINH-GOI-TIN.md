@@ -221,7 +221,9 @@ Khối này chỉ hiển thị đối với các gói tin **nối đuôi** (có 
      - Nếu `Mốc bắt đầu` ở Khối 3 để trống → hiển thị: *"Chưa có, lượt gửi tới lấy toàn bộ dữ liệu"*.
      - Nếu `Mốc bắt đầu` ở Khối 3 có chọn ngày giờ → hiển thị: *"Chưa có, lượt gửi tới lấy từ Mốc bắt đầu `<ngày giờ>`"*.
    - **Khi đã gửi thành công ít nhất 1 lượt:**
-     - Hiển thị nguyên vẹn chuỗi khóa mốc đang lưu trong CSDL, ví dụ: `2026-11-11 09:15:30.450_01931a2b-3c4d-7e8f-9a0b-1c2d3e4f5a6b` (gồm thời gian tới mili-giây ghép với `_ID` của bản ghi cuối cùng đã gửi).
+     - Hiển thị *"Đã gửi tới `<DD/MM/YYYY HH:mm:ss.fff>`"* (từ 14/11/2026), ví dụ *"Đã gửi tới 11/11/2026 09:15:30.450"*. Mã dòng (`ID` của bản ghi cuối cùng đã gửi) chỉ nằm trong tooltip để kỹ thuật tra lỗi; CSDL vẫn lưu nguyên chuỗi, ví dụ `2026-11-11 09:15:30.450_01931a2b-3c4d-7e8f-9a0b-1c2d3e4f5a6b`, vì mã dòng phân biệt các dòng trùng giờ.
+     - Mốc tạo bằng Đặt mốc (mã dòng trống) ghi thêm *"(đặt tay)"*: lượt tới gửi các dòng sau thời điểm đó; sau lượt gửi thành công đầu tiên mốc thành mốc tự động.
+     - Chuỗi không đúng dạng PA1 (dữ liệu cũ) hiện nguyên như trong CSDL.
 2. **Nút `✎ Đặt mốc` (Chuyển mốc tới một ngày giờ bất kỳ):**
    - Mở hộp thoại **Đặt Mốc đang chạy — \<Tên đối tác\>**:
      - Hiển thị rõ `Mốc đang chạy` hiện tại để đối chiếu.
@@ -230,6 +232,7 @@ Khối này chỉ hiển thị đối với các gói tin **nối đuôi** (có 
        - **Nếu chọn giờ SỚM HƠN mốc hiện tại (Lùi mốc):** hiện cảnh báo vàng *"Gửi lại dữ liệu từ `<giờ mới>` tới `<mốc hiện tại>`: đối tác nhận trùng phần này."*
        - **Nếu chọn giờ MUỘN HƠN mốc hiện tại (Tiến mốc):** hiện cảnh báo vàng *"Bỏ qua dữ liệu từ `<mốc hiện tại>` tới `<giờ mới>`: phần này không bao giờ được gửi."*
      - Bấm **`Áp dụng mốc mới`**: cập nhật ngay mốc trong CSDL thành `<yyyy-MM-dd HH:mm:ss.000>_`.
+     - BE chỉ nhận mốc đúng dạng PA1 `yyyy-MM-dd HH:mm:ss.fff_<mã dòng>` (mã dòng được trống) với ngày giờ có thật (16/11/2026). Gọi API với chuỗi trống hoặc sai dạng (thiếu mili-giây, thiếu dấu `_`, ngày giờ không có thật như tháng 13, dạng `dd/MM/yyyy`) bị từ chối, mốc đang có giữ nguyên.
 3. **Nút `↺ Đặt lại` (Xóa mốc đang chạy):**
    - Bật hộp thoại xác nhận: *"Bỏ Mốc đang chạy của \<Đối tác\>? Lượt gửi tới gửi lại từ Mốc bắt đầu (hoặc toàn bộ dữ liệu), phần đã gửi sẽ bị gửi trùng."*
    - Khi đồng ý, hệ thống xóa mốc đang chạy của đối tác đó về trống (`NULL`).
