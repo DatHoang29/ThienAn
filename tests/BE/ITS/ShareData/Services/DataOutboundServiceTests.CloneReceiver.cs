@@ -5,6 +5,7 @@ using Module.ShareData.Core.Entities;
 using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Base.Enums;
 using Modules.Integration.Delivery.Senders;
+using Shared.Utility.Threading;
 using ShareDataWorker.Extensions;
 using ShareDataWorker.Infrastructure.Services.DataInbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
@@ -78,6 +79,87 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             /// <summary>Đếm lần gửi; trả true khi lần này còn nằm trong số lần bị mất phản hồi.</summary>
             private bool TakeLostTurn() => Interlocked.Increment(ref _sentCount) <= lostCount;
+        }
+
+        /// <summary>
+        /// Cấp HttpClient gọi thẳng WebAPI trong tiến trình test; lần gửi đầu tới nơi và nhận phản hồi thành công xong thì dừng dịch vụ gửi
+        /// (hủy token của lượt chạy), như khi tắt dịch vụ ngay sau lúc đối tác đã lưu gói, trước khi Worker kịp lưu số thứ tự và mốc.
+        /// </summary>
+        private sealed class StopAfterDeliveryApiClientFactory(Host host, CancellationTokenSource stopping) : IHttpClientFactory
+        {
+            private int _deliveredCount;
+
+            /// <summary>Chuyển yêu cầu vào WebAPI, đọc hết phản hồi rồi mới dừng dịch vụ để phản hồi thành công vẫn về tới bản gửi.</summary>
+            private sealed class StopAfterDeliveryHandler(StopAfterDeliveryApiClientFactory owner) : DelegatingHandler
+            {
+                protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+                {
+                    var response = await base.SendAsync(request, cancellationToken);
+                    await response.Content.LoadIntoBufferAsync();
+                    owner.StopAfterFirstDelivery();
+                    return response;
+                }
+            }
+
+            public HttpClient CreateClient(string name)
+            {
+                var handler = new StopAfterDeliveryHandler(this);
+                return host.CreateApiClient(handler);
+            }
+
+            /// <summary>Lần tới nơi đầu tiên thì dừng dịch vụ gửi; các lần sau gửi bình thường.</summary>
+            private void StopAfterFirstDelivery()
+            {
+                if (Interlocked.Increment(ref _deliveredCount) == 1)
+                {
+                    stopping.Cancel();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Cấp HttpClient gọi thẳng WebAPI trong tiến trình test; lần gửi đầu tới nơi và nhận phản hồi thành công xong thì chạy việc chen vào
+        /// trước khi Worker lưu số thứ tự và mốc (phiên khác khóa dòng mốc, lượt khác lấy khóa, tiến trình bị tắt cứng).
+        /// </summary>
+        private sealed class AfterDeliveryApiClientFactory(Host host, Func<Task> afterFirstDelivery) : IHttpClientFactory
+        {
+            private int _deliveredCount;
+
+            /// <summary>Chuyển yêu cầu vào WebAPI, đọc hết phản hồi rồi mới chạy việc chen vào để phản hồi thành công vẫn về tới bản gửi.</summary>
+            private sealed class AfterDeliveryHandler(AfterDeliveryApiClientFactory owner) : DelegatingHandler
+            {
+                protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+                {
+                    var response = await base.SendAsync(request, cancellationToken);
+                    await response.Content.LoadIntoBufferAsync();
+                    await owner.RunAfterFirstDelivery();
+                    return response;
+                }
+            }
+
+            public HttpClient CreateClient(string name)
+            {
+                var handler = new AfterDeliveryHandler(this);
+                return host.CreateApiClient(handler);
+            }
+
+            /// <summary>Lần tới nơi đầu tiên thì chạy việc chen vào; các lần sau gửi bình thường.</summary>
+            private Task RunAfterFirstDelivery() => Interlocked.Increment(ref _deliveredCount) == 1 ? afterFirstDelivery() : Task.CompletedTask;
+        }
+
+        /// <summary>Chờ câu lệnh đầu tiên bị phiên giữ khóa chặn rồi cắt kết nối của câu đó (KILL), như mất kết nối CSDL giữa lúc chờ khóa.</summary>
+        private static async Task CutBlockedConnectionAsync(ISqlSugarClient adminSession, int holderSession)
+        {
+            var blockedSession = 0;
+            for (var attempt = 0; blockedSession == 0 && attempt < 200; attempt++)
+            {
+                await Task.Delay(50);
+                blockedSession = await adminSession.Ado.GetIntAsync(
+                    "SELECT ISNULL(MAX(session_id), 0) FROM sys.dm_exec_requests WHERE blocking_session_id = @holderSession",
+                    new { holderSession });
+            }
+
+            await adminSession.Ado.ExecuteCommandAsync($"KILL {blockedSession}");
         }
 
         /// <summary>Kết nối CSDL nhận, nơi WebAPI lưu gói và bản chỉ nhận ghi dữ liệu.</summary>
@@ -735,6 +817,200 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(new int?[] { 1, 2, 3 }, serials);
             Assert.Equal(4, outbound.SerialNbr);
             Assert.EndsWith(CursorEnd(packet, 4), cursor.LastKey);
+            Assert.Null(outbound.ProcessingUntil);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Dịch vụ gửi bị dừng ngay sau khi đối tác đã lưu gói (hủy token trước khi Worker lưu số thứ tự và mốc): lượt đó vẫn lưu
+        ///              xong số thứ tự và mốc, nên khi bật lại gửi tiếp trang sau với số kế tiếp, không gửi lại số cũ rồi bị từ chối mãi;
+        ///              mọi dòng được ghi đúng một lần, khóa được nhả.
+        /// Created date: 14/11/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenServiceStopsRightAfterPartnerSavedPacket_KeepsSerialAndCursorThenSendsNextPage_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            using var receiverScope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var inboundDb = InboundDb(db);
+            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 2);
+            var markerCode = await SetMarkerWriteSqlAsync(db, packet);
+            var partners = await SeedReceiverPartnersAsync(db, packet, "A101");
+            var partner = partners[0];
+            using var stopping = new CancellationTokenSource();
+            var stopAfterDelivery = new StopAfterDeliveryApiClientFactory(_host, stopping);
+            var stoppedSender = CreateReceiverClone(scope, null, stopAfterDelivery);
+            var senders = new[] { CreateReceiverClone(scope, null) };
+            var receiver = receiverScope.ServiceProvider.GetRequiredService<DataInboundService>();
+
+            // Act: lượt đầu đối tác lưu gói số 1 (R01, R02) rồi dịch vụ gửi bị dừng; bật lại (bản mới) chạy tiếp 3 lượt.
+            // Bản bị dừng chạy trong luồng riêng như một tiến trình riêng: token dừng không bám vào kết nối mà test dùng tiếp
+            var stoppedRun = IsolatedFlow.Run(() => stoppedSender.ProcessSubscriptions(stopping.Token));
+            var stopError = await Record.ExceptionAsync(() => stoppedRun);
+            await MakeSubscriptionDue(db, partner.Outbound.ID);
+            for (var round = 0; round < 3; round++)
+            {
+                await RunRoundAsync(db, senders, receiver, packet, false, partners);
+            }
+
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            // Assert
+            var rows = await WrittenRowsAsync(inboundDb, markerCode, partner);
+            var received = await ReceivedPacketsAsync(inboundDb, packet, partner);
+            var serials = received.Select(r => r.SerialNbr).Order().ToList();
+            var outbound = await db.Queryable<ShareDataSubscription>().InSingleAsync(partner.Outbound.ID);
+            Assert.True(stopError is null or OperationCanceledException, $"Dừng dịch vụ chỉ được hủy lượt chạy, nhận được: {stopError}");
+            Assert.True(stopping.IsCancellationRequested);
+            Assert.Equal(packet.RowCodes.Order().ToList(), rows);
+            Assert.Equal(new int?[] { 1, 2 }, serials);
+            Assert.Equal(3, outbound.SerialNbr);
+            Assert.Null(outbound.ProcessingUntil);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Đối tác đã lưu gói nhưng lượt gửi không lưu được số thứ tự và mốc: câu lưu đang chờ khóa dòng mốc thì mất kết nối CSDL,
+        ///              hoặc lượt khác đã lấy khóa của đăng ký. Lượt đó vẫn tăng số thứ tự nên lượt sau gửi lại trang với số kế tiếp,
+        ///              không gửi lại số đối tác đã lưu rồi bị từ chối mãi: mọi dòng đều được ghi, chỉ trang đó ghi hai lần, mốc tới dòng cuối, khóa được nhả.
+        /// Created date: 15/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ProcessSubscriptions_WhenSavingSerialFailsAfterPartnerSavedPacket_ResendsWithNextSerialAndWritesEveryRow_Test(bool lockTakenOver)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            using var receiverScope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var inboundDb = InboundDb(db);
+            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 2);
+            var markerCode = await SetMarkerWriteSqlAsync(db, packet);
+            var partners = await SeedReceiverPartnersAsync(db, packet, "A101");
+            var partner = partners[0];
+            var subId = partner.Outbound.ID;
+            var partnerCode = partner.Partner.Code;
+            var packetCode = packet.PacketCode;
+            using var otherSession = db.CopyNew();
+            using var adminSession = db.CopyNew();
+            var connectionCut = Task.CompletedTask;
+            var interfere = new AfterDeliveryApiClientFactory(_host, async () =>
+            {
+                if (lockTakenOver)
+                {
+                    // Lượt khác lấy khóa của đăng ký rồi chạy xong nhả khóa, trước khi lượt này lưu số thứ tự và mốc
+                    await otherSession.Updateable<ShareDataSubscription>()
+                        .SetColumns(s => s.ProcessingUntil == null)
+                        .Where(s => s.ID == subId)
+                        .ExecuteCommandAsync();
+                    return;
+                }
+
+                // Phiên khác giữ khóa ghi dòng mốc; câu lưu số thứ tự và mốc của lượt này phải chờ thì bị cắt kết nối
+                await otherSession.Ado.BeginTranAsync();
+                await otherSession.Updateable<ShareDataLastSend>()
+                    .SetColumns(c => c.UpdateTime == c.UpdateTime)
+                    .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode && c.CursorKey == null)
+                    .ExecuteCommandAsync();
+                var holderSession = await otherSession.Ado.GetIntAsync("SELECT @@SPID");
+                connectionCut = CutBlockedConnectionAsync(adminSession, holderSession);
+            });
+            var senders = new[] { CreateReceiverClone(scope, partnerCode, interfere) };
+            var receiver = receiverScope.ServiceProvider.GetRequiredService<DataInboundService>();
+            var resentPage = packet.RowCodes.Take(2).ToList();
+
+            // Act: lượt đầu đối tác lưu gói số 1 (R01, R02) nhưng lượt đó không lưu được số thứ tự và mốc; phiên khác xong việc rồi chạy tiếp 3 lượt
+            await RunRoundAsync(db, senders, receiver, packet, false, partners);
+            await connectionCut;
+            await otherSession.Ado.RollbackTranAsync();
+            for (var round = 0; round < 3; round++)
+            {
+                await RunRoundAsync(db, senders, receiver, packet, false, partners);
+            }
+
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            // Assert
+            var rows = await WrittenRowsAsync(inboundDb, markerCode, partner);
+            var received = await ReceivedPacketsAsync(inboundDb, packet, partner);
+            var serials = received.Select(r => r.SerialNbr).Order().ToList();
+            var outbound = await db.Queryable<ShareDataSubscription>().InSingleAsync(subId);
+            var cursor = await GetCloneCursorAsync(db, packet, partner.Name);
+            var expectedRows = packet.RowCodes.Concat(resentPage).Order().ToList();
+            var expectedCursorEnd = CursorEnd(packet, 3);
+            Assert.Equal(expectedRows, rows);
+            Assert.Equal(new int?[] { 1, 2, 3 }, serials);
+            Assert.Equal(4, outbound.SerialNbr);
+            Assert.EndsWith(expectedCursorEnd, cursor.LastKey);
+            Assert.Null(outbound.ProcessingUntil);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Tiến trình gửi bị tắt cứng (End task, mất điện) ngay sau khi đối tác đã lưu gói: lượt đó không lưu số thứ tự, mốc và không nhả khóa.
+        ///              Khóa hết hạn thì lượt chạy sau nhận khóa bị bỏ lại với số thứ tự kế tiếp, không gửi lại số đối tác đã lưu rồi bị từ chối mãi:
+        ///              mọi dòng đều được ghi, chỉ trang đó ghi hai lần, mốc tới dòng cuối, khóa được nhả.
+        /// Created date: 15/11/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenSenderKilledRightAfterPartnerSavedPacket_NextRunUsesNextSerialAndWritesEveryRow_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            using var receiverScope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var inboundDb = InboundDb(db);
+            var packet = await SeedClonePacketAsync(db, rowCount: 3, pageSize: 2);
+            var markerCode = await SetMarkerWriteSqlAsync(db, packet);
+            var partners = await SeedReceiverPartnersAsync(db, packet, "A101");
+            var partner = partners[0];
+            var subId = partner.Outbound.ID;
+            var partnerCode = partner.Partner.Code;
+            var delivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var killed = new TaskCompletionSource();
+            var killAfterDelivery = new AfterDeliveryApiClientFactory(_host, () =>
+            {
+                // Tiến trình bị tắt cứng: không chạy thêm lệnh nào, không lưu số thứ tự, mốc và không nhả khóa
+                delivered.SetResult();
+                return killed.Task;
+            });
+            var killedSender = CreateReceiverClone(scope, partnerCode, killAfterDelivery);
+            var senders = new[] { CreateReceiverClone(scope, partnerCode) };
+            var receiver = receiverScope.ServiceProvider.GetRequiredService<DataInboundService>();
+            var resentPage = packet.RowCodes.Take(2).ToList();
+
+            // Act: lượt đầu đối tác lưu gói số 1 (R01, R02) rồi tiến trình gửi bị tắt cứng; khóa của lượt đó hết hạn thì bản chạy lại chạy 3 lượt.
+            // Bản bị tắt chạy trong luồng riêng như một tiến trình riêng và không bao giờ chạy tiếp
+            _ = IsolatedFlow.Run(() => killedSender.ProcessSubscriptions(CancellationToken.None));
+            await delivered.Task;
+            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            var expiredLock = dbNow.AddMinutes(-1);
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.ProcessingUntil == expiredLock)
+                .Where(s => s.ID == subId)
+                .ExecuteCommandAsync();
+            for (var round = 0; round < 3; round++)
+            {
+                await RunRoundAsync(db, senders, receiver, packet, false, partners);
+            }
+
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            // Assert
+            var rows = await WrittenRowsAsync(inboundDb, markerCode, partner);
+            var received = await ReceivedPacketsAsync(inboundDb, packet, partner);
+            var serials = received.Select(r => r.SerialNbr).Order().ToList();
+            var outbound = await db.Queryable<ShareDataSubscription>().InSingleAsync(subId);
+            var cursor = await GetCloneCursorAsync(db, packet, partner.Name);
+            var expectedRows = packet.RowCodes.Concat(resentPage).Order().ToList();
+            var expectedCursorEnd = CursorEnd(packet, 3);
+            Assert.Equal(expectedRows, rows);
+            Assert.Equal(new int?[] { 1, 2, 3 }, serials);
+            Assert.Equal(4, outbound.SerialNbr);
+            Assert.EndsWith(expectedCursorEnd, cursor.LastKey);
             Assert.Null(outbound.ProcessingUntil);
         }
     }

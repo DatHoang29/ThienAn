@@ -216,6 +216,8 @@ Khi người dùng nói "commit theo rule rồi push", làm đơn giản ngay tr
 
 **How to apply:** trước khi commit chỉ cần `git fetch` và xem nhánh còn đi sau remote không. Nếu đi sau hoặc cần rebase thì dừng và báo người dùng, đừng tự xử lý. Đừng stage `.env.development`, `Database.json`, `TAKey*.key`, `Shared.Core.Security.dll`. Commit message: tiêu đề, dòng 2 lặp lại nguyên văn, dòng trống, vài gạch đầu dòng ngắn chỉ nêu việc chính (không ghi viết/chạy test). Hook chặn lệnh Bash chứa `-a` (như `--is-ancestor`) nên dùng `git -C <thư mục>` và tệp `-F` cho nội dung commit. Xem feedback_prompt-first-fixes cho quy ước sửa mã.
 
+14/11/2026: người dùng bảo "sửa N1, N2 trên nhánh rồi push", tôi làm xong là push luôn (f02239fd, kèm merge `origin/dev` 76be9e27 tự làm trong worktree tạm, trái mục này); người dùng dặn "đừng tự push tui review đã". Từ nay sửa xong thì dừng ở working tree, báo diff và kết quả test để người dùng review; chỉ commit, push khi người dùng xác nhận sau khi review (đúng Rule 19.58: người dùng kiểm tra xác nhận rồi mới commit). Nhánh thiếu `origin/dev` thì báo, không tự merge hay rebase. Sau đó người dùng bảo force remote về commit trước, giữ thay đổi local: đã đưa về 398885da bằng `--force-with-lease` (kiểm sha remote trước), working tree giữ nguyên.
+
 ## Plan mode hỏi quyền Gortex
 
 > Ở plan mode, lệnh Gortex vẫn có thể bật hỏi quyền dù settings.local.json đã allow mcp__gortex__*; user khó chịu — gom ít lệnh, thoát plan mode sớm
@@ -286,7 +288,7 @@ Khi bạn đổi tài khoản Claude (ví dụ Account 1 chạm giới hạn 5 g
 - Khi đổi sang Account Claude mới: gõ `/clear` hoặc mở tab/session mới tinh.
 - Nhập 1 câu prompt ngắn: *"Tiếp tục công việc theo kế hoạch tại `<PhânHệ>_MasterPlan.md`..."*.
 - Phiên mới chỉ tốn đúng ~5.000 tokens (< 0.1% quota) để nạp `AGENTS.md` và MasterPlan, giữ trọn vẹn 100% quota cho Account mới.
-- Hook Idle Guard (`.agents/hooks/idle-guard.mjs`) tự động chặn nếu phiên bị idle ≥ 45 phút và context ≥ 100k tokens.
+- Hook Idle Guard (`.agents/hooks/idle-guard.mjs`) tự động chặn nếu phiên bị idle ≥ 45 phút và context ≥ 200k tokens (nâng từ 100k lên 200k ngày 15/11/2026 do context nền repo đã ~65k và mốc 200k là ngưỡng Long-Context của Anthropic).
 
 ## Làm xong việc là cập nhật Memory
 

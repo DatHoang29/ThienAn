@@ -2,7 +2,7 @@
 
 // Hook bảo vệ hạn ngạch phiên làm việc (Idle Guard):
 // Chặn người dùng gửi prompt khi phiên đã Idle quá lâu (Prompt Cache Anthropic hết hạn sau 1 giờ)
-// VÀ ngữ cảnh phiên đang rất nặng (>= 100k tokens), tránh việc bị phạt nạp lại toàn bộ ngữ cảnh
+// VÀ ngữ cảnh phiên đang rất nặng (>= 200k tokens), tránh việc bị phạt nạp lại toàn bộ ngữ cảnh
 // gây cạn 10% - 25% hạn ngạch 5-giờ trong 1 tin nhắn duy nhất.
 //
 // Lưu ý đặc biệt: Khi người dùng đã chạy /compact, Claude Code sẽ chèn dấu mốc "compact_boundary".
@@ -14,7 +14,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 export const DEFAULT_IDLE_MINUTES = 45; // Ngưỡng an toàn (cache server Anthropic hết sau 60 phút)
-export const DEFAULT_TOKEN_THRESHOLD = 100_000; // Ngưỡng ngữ cảnh nặng (100k tokens)
+export const DEFAULT_TOKEN_THRESHOLD = 200_000; // Ngưỡng ngữ cảnh nặng (200k tokens)
 export const DEFAULT_FILE_SIZE_THRESHOLD = 500_000; // 500 KB transcript nếu không có usage (chỉ áp dụng khi chưa compact)
 
 function readTail(filePath, maxBytes = 1024 * 1024) {

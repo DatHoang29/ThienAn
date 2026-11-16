@@ -1468,7 +1468,8 @@ public class DataInboundServiceTests(Host host)
         var firstContent = $"{{\"data\":[{{\"{keyField}\":\"{key}\",\"detectTime\":\"2026-10-21T08:15:07.613\",\"{valueField}\":20}}]}}";
         var secondContent = $"{{\"data\":[{{\"{keyField}\":\"{key}\",\"detectTime\":\"2026-10-21T08:15:07.613\",\"{valueField}\":25}}]}}";
         var firstPacket = await SeedPendingPacket(partnerCode, packet.Code!, 1, firstContent, DateTime.Now);
-        var secondPacket = await SeedPendingPacket(partnerCode, packet.Code!, 2, secondContent, DateTime.Now.AddSeconds(1));
+        var secondReceivedAt = DateTime.Now.AddSeconds(1);
+        var secondPacket = await SeedPendingPacket(partnerCode, packet.Code!, 2, secondContent, secondReceivedAt);
 
         // Act
         using var scope = _host.Services.CreateScope();
@@ -1499,10 +1500,13 @@ public class DataInboundServiceTests(Host host)
         // Arrange
         var key = $"DUP_{Guid.NewGuid().ToString("N")[..8]}";
         var insertSql = $"INSERT INTO dbo.{table} (ID, {keyColumn}, {timeColumn}, {valueColumn}, CreateTime, CreateUId) "
-            + "VALUES (CONVERT(nvarchar(64), NEWID()), @key, '2026-10-21T08:15:07.613', @value, @createTime, @createUId)";
-        await _inboundDb.Ado.ExecuteCommandAsync(insertSql, new { key, value = 20, createTime = DateTime.Now.AddMinutes(-2), createUId = "SHAREDATA_INBOUND" });
-        await _inboundDb.Ado.ExecuteCommandAsync(insertSql, new { key, value = 25, createTime = DateTime.Now.AddMinutes(-1), createUId = "SHAREDATA_INBOUND" });
-        await _inboundDb.Ado.ExecuteCommandAsync(insertSql, new { key, value = 99, createTime = DateTime.Now.AddMinutes(-3), createUId = "OTHER_MODULE" });
+            + "VALUES (LOWER(CONVERT(nvarchar(64), NEWID())), @key, '2026-10-21T08:15:07.613', @value, @createTime, @createUId)";
+        var olderInboundWrite = DateTime.Now.AddMinutes(-2);
+        var latestInboundWrite = DateTime.Now.AddMinutes(-1);
+        var otherModuleWrite = DateTime.Now.AddMinutes(-3);
+        await _inboundDb.Ado.ExecuteCommandAsync(insertSql, new { key, value = 20, createTime = olderInboundWrite, createUId = "SHAREDATA_INBOUND" });
+        await _inboundDb.Ado.ExecuteCommandAsync(insertSql, new { key, value = 25, createTime = latestInboundWrite, createUId = "SHAREDATA_INBOUND" });
+        await _inboundDb.Ado.ExecuteCommandAsync(insertSql, new { key, value = 99, createTime = otherModuleWrite, createUId = "OTHER_MODULE" });
 
         // Act
         await RunInboundSqlScriptAsync(scriptFile);
@@ -1533,6 +1537,79 @@ public class DataInboundServiceTests(Host host)
 
             await _inboundDb.Ado.ExecuteCommandAsync(body);
         }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Dịch vụ nhận bị dừng sau khi đã nhận xử lý gói (đánh dấu đang xử lý) mà chưa ghi: gói trở về chờ chứ không thành lỗi
+    ///              (gói lỗi không bao giờ được xử lý lại); bật lại thì gói được ghi đúng một lần.
+    ///              Test giữ khóa cập nhật trên dòng gói để Worker dừng đúng ở bước nhận xử lý, hủy token rồi mới nhả khóa.
+    /// Created date: 14/11/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenServiceStopsAfterClaimingPacket_ReturnsPacketToPendingAndWritesAfterRestart_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (partner, packet, _, _) = await SeedInboundEnvironmentAsync(unique);
+        var markerId = $"MARK_STOP_{unique}";
+        var markerSql = $"INSERT INTO ShareDataInboundPacket (ID, PartnerCode, PacketCode) OUTPUT 'INSERT' VALUES ('{markerId}', 'STOP', 'MARK')";
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, markerSql);
+        var pending = await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[{\"id\":\"A\",\"val\":\"1\"}]}", DateTime.Now);
+        using var holder = _inboundDb.CopyNew();
+        await holder.Ado.BeginTranAsync();
+        await holder.Ado.GetDataTableAsync("SELECT ID FROM ShareDataInboundPacket WITH (UPDLOCK, ROWLOCK) WHERE ID = @id", new { id = pending.ID });
+        var holderSession = await holder.Ado.GetIntAsync("SELECT @@SPID");
+        using var stopping = new CancellationTokenSource();
+        using var stoppedScope = _host.Services.CreateScope();
+        using var restartedScope = _host.Services.CreateScope();
+        var stoppedReceiver = stoppedScope.ServiceProvider.GetRequiredService<DataInboundService>();
+        var restartedReceiver = restartedScope.ServiceProvider.GetRequiredService<DataInboundService>();
+
+        // Act: Worker tới bước nhận xử lý gói thì dịch vụ bị dừng; sau đó bật lại
+        var stoppedRun = stoppedReceiver.ProcessPendingPackets(stopping.Token);
+        await WaitUntilPacketClaimBlockedAsync(holderSession);
+        stopping.Cancel();
+        await holder.Ado.CommitTranAsync();
+        await stoppedRun;
+        var afterStop = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(pending.ID);
+        await restartedReceiver.ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var afterRestart = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(pending.ID);
+        var markers = await _inboundDb.Queryable<ShareDataInboundPacket>().Where(p => p.ID == markerId).CountAsync();
+        Assert.Equal(BaseEnums.InboundProcessState.Pending, afterStop.ProcessState);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, afterRestart.ProcessState);
+        Assert.Equal(1, markers);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Chờ tới khi lệnh đánh dấu đang xử lý gói (UPDATE theo ID gói) của Worker bị phiên giữ khóa chặn; quá 15 giây thì báo lỗi.
+    /// Created date: 14/11/2026
+    /// </summary>
+    private async Task WaitUntilPacketClaimBlockedAsync(int holderSession)
+    {
+        const string blockedClaimSql = """
+            SELECT COUNT(1)
+            FROM sys.dm_exec_requests r
+            CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+            WHERE r.blocking_session_id = @holderSession
+              AND CHARINDEX(N'UPDATE', t.text) > 0
+              AND CHARINDEX(N'[ID]', t.text) > 0
+            """;
+        for (var attempt = 0; attempt < 150; attempt++)
+        {
+            var blocked = await _inboundDb.Ado.GetIntAsync(blockedClaimSql, new { holderSession });
+            if (blocked > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new TimeoutException("Worker không tới bước nhận xử lý gói trong 15 giây.");
     }
 
     /// <summary>

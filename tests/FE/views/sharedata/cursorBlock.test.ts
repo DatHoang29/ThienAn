@@ -45,6 +45,27 @@ const captureSetLastSend = async (page: Page) => {
 
 const block = (page: Page) => page.locator('.sd-cursor-block');
 const blockRow = (page: Page, text: string) => block(page).locator('.el-table__body tr', { hasText: text });
+/** Mã dòng của mốc chỉ nằm trong tooltip của ô mốc (dành cho kỹ thuật tra lỗi), không hiện trong ô. */
+const expectCursorKey = async (scope: Locator, rowKey: string) => {
+    const page = scope.page();
+    await scope.locator('.sd-cursor-value').hover();
+    await expect(page.locator('.cursor-block-tooltip:visible')).toContainText(rowKey, { timeout: 5_000 });
+    await page.mouse.move(0, 0);
+    await expect(page.locator('.cursor-block-tooltip:visible')).toHaveCount(0, { timeout: 5_000 });
+};
+/** Ô mốc của khối 4: "Đã gửi tới" + ngày giờ DD/MM/YYYY, mốc đặt tay ghi (đặt tay); không hiện mã dòng hay nguyên chuỗi trong CSDL. */
+const expectCursorCell = async (scope: Locator, time: string, rowKey: string | null, timeout = 10_000) => {
+    await expect(scope.locator('.sd-cursor-time')).toHaveText(time, { timeout });
+    await expect(scope.locator('.sd-cursor-value')).toContainText('Đã gửi tới');
+    await expect(scope.locator('.sd-cursor-key')).toHaveCount(0);
+    if (rowKey === null) {
+        await expect(scope.locator('.sd-cursor-manual')).toHaveText('(đặt tay)');
+    } else {
+        await expect(scope.locator('.sd-cursor-manual')).toHaveCount(0);
+        await expect(scope).not.toContainText(rowKey);
+        await expectCursorKey(scope, rowKey);
+    }
+};
 const pickTime = async (page: Page, scope: Locator, text: string) => {
     await scope.locator('.cvi-picker input').fill(text);
     await page.keyboard.press('Enter');
@@ -164,8 +185,9 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(block(page)).toContainText('4. Mốc đang chạy của đối tác dùng mẫu chung', { timeout: 15_000 });
         const rowA = blockRow(page, 'CSGT');
         const rowB = blockRow(page, 'VDOT');
-        // Có mốc thì hiện nguyên chuỗi mốc như trong CSDL (thời gian_khóa); chưa có mốc thì nói lượt gửi tới lấy từ Mốc bắt đầu
-        await expect(rowA.locator('.sd-cursor-line')).toHaveText('2026-10-27 10:05:00.000_Z02', { timeout: 10_000 });
+        // Có mốc thì hiện ngày giờ DD/MM/YYYY kèm mã dòng; chưa có mốc thì nói lượt gửi tới lấy từ Mốc bắt đầu
+        await expectCursorCell(rowA, '27/10/2026 10:05:00.000', 'Z02');
+        await expect(rowA).not.toContainText('2026-10-27');
         await expect(rowB).toHaveCount(0);
         await pickCursorPartner(page, 'VDOT');
         await expect(rowA).toHaveCount(0);
@@ -186,7 +208,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
         await expect(dialog).toBeHidden();
         await expect(page.locator('.el-message--success')).toContainText('Đã cập nhật mốc gửi dữ liệu cho đối tác.');
-        await expect(rowB.locator('.sd-cursor-line')).toHaveText('2026-11-02 08:00:00.000_');
+        await expectCursorCell(rowB, '02/11/2026 08:00:00.000', null);
 
         // Đặt lại CSGT: hỏi rõ gửi lại từ Mốc bắt đầu và bị gửi trùng, gửi đúng gói và đối tác, bảng về trạng thái chưa có mốc
         await pickCursorPartner(page, 'CSGT');
@@ -227,7 +249,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await selectPartnerScope(page, 'DT-DAT');
         await expect(block(page)).toContainText('4. Mốc đang chạy của Đạt', { timeout: 15_000 });
         await expect(block(page).locator('.el-table__body tr')).toHaveCount(1);
-        await expect(blockRow(page, 'DT-DAT')).toContainText('2026-11-01 09:00:00.000_A1');
+        await expectCursorCell(blockRow(page, 'DT-DAT'), '01/11/2026 09:00:00.000', 'A1');
     });
 
     const directionCases = [
@@ -247,7 +269,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
 
             await openSqlCenter(page);
             const rowA = blockRow(page, 'CSGT');
-            await expect(rowA).toContainText('2026-10-30 07:00:00.000_k100', { timeout: 15_000 });
+            await expectCursorCell(rowA, '30/10/2026 07:00:00.000', 'k100', 15_000);
 
             const scbCard = block(page).locator('.scb-card');
             if (locked) {
@@ -287,7 +309,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         const setPayloads = await captureSetLastSend(page);
 
         await openSqlCenter(page);
-        await expect(blockRow(page, 'SHARED1')).toContainText('2026-10-28 08:00:00.000_k_1', { timeout: 15_000 });
+        await expectCursorCell(blockRow(page, 'SHARED1'), '28/10/2026 08:00:00.000', 'k_1', 15_000);
 
         const dialog = page.locator('.sd-set-cursor-dialog');
         const confirmBtn = dialog.locator('.el-dialog__footer .el-button--primary');
@@ -330,8 +352,8 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         const row = blockRow(page, 'GRP');
         const pktLine = row.locator('.sd-cursor-saved .sd-cursor-line', { hasText: 'pkt:' });
         const tollLine = row.locator('.sd-cursor-saved .sd-cursor-line', { hasText: 'toll:' });
-        await expect(pktLine).toContainText('2026-10-27 09:30:00.000_a2', { timeout: 15_000 });
-        await expect(tollLine).toContainText('2026-10-27 09:20:00.000_t9');
+        await expectCursorCell(pktLine, '27/10/2026 09:30:00.000', 'a2', 15_000);
+        await expectCursorCell(tollLine, '27/10/2026 09:20:00.000', 't9');
 
         await row.locator('.sd-cursor-set-btn').click();
         const dialog = page.locator('.sd-set-cursor-dialog');
@@ -410,7 +432,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         ]);
 
         await openSqlCenter(page, { width: 1366, height: 768 });
-        await expect(blockRow(page, 'PC08')).toContainText('2026-10-27 10:05:00.000_0dcdde08-134b-45cb-898b-59fd11a42504', { timeout: 15_000 });
+        await expectCursorCell(blockRow(page, 'PC08'), '27/10/2026 10:05:00.000', '0dcdde08-134b-45cb-898b-59fd11a42504', 15_000);
         await pickCursorPartner(page, 'TTDHT');
         await expect(blockRow(page, 'TTDHT')).toContainText('Chưa có, lượt gửi tới lấy từ Mốc bắt đầu 22/10/2026 00:00:00');
         await pickCursorPartner(page, 'PC08');
@@ -464,6 +486,43 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
 
     /**
      * Author: DatHQ
+     * Description: Ô mốc khối 4 dễ đọc: mốc Worker ghi (ngày giờ + GUID) hiện "Đã gửi tới" kèm ngày giờ DD/MM/YYYY, mã dòng chỉ nằm trong tooltip;
+     *              mốc đặt tay hiện (đặt tay) và tooltip nói đổi thành mốc tự động sau lượt gửi thành công đầu tiên; chuỗi không đúng dạng hiện nguyên văn.
+     * Created date: 14/11/2026
+     */
+    test('8c. Ô mốc: Đã gửi tới + ngày giờ DD/MM/YYYY, mã dòng chỉ trong tooltip; mốc đặt tay ghi rõ; chuỗi lạ giữ nguyên', async ({ page }) => {
+        const guid = 'bf9ede08-a752-414b-84e5-1bfb38f2c68b';
+        const saved: Record<string, string> = { p_auto: `2026-11-12 15:43:41.477_${guid}`, p_manual: '2026-11-12 11:59:53.970_', p_odd: 'Z99-khong-dung-dang' };
+        await mockExtractSql(page, CURSOR_SQL);
+        await mockPartners(page, [
+            { partnerId: 'p_auto', partnerCode: 'KT033', partnerName: 'Kiểm tải 033', isCustom: false },
+            { partnerId: 'p_manual', partnerCode: 'KT002', partnerName: 'Kiểm tải 002', isCustom: false },
+            { partnerId: 'p_odd', partnerCode: 'KT044', partnerName: 'Kiểm tải 044', isCustom: false },
+        ]);
+        await mockVariables(page, (partnerId) => [pageSizeItem, keyItem(partnerId ? saved[partnerId] ?? null : null)]);
+
+        await openSqlCenter(page, { width: 1366, height: 768 });
+        const auto = blockRow(page, 'KT033');
+        await expectCursorCell(auto, '12/11/2026 15:43:41.477', guid, 15_000);
+        await expect(auto.locator('.sd-cursor-value')).toHaveText('Đã gửi tới 12/11/2026 15:43:41.477');
+        await auto.locator('.sd-cursor-value').hover();
+        await expect(page.locator('.cursor-block-tooltip:visible')).toContainText('12/11/2026 15:43:41.477', { timeout: 5_000 });
+        await page.mouse.move(0, 0);
+
+        await pickCursorPartner(page, 'KT002');
+        const manual = blockRow(page, 'KT002');
+        await expectCursorCell(manual, '12/11/2026 11:59:53.970', null);
+        await manual.locator('.sd-cursor-value').hover();
+        await expect(page.locator('.cursor-block-tooltip:visible')).toContainText('sau lượt gửi thành công đầu tiên', { timeout: 5_000 });
+
+        await pickCursorPartner(page, 'KT044');
+        const odd = blockRow(page, 'KT044');
+        await expect(odd.locator('.sd-cursor-line')).toHaveText('Z99-khong-dung-dang');
+        await expect(odd.locator('.sd-cursor-time')).toHaveCount(0);
+    });
+
+    /**
+     * Author: DatHQ
      * Description: Tab đối tác: Đặt lại ở khối 4 thì ô Mốc bắt đầu ở khối 3 mở ngay (đối tác không còn mốc), Đặt mốc thì khóa lại ngay,
      *              không cần tải lại trang; phần đang sửa chưa lưu ở khối 3 vẫn giữ.
      * Created date: 08/11/2026
@@ -492,7 +551,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         const startInput = variables.locator('tbody tr', { hasText: '@lastKey' }).locator('.cvi-picker input');
         const pageSizeInput = variables.locator('tbody tr', { hasText: '@pageSize' }).locator('.el-input-number input');
         const row = blockRow(page, 'CSGT');
-        await expect(row).toContainText('2026-10-27 10:05:00.000_Z02', { timeout: 15_000 });
+        await expectCursorCell(row, '27/10/2026 10:05:00.000', 'Z02', 15_000);
         await expect(startInput).toBeDisabled();
         await expect(startInput).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
 
@@ -516,7 +575,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await pickTime(page, dialog, '02/11/2026 08:00:00');
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
         await expect(dialog).toBeHidden();
-        await expect(row.locator('.sd-cursor-line')).toHaveText('2026-11-02 08:00:00.000_');
+        await expectCursorCell(row, '02/11/2026 08:00:00.000', null);
         await expect(startInput).toBeDisabled();
         await expect(startInput).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
         await expect(pageSizeInput).toHaveValue('50');
@@ -567,11 +626,11 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         // Khi khối 4 nhận được mốc của đối tác thì mặt nạ loading chung tắt và dòng mốc hiển thị ngay
         releasePartnerCursor();
         await expect(packetMask).toBeHidden({ timeout: 10_000 });
-        await expect(blockRow(page, 'PC08').locator('.sd-cursor-line')).toHaveText('2026-11-02 02:02:00.000_');
+        await expectCursorCell(blockRow(page, 'PC08'), '02/11/2026 02:02:00.000', null);
 
         // Chuyển sang đối tác VDOT rồi quay lại Mẫu chung khi API mốc của khối 4 phản hồi chậm: mặt nạ chuyển phạm vi giữ cho tới khi khối 4 nạp xong
         await selectPartnerScope(page, 'VDOT');
-        await expect(blockRow(page, 'VDOT').locator('.sd-cursor-line')).toHaveText('2026-11-03 03:03:00.000_V1', { timeout: 10_000 });
+        await expectCursorCell(blockRow(page, 'VDOT'), '03/11/2026 03:03:00.000', 'V1');
 
         partnerCursorPending = new Promise<void>((resolve) => {
             releasePartnerCursor = resolve;
@@ -583,7 +642,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
 
         releasePartnerCursor();
         await expect(scopeMask).toBeHidden({ timeout: 10_000 });
-        await expect(blockRow(page, 'PC08').locator('.sd-cursor-line')).toHaveText('2026-11-02 02:02:00.000_');
+        await expectCursorCell(blockRow(page, 'PC08'), '02/11/2026 02:02:00.000', null);
     });
 
     /**
@@ -616,7 +675,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
 
         await openSqlCenter(page);
         await expect(block(page).locator('.el-table__body tr')).toHaveCount(1, { timeout: 15_000 });
-        await expect(blockRow(page, 'CSGT')).toContainText('_p_a');
+        await expectCursorKey(blockRow(page, 'CSGT'), 'p_a');
         await expect(block(page).locator('.scb-badge-count')).toHaveText('3');
         const cursorPartnersLoaded = () => [...new Set(cursorCalls.filter((id) => id !== 'p_d'))];
         await expect.poll(cursorPartnersLoaded).toEqual(['p_a']);
@@ -631,7 +690,7 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
 
         // Chọn VDOT: chỉ tải mốc của VDOT, khối khóa vì đăng ký đang bật
         await pickCursorPartner(page, 'VDOT');
-        await expect(blockRow(page, 'VDOT')).toContainText('_p_b');
+        await expectCursorKey(blockRow(page, 'VDOT'), 'p_b');
         await expect(blockRow(page, 'CSGT')).toHaveCount(0);
         await expect(block(page).locator('.scb-card')).toHaveClass(/is-scope-locked/);
         expect(cursorPartnersLoaded()).toEqual(['p_a', 'p_b']);

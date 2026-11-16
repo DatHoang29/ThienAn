@@ -51,7 +51,7 @@ test('Idle Guard: Cho qua khi phiên mới hoặc hoạt động gần đây (< 
   const now = Date.now();
   const tenMinutesAgo = new Date(now - 10 * 60 * 1000).toISOString();
   const { filePath, dir } = createTempTranscript([
-    { timestamp: tenMinutesAgo, type: 'assistant', message: { usage: { cache_read_input_tokens: 150_000 } } }
+    { timestamp: tenMinutesAgo, type: 'assistant', message: { usage: { cache_read_input_tokens: 250_000 } } }
   ]);
 
   try {
@@ -63,7 +63,7 @@ test('Idle Guard: Cho qua khi phiên mới hoặc hoạt động gần đây (< 
   }
 });
 
-test('Idle Guard: Cho qua khi phiên nhẹ (< 100k tokens) kể cả khi idle lâu', () => {
+test('Idle Guard: Cho qua khi phiên nhẹ (< 200k tokens) kể cả khi idle lâu', () => {
   const now = Date.now();
   const twoHoursAgo = new Date(now - 120 * 60 * 1000).toISOString();
   const { filePath, dir } = createTempTranscript([
@@ -102,7 +102,7 @@ test('Idle Guard: Cho qua khi phiên ĐÃ COMPACT kể cả khi để qua đêm 
   }
 });
 
-test('Idle Guard: Chặn (allowed: false) khi Idle >= 45 phút VÀ Context >= 100k tokens CHƯA COMPACT', () => {
+test('Idle Guard: Chặn (allowed: false) khi Idle >= 45 phút VÀ Context >= 200k tokens CHƯA COMPACT', () => {
   const now = Date.now();
   const fiftyMinutesAgo = new Date(now - 50 * 60 * 1000).toISOString();
   const { filePath, dir } = createTempTranscript([
@@ -176,7 +176,7 @@ test('Idle Guard: Kiểm tra thực tế với phiên fork 851k tokens lịch s�
 
   const inspection = inspectTranscript(historicalSession, morningTime);
   assert.equal(inspection.isCompacted, true, 'Phiên phải được nhận diện là đã compact');
-  assert.ok(inspection.tokens < DEFAULT_TOKEN_THRESHOLD, 'Tokens sau compact phải nhỏ hơn 100k');
+  assert.ok(inspection.tokens < DEFAULT_TOKEN_THRESHOLD, 'Tokens sau compact phải nhỏ hơn 200k');
 
   const evalAllowed = evaluateIdleGuard({
     prompt: 'các test case của mình đã phủ hết DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql/kiem-tai chưa',

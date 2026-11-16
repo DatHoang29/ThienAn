@@ -258,8 +258,8 @@ test.describe('ShareData — Tooltip ngắn gọn, bề rộng theo tỷ lệ m�
         await audit(page, {
             name: 'Cấu hình gói tin - chiều gửi',
             scope: '.layout-main',
-            data: '.partner-count-tag, .partner-tab-jump, .svp-check-lead',
-            mustShow: ['.partner-count-tag', '.vxe-body--row .el-button--danger', '.svp-check-lead', '.sd-cursor-reset-btn', '.svp-source-select'],
+            data: '.partner-count-tag, .partner-tab-jump, .svp-check-lead, .sd-cursor-value',
+            mustShow: ['.partner-count-tag', '.vxe-body--row .el-button--danger', '.svp-check-lead', '.sd-cursor-reset-btn', '.svp-source-select', '.sd-cursor-value'],
         }, found);
 
         await page.setViewportSize({ width: 1920, height: 900 });
@@ -276,7 +276,7 @@ test.describe('ShareData — Tooltip ngắn gọn, bề rộng theo tỷ lệ m�
         await audit(page, {
             name: 'Cấu hình gói tin - đối tác riêng',
             scope: '.layout-main',
-            data: '.partner-count-tag, .partner-tab-jump, .svp-check-lead, .cmp-st',
+            data: '.partner-count-tag, .partner-tab-jump, .svp-check-lead, .cmp-st, .sd-cursor-value',
             mustShow: ['.cmp-legend', '.cmp-cell-wrapper .cmp-st'],
         }, found);
 

@@ -5466,12 +5466,13 @@ ORDER BY __lastKey ASC";
 
         /// <summary>
         /// Description: F4 - Kịch bản At-least-once: Khi gửi REST thành công nhưng mất lock lúc CommitSuccess
-        ///              (do timeout/OCC trượt), dòng log cha báo Fail, cursor KHÔNG tiến, SerialNbr KHÔNG tăng.
-        ///              Ở lượt quét tiếp theo, Worker tự động gửi lại đúng trang đó với cùng SerialNbr để đối tác nhận diện idempotent.
+        ///              (do timeout/OCC trượt), dòng log cha báo Fail, cursor KHÔNG tiến, SerialNbr tăng vì đối tác đã lưu số đó.
+        ///              Ở lượt quét tiếp theo, Worker gửi lại đúng trang đó với số thứ tự kế tiếp, không bị đối tác từ chối vì trùng số.
         /// Created date: 12/10/2026
+        /// Modified date: 15/11/2026
         /// </summary>
         [Fact]
-        public async Task ProcessSubscriptions_WhenLockLostAtCommit_KeepsCursorAndResendsWithSameSerialNbr_Test()
+        public async Task ProcessSubscriptions_WhenLockLostAtCommit_KeepsCursorAndResendsWithNextSerialNbr_Test()
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -5505,9 +5506,9 @@ ORDER BY __lastKey ASC";
                 callIndex++;
                 if (callIndex == 1)
                 {
-                    // Lượt 1: Phá ProcessingUntil trong DB để CommitSuccess bị trượt OCC
+                    // Lượt 1: Lượt khác lấy khóa rồi nhả khóa (ProcessingUntil đổi) để CommitSuccess bị trượt OCC
                     stealDb.Updateable<ShareDataSubscription>()
-                        .SetColumns(s => s.ProcessingUntil == DateTime.Now.AddDays(-1))
+                        .SetColumns(s => s.ProcessingUntil == null)
                         .Where(s => s.ID == sub.ID)
                         .ExecuteCommand();
                 }
@@ -5528,9 +5529,9 @@ ORDER BY __lastKey ASC";
             Assert.Equal(BaseEnums.SuccessEnums.Fail, parent.Success);
             Assert.Contains("Mất lock", parent.ErrorMessage ?? string.Empty);
 
-            // 3. Mốc cursor KHÔNG tiến, SerialNbr KHÔNG tăng trong DB
+            // 3. Mốc cursor KHÔNG tiến; SerialNbr tăng từ 10 lên 11 vì đối tác đã lưu số 10
             var subAfterFail = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
-            Assert.Equal(10, subAfterFail.SerialNbr);
+            Assert.Equal(11, subAfterFail.SerialNbr);
             Assert.Equal(baseTime, subAfterFail.LastTimeRun!.Value, TimeSpan.FromSeconds(1));
 
             // Act 2: Cho Subscription đến hạn chạy lại ở lượt quét kế tiếp
@@ -5542,12 +5543,12 @@ ORDER BY __lastKey ASC";
             Assert.Equal(2, partnerServer.TotalReceivedRequests);
             var req2 = partnerServer.ReceivedRequests[1];
 
-            // 5. Cả 2 request gửi sang đều có CÙNG SerialNbr header = 10 (chứng minh tính Idempotent)
+            // 5. Request gửi lại mang số kế tiếp 11, không gửi lại số 10 đối tác đã lưu
             var serial1 = req1.Headers.TryGetValue("SerialNbr", out var s1) ? s1 : null;
             var serial2 = req2.Headers.TryGetValue("SerialNbr", out var s2) ? s2 : null;
             Assert.NotNull(serial1);
             Assert.Equal("10", serial1);
-            Assert.Equal(serial1, serial2);
+            Assert.Equal("11", serial2);
 
             // 6. Dữ liệu gửi đi ở 2 lượt giống hệt nhau
             var plates1 = ExtractPlates(req1.Body, $"F4{unique}-");
@@ -5555,9 +5556,9 @@ ORDER BY __lastKey ASC";
             Assert.Equal(5, plates1.Count);
             Assert.Equal(plates1, plates2);
 
-            // 7. Ở lượt 2 thành công, Cursor đã tiến lên và SerialNbr trong DB đã tăng từ 10 lên 11
+            // 7. Ở lượt 2 thành công, Cursor đã tiến lên và SerialNbr trong DB đã tăng từ 11 lên 12
             var subAfterSuccess = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
-            Assert.Equal(11, subAfterSuccess.SerialNbr);
+            Assert.Equal(12, subAfterSuccess.SerialNbr);
             Assert.True(subAfterSuccess.LastTimeRun > baseTime);
         }
 
