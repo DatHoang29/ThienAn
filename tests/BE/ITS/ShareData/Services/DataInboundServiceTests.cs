@@ -1673,6 +1673,144 @@ public class DataInboundServiceTests(Host host)
     }
 
     /// <summary>
+    /// Author: DatHQ
+    /// Description: Câu ghi của gói gặp lỗi CSDL tạm thời lúc đang chờ khóa dòng đích (bị chọn làm nạn nhân deadlock, hoặc mất kết nối),
+    ///              như gói 106 lỗi khi tranh khóa với tệp dọn dữ liệu chạy cùng lúc: lỗi qua đi thì lượt chạy sau ghi được gói, dữ liệu có ở bảng đích
+    ///              và gói Done, không thành lỗi vĩnh viễn làm mất dữ liệu của gói.
+    ///              Phiên khác giữ khóa cập nhật dòng TmsZoneStatus mà câu ghi mẫu gói 101 cần. Ca deadlock: phiên đó xin tiếp khóa dòng TmsZone
+    ///              câu ghi vừa sửa, phiên đó ưu tiên cao nên câu ghi bị chọn làm nạn nhân. Ca mất kết nối: cắt phiên câu ghi đang chờ khóa.
+    /// Created date: 16/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ProcessPendingPackets_WhenWriteHitsTransientDatabaseError_WritesPacketOnNextRun_Test(bool deadlock)
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (partnerCode, packetCode) = await SeedZoneStatusPacketAsync(unique);
+        var zoneId = $"ZONE_TMP_{unique}";
+        var zoneStatusId = $"{zoneId}_S";
+        var firstContent = ZoneStatusContent(zoneId, "Đoạn cũ", 60, "40.50", "GOOD", "2026-11-16T08:00:00");
+        var secondContent = ZoneStatusContent(zoneId, "Đoạn mới", 90, "75.25", "CONGES", "2026-11-16T08:01:00");
+        await SeedPendingPacket(partnerCode, packetCode, 1, firstContent, DateTime.Now);
+        using var firstScope = _host.Services.CreateScope();
+        var firstReceiver = firstScope.ServiceProvider.GetRequiredService<DataInboundService>();
+        await firstReceiver.ProcessPendingPackets(CancellationToken.None);
+        var secondPacket = await SeedPendingPacket(partnerCode, packetCode, 2, secondContent, DateTime.Now);
+        using var holder = _inboundDb.CopyNew();
+        using var admin = _inboundDb.CopyNew();
+        await holder.Ado.BeginTranAsync();
+        await holder.Ado.ExecuteCommandAsync("SET DEADLOCK_PRIORITY HIGH");
+        await holder.Ado.GetDataTableAsync("SELECT ID FROM dbo.TmsZoneStatus WITH (UPDLOCK, ROWLOCK) WHERE ID = @id", new { id = zoneStatusId });
+        var holderSession = await holder.Ado.GetIntAsync("SELECT @@SPID");
+        using var failingScope = _host.Services.CreateScope();
+        using var nextScope = _host.Services.CreateScope();
+        var failingReceiver = failingScope.ServiceProvider.GetRequiredService<DataInboundService>();
+        var nextReceiver = nextScope.ServiceProvider.GetRequiredService<DataInboundService>();
+
+        // Act: câu ghi gói số 2 đang chờ khóa dòng đích thì gặp lỗi tạm thời; lỗi qua đi rồi mới tới lượt chạy sau
+        var failingRun = failingReceiver.ProcessPendingPackets(CancellationToken.None);
+        var writerSession = await WaitUntilBlockedByAsync(holderSession);
+        if (deadlock)
+        {
+            await holder.Ado.GetDataTableAsync("SELECT ID FROM dbo.TmsZone WITH (UPDLOCK, ROWLOCK) WHERE ID = @id", new { id = zoneId });
+        }
+        else
+        {
+            await admin.Ado.ExecuteCommandAsync($"KILL {writerSession}");
+        }
+
+        await holder.Ado.RollbackTranAsync();
+        await failingRun;
+        var afterError = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(secondPacket.ID);
+        await nextReceiver.ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var saved = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(secondPacket.ID);
+        var zone = await _inboundDb.Ado.GetDataTableAsync("SELECT Name, MaxSpeed FROM dbo.TmsZone WHERE ID = @id", new { id = zoneId });
+        var status = await _inboundDb.Ado.GetDataTableAsync("SELECT AverageSpeed FROM dbo.TmsZoneStatus WHERE ID = @id", new { id = zoneStatusId });
+        var zoneName = zone.Rows[0]["Name"].ToString();
+        var maxSpeed = Convert.ToInt32(zone.Rows[0]["MaxSpeed"]);
+        var averageSpeed = status.Rows[0]["AverageSpeed"].ToString();
+        Assert.NotEqual(BaseEnums.InboundProcessState.Done, afterError.ProcessState);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, saved.ProcessState);
+        Assert.Equal("Đoạn mới", zoneName);
+        Assert.Equal(90, maxSpeed);
+        Assert.Equal("75.25", averageSpeed);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đối tác, gói mang câu ghi mẫu gói 101 của tệp seed (TmsZone, TmsTrafficStatistic, TmsZoneStatus) và đăng ký nhận đang hoạt động.
+    /// Created date: 16/11/2026
+    /// </summary>
+    private async Task<(string PartnerCode, string PacketCode)> SeedZoneStatusPacketAsync(string unique)
+    {
+        var partner = new ShareDataPartner
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"PARTNER_ZS_{unique}",
+            Name = $"Đối tác gói 101 {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(partner).ExecuteCommandAsync();
+
+        var packet = new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"PKT_ZS_{unique}",
+            Name = $"Gói 101 {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(packet).ExecuteCommandAsync();
+        var seedWrite = SeedScriptReader.ReadWriteSqlStatements().Single(s => s.PacketCode == "101_commonData");
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, seedWrite.WriteSql, seedWrite.AffectedTables);
+
+        var subscription = new ShareDataSubscription
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerId = partner.ID,
+            DatatypeId = packet.ID,
+            Direction = BaseEnums.Direction.Inbound,
+            State = BaseEnums.SubSubscriptionState.Active
+        };
+        await _db.Insertable(subscription).ExecuteCommandAsync();
+        return (partner.Code, packet.Code);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Nội dung gói 101 một đoạn: đoạn đường (tên, tốc độ tối đa) và trạng thái đoạn (mã trạng thái = mã đoạn + "_S", tốc độ trung bình, tình trạng, giờ số liệu).
+    /// Created date: 16/11/2026
+    /// </summary>
+    private static string ZoneStatusContent(string zoneId, string zoneName, int speedLimit, string averageSpeed, string condition, string dataTime) =>
+        $$"""{"data":[{"zoneId":"{{zoneId}}","zoneName":"{{zoneName}}","speedLimit":{{speedLimit}},"zoneStatusId":"{{zoneId}}_S","averageSpeed":{{averageSpeed}},"trafficCondition":"{{condition}}","dataTime":"{{dataTime}}"}]}""";
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Chờ tới khi có câu lệnh bị phiên giữ khóa chặn, trả về phiên của câu lệnh đó; quá 15 giây thì báo lỗi.
+    /// Created date: 16/11/2026
+    /// </summary>
+    private async Task<int> WaitUntilBlockedByAsync(int holderSession)
+    {
+        for (var attempt = 0; attempt < 150; attempt++)
+        {
+            var blockedSession = await _inboundDb.Ado.GetIntAsync(
+                "SELECT ISNULL(MAX(session_id), 0) FROM sys.dm_exec_requests WHERE blocking_session_id = @holderSession",
+                new { holderSession });
+            if (blockedSession > 0)
+            {
+                return blockedSession;
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new TimeoutException("Không có câu lệnh nào bị phiên giữ khóa chặn trong 15 giây.");
+    }
+
+    /// <summary>
     /// Description: B4 - Khi cấu hình InboundMaxPacketsPerRun = 1, mỗi lượt chạy chỉ xử lý đúng 1 gói,
     ///              các gói còn lại vẫn giữ nguyên Pending.
     /// Created date: 20/10/2026
@@ -1860,6 +1998,70 @@ public class DataInboundServiceTests(Host host)
         Assert.All(saved, p => Assert.Equal(BaseEnums.InboundProcessState.Done, p.ProcessState));
         Assert.Equal(packetIds.Count, logs.Count);
         Assert.Equal(stuckSerial, savedSub.SerialNbr);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Hai dịch vụ cùng nhận (ShareDataWorker chạy hai chiều và ShareDataWorker_Inbound_1 chỉ nhận) với gói trạng thái mới nhất 101 của cùng đối tác, cùng khóa:
+    ///              dịch vụ hai chiều đã nhận xử lý gói số 2 (đánh dấu đang xử lý) rồi treo hoặc bị tắt trước khi ghi; dịch vụ chỉ nhận ghi xong gói số 3;
+    ///              quá thời gian gói kẹt, dịch vụ hai chiều chạy lại thì gói số 2 được trả về chờ và ghi. Bảng đích phải giữ dữ liệu của gói số 3
+    ///              (số lớn nhất), không bị gói cũ ghi đè: đặc tả xử lý gói theo thứ tự SerialNbr tăng dần.
+    /// Created date: 16/11/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenOlderPacketIsWrittenAfterNewerByAnotherReceiver_KeepsNewerData_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (partnerCode, packetCode) = await SeedZoneStatusPacketAsync(unique);
+        var zoneId = $"ZONE_ORD_{unique}";
+        var zoneStatusId = $"{zoneId}_S";
+        var olderContent = ZoneStatusContent(zoneId, "Đoạn gói 2", 60, "40.50", "GOOD", "2026-11-16T08:00:00");
+        var newerContent = ZoneStatusContent(zoneId, "Đoạn gói 3", 90, "75.25", "CONGES", "2026-11-16T08:01:00");
+        // Worker tính gói kẹt theo giờ ứng dụng, không theo giờ CSDL
+        var claimedAt = DateTime.Now;
+        // Gói số 2 đã được dịch vụ hai chiều nhận xử lý, dịch vụ đó treo hoặc bị tắt trước khi ghi
+        var older = new ShareDataInboundPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerCode = partnerCode,
+            PacketCode = packetCode,
+            SerialNbr = 2,
+            RawContent = olderContent,
+            ProcessState = BaseEnums.InboundProcessState.Processing,
+            ProcessedAt = claimedAt,
+            CreateTime = claimedAt
+        };
+        await _inboundDb.Insertable(older).ExecuteCommandAsync();
+        var newer = await SeedPendingPacket(partnerCode, packetCode, 3, newerContent, DateTime.Now);
+        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+        var workerConfig = _host.Services.GetRequiredService<DataWorkerConfigService>();
+        var bothService = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
+        var receiveOnly = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
+        var stuckSince = claimedAt.AddDays(-1);
+
+        // Act: dịch vụ chỉ nhận ghi gói số 3; quá thời gian gói kẹt, dịch vụ hai chiều chạy lại thì gói số 2 được trả về chờ rồi ghi
+        await receiveOnly.ProcessPendingPackets(CancellationToken.None);
+        await _inboundDb.Updateable<ShareDataInboundPacket>()
+            .SetColumns(p => p.ProcessedAt == stuckSince)
+            .Where(p => p.ID == older.ID)
+            .ExecuteCommandAsync();
+        await bothService.ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var savedOlder = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(older.ID);
+        var savedNewer = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(newer.ID);
+        var zone = await _inboundDb.Ado.GetDataTableAsync("SELECT Name FROM dbo.TmsZone WHERE ID = @id", new { id = zoneId });
+        var status = await _inboundDb.Ado.GetDataTableAsync("SELECT AverageSpeed, Condition FROM dbo.TmsZoneStatus WHERE ID = @id", new { id = zoneStatusId });
+        var zoneName = zone.Rows[0]["Name"].ToString();
+        var averageSpeed = status.Rows[0]["AverageSpeed"].ToString();
+        var condition = status.Rows[0]["Condition"].ToString();
+        Assert.Equal(BaseEnums.InboundProcessState.Done, savedNewer.ProcessState);
+        Assert.NotEqual(BaseEnums.InboundProcessState.Pending, savedOlder.ProcessState);
+        Assert.NotEqual(BaseEnums.InboundProcessState.Processing, savedOlder.ProcessState);
+        Assert.Equal("Đoạn gói 3", zoneName);
+        Assert.Equal("75.25", averageSpeed);
+        Assert.Equal("CONGES", condition);
     }
 
     /// <summary>
