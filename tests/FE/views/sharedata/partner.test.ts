@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 import { mockAuth, resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -687,6 +687,22 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await dialog.locator('.el-form-item').filter({ hasText: 'Tên đối tác' }).locator('input').fill('Đối tác Tab 01');
 		await dialog.locator('.dialog-footer button.el-button--primary').click();
 		await expect(tabConnection).toHaveClass(/is-active/);
+
+		// Câu báo lỗi nằm trong khung ô, không nổi ra ngoài: câu dài xuống dòng (câu từ bảng dịch trên máy chủ dài hơn câu trong tệp ngôn ngữ FE)
+		// thì đẩy hàng dưới xuống, không đè lên hàng Endpoint
+		const connectionItem = (label: string | RegExp) =>
+			dialog.locator('#pane-connection .el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: label }) });
+		const addressItem = connectionItem('Địa chỉ (IP/host)');
+		const addressError = addressItem.locator('.el-form-item__error');
+		await expect(addressError).toContainText('Địa chỉ (IP/host)');
+		await expect(addressError).toHaveCSS('position', 'static');
+		const bottomOf = async (target: Locator) => {
+			const box = (await target.boundingBox())!;
+			return box.y + box.height;
+		};
+		await expect.poll(async () => (await bottomOf(addressItem)) - (await bottomOf(addressError))).toBeGreaterThanOrEqual(0);
+		const endpointBox = (await connectionItem(/^\s*Endpoint\s*$/).boundingBox())!;
+		expect(await bottomOf(addressError)).toBeLessThanOrEqual(endpointBox.y);
 
 		// 3. Điền Địa chỉ, Cổng và Thời gian chờ = 45 giây (ô của cấu hình kênh API) ngay trong tab Kết nối
 		await dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Địa chỉ (IP/host)' }) }).locator('input').fill('10.10.1.50');
