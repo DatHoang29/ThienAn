@@ -420,8 +420,9 @@ test('Harness: Codex, Antigravity nhận phần nạp sẵn qua hook SessionStar
   const imported = [...followImports('AGENTS.md', new Set())].filter(file => file !== 'AGENTS.md');
   const sessionOutput = name => {
     const tool = hookTools.find(item => item.name === name);
-    const results = runHooks(tool, 'SessionStart', null).filter(result => result.command.includes('session-context.mjs'));
-    assert.equal(results.length, 1, `${name}: chưa nối session-context.mjs cho SessionStart`);
+    const results = runHooks(tool, 'SessionStart', null);
+    assert.equal(results.length, 1, `${name}: SessionStart phải có đúng 1 lệnh hook (session-context.mjs)`);
+    assert.ok(results[0].command.includes('session-context.mjs'), `${name}: chưa nối session-context.mjs cho SessionStart`);
     assert.equal(results[0].status, 0, results[0].stderr);
     return JSON.parse(results[0].stdout);
   };

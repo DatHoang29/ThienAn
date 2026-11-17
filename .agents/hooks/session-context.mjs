@@ -6,7 +6,9 @@
 // Tệp công cụ tự nạp thì không bơm lại: Codex tự liệt kê `.agents/skills/`; Antigravity tự nạp `.agents/rules/`
 // (rule trigger: always_on) và `.agents/skills/`. Đọc tệp lỗi thì không bơm gì, không chặn phiên.
 
+import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -38,10 +40,39 @@ function sessionContext(agent) {
     .join('\n\n');
 }
 
+function resolveGortexBinary() {
+  if (process.env.GORTEX_BIN) return process.env.GORTEX_BIN;
+  const isWindows = process.platform === 'win32';
+  const candidates = isWindows
+    ? [process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs', 'gortex', 'gortex.exe')]
+    : ['/opt/homebrew/bin/gortex', '/usr/local/bin/gortex', path.join(os.homedir(), '.local', 'bin', 'gortex')];
+  return candidates.find(candidate => candidate && fs.existsSync(candidate)) ?? (isWindows ? 'gortex.exe' : 'gortex');
+}
+
+function gortexContext() {
+  let payload = {};
+  try {
+    payload = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
+  } catch {}
+  const res = spawnSync(resolveGortexBinary(), ['hook', '--agent', 'antigravity'], {
+    input: JSON.stringify({hook_event_name: 'SessionStart', ...payload}),
+    encoding: 'utf8',
+    windowsHide: true
+  });
+  if (res.error || res.status !== 0 || !res.stdout) return '';
+  try {
+    return JSON.parse(res.stdout).hookSpecificOutput?.additionalContext?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
 const agent = process.argv[2];
 let text = '';
 try {
-  text = OUTPUT[agent] ? sessionContext(agent) : '';
+  text = OUTPUT[agent]
+    ? [sessionContext(agent), agent === 'antigravity' ? gortexContext() : ''].filter(Boolean).join('\n\n')
+    : '';
 } catch (error) {
   console.error(`ThienAn session-context: ${error.message}`);
 }
