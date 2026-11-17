@@ -6745,7 +6745,7 @@ ORDER BY __lastKey ASC";
             var packetId = $"pkt-iso-{unique}";
             var packetCode = $"PKT_ISO_{unique}";
             var rowPrefix = $"ZC_ISO_{unique}_";
-            const string cutoff = "20261027090000000_";
+            const string cutoff = "20261027090000000_0";
 
             var oldZones = new[]
             {
@@ -7983,7 +7983,7 @@ ORDER BY __lastKey ASC";
                 ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-mid-{unique}"
             });
 
-            var userKey = $"{baseTime.AddHours(-1):yyyyMMddHHmmssfff}_";
+            var userKey = $"{baseTime.AddHours(-1):yyyyMMddHHmmssfff}_u";
             var fired = 0;
             _host.PartnerServer.Responder = (_, request) =>
             {
@@ -8173,7 +8173,7 @@ ORDER BY __lastKey ASC";
                 await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null,
                 [
                     new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "50", OrderNo = 1 },
-                    new SqlVariableItem { Code = "lastKey", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = "20900101000000000_", OrderNo = 2 }
+                    new SqlVariableItem { Code = "lastKey", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = "20900101000000000_0", OrderNo = 2 }
                 ]);
                 Assert.True(PacketTemplateSeed.TryGet("101", out var template));
                 await ShareDataSqlSeed.SetCommonAsync(db, packetId, template.ExtractSql);

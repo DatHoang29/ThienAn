@@ -165,7 +165,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             }
 
             await db.Insertable(new ShareDataPacket { ID = packetId, Code = packetCode, Name = $"Packet {packetCode}", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
-            var startVariables = ZoneVariables(50, rowPrefix, "20261027093000000_");
+            var startVariables = ZoneVariables(50, rowPrefix, "20261027093000000_0");
             var commonSql = ZoneCursorSql();
             await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, startVariables);
             await SaveCommonSqlAsync(services, db, packetCode, commonSql);
@@ -196,7 +196,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // Act: tắt đăng ký, sửa bảng tham số và đổi bí danh bảng ở mẫu chung, thêm dòng mới rồi bật lại cả ba
             await SetSubscriptionStateAsync(db, BaseEnums.SubSubscriptionState.Paused, subA.ID);
-            var changedVariables = ZoneVariableInputs(1, rowPrefix, "20261027113000000_");
+            var changedVariables = ZoneVariableInputs(1, rowPrefix, "20261027113000000_0");
             var aliasedSql = ZoneCursorSql("k");
             var newRowTime = baseTime.AddHours(4);
             await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packetCode, Items = changedVariables });
@@ -333,15 +333,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Author: DatHQ
-        /// Description: Đặt mốc bằng ô chọn ngày giờ (chuỗi kết thúc bằng dấu gạch dưới): lượt tới gửi cả dòng đúng thời điểm đó, không gửi dòng trước đó, kể cả chỉ sớm hơn vài mili giây.
-        ///              Mốc lần đầu chọn bằng ô ngày giờ cho kết quả như vậy. Mốc gõ tay chỉ tới giờ, không đuôi (2026103108) cũng vậy vì so chuỗi vẫn đúng thứ tự.
+        /// Description: Đặt mốc đúng dạng yyyyMMddHHmmssfff_<đuôi> tại đầu thời điểm (đuôi '0' nhỏ hơn mã dòng thật): lượt tới gửi cả dòng đúng thời điểm đó,
+        ///              không gửi dòng trước đó, kể cả chỉ sớm hơn vài mili giây; áp dụng cho cả Đặt mốc qua API và Mốc lần đầu ở bảng tham số.
         /// Created date: 05/11/2026
-        /// Modified date: 16/11/2026
+        /// Modified date: 17/11/2026
         /// </summary>
         [Theory]
-        [InlineData(true, "20261031080000000_")]
-        [InlineData(false, "20261031080000000_")]
-        [InlineData(true, "2026103108")]
+        [InlineData(true, "20261031080000000_0")]
+        [InlineData(false, "20261031080000000_0")]
         public async Task ProcessSubscriptions_WhenStartPickedByTime_IncludesRowAtExactlyThatTime_Test(bool setViaCursorApi, string pickedKey)
         {
             // Arrange

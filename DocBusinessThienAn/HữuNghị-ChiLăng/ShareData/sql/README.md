@@ -1,7 +1,7 @@
 # 🗄️ Danh Mục Kịch Bản SQL Phân Hệ ShareData (ESHARE)
 
 > **Căn cứ quy chuẩn:** [`.agents/rules/database-mcp_thienan.md` §2.3](../../../../.agents/rules/database-mcp_thienan.md) (Rule 19.85: Entity là SSOT, CodeFirst tạo khung trước; Rule 19.101: tệp `_local.sql` chỉ chạy trên DB local; Rule 19.103: **mỗi tệp chỉ ghi một bảng, tên tệp mang hậu tố tên bảng**).  
-> **Cập nhật lần cuối:** 16/11/2026
+> **Cập nhật lần cuối:** 17/11/2026
 
 ---
 
@@ -122,6 +122,32 @@ Câu nối đuôi 1 tầng lọc trên chuỗi ghép `CONVERT(varchar(8), COALES
 - **Phiên ghi vào 6 bảng** phải bật `QUOTED_IDENTIFIER`, `ANSI_NULLS` (mặc định của SqlClient, SqlSugar); phiên không đạt bị lỗi 1934 khi thêm dòng. `TmsTrafficData`, `TmsIncident` đã có chỉ mục có lọc đòi cùng điều kiện; 4 bảng còn lại phải thử ghi một dòng sau khi chạy I1.
 - **Câu ghép mốc 1 tầng hoặc đổi biểu thức phần thời gian** không tự dùng được chỉ mục `CursorTime` (chỉ câu hai tầng lọc theo `CursorTime >= ...` hoặc chính biểu thức `112 + 114` mới khớp).
 - **Kiểm chứng tổng thể (16/11/2026):** CodeFirst `EnableInitTable = true` trên CSDL `test` local; bộ test BE `Tests.ShareData` đạt 980/980 ca chạy (3 ca hiệu năng bỏ qua có chủ đích, 0 đỏ). Trước đó ngày 12/11 đã xác nhận I1 + CodeFirst (`903 ca đạt`) giữ nguyên cột ngoài entity trên cả 6 bảng.
+
+### F. Xóa sạch toàn bộ dữ liệu & cấu hình ShareData để seed lại từ đầu (thư mục con [`xoa-du-lieu/`](xoa-du-lieu/))
+
+> ⛔ **Dừng toàn bộ dịch vụ `ShareDataWorker*` và `TAC_WebAPI` trước khi chạy.** Không chạy nhầm trên production. Mọi tệp đều hỗ trợ `@ChiXem = 1` để xem trước số dòng sẽ xóa và tuân thủ Rule 19.103 (mỗi tệp một bảng, trừ `X17` gộp 14 bảng đích không có entity trong `*_Inbound` như `N1`). Không đụng tới các bảng nghiệp vụ nguồn trên CSDL chính và không xóa `SysMenu` (vì tệp `13` chỉ cập nhật menu hiện có).
+
+| Thứ tự | Tệp | CSDL (`USE`) | Bảng xóa | Ghi chú |
+| :---: | :--- | :--- | :--- | :--- |
+| **X1** | [`sharedata-xoa-du-lieu-ShareDataLastSend.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataLastSend.sql) | `DEV_ITS015` | `ShareDataLastSend` | Xóa toàn bộ mốc nối đuôi đang chạy. |
+| **X2** | [`sharedata-xoa-du-lieu-ShareDataActivityLog.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataActivityLog.sql) | `DEV_ITS015` | `ShareDataActivityLog` | Xóa toàn bộ nhật ký hoạt động / truyền nhận. |
+| **X3** | [`sharedata-xoa-du-lieu-ShareDataAlertLog.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataAlertLog.sql) | `DEV_ITS015` | `ShareDataAlertLog` | Xóa toàn bộ cảnh báo & lỗi (`ESH-xxxx`). |
+| **X4** | [`sharedata-xoa-du-lieu-ShareDataSession.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataSession.sql) | `DEV_ITS015` | `ShareDataSession` | Xóa toàn bộ phiên kết nối đối tác. |
+| **X5** | [`sharedata-xoa-du-lieu-ShareDataSubscription.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataSubscription.sql) | `DEV_ITS015` | `ShareDataSubscription` | Xóa toàn bộ đăng ký gửi/nhận (phải xóa kèm `X16` ở DB nhận). |
+| **X6** | [`sharedata-xoa-du-lieu-ShareDataMapping.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataMapping.sql) | `DEV_ITS015` | `ShareDataMapping` | Xóa toàn bộ hồ sơ ánh xạ (nạp lại bằng tệp `16`). |
+| **X7** | [`sharedata-xoa-du-lieu-ShareDataSql.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataSql.sql) | `DEV_ITS015` | `ShareDataSql` | Xóa toàn bộ câu SQL chung, câu riêng và câu ghi (nạp lại bằng tệp `2`). |
+| **X8** | [`sharedata-xoa-du-lieu-ShareDataCodeSet.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataCodeSet.sql) | `DEV_ITS015` | `ShareDataCodeSet` | Xóa toàn bộ bộ mã chuẩn hóa (nạp lại bằng tệp `15`). |
+| **X9** | [`sharedata-xoa-du-lieu-ShareDataPartner.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataPartner.sql) | `DEV_ITS015` | `ShareDataPartner` | Xóa toàn bộ đối tác (`PC08`, `TTDHT`, `KT*`…) (nạp lại bằng tệp `14`). |
+| **X10** | [`sharedata-xoa-du-lieu-ShareDataSourceTable.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataSourceTable.sql) | `DEV_ITS015` | `ShareDataSourceTable` | Xóa danh mục 15 bảng nguồn & mốc `LastVersion` (nạp lại bằng tệp `6`). |
+| **X11** | [`sharedata-xoa-du-lieu-ShareDataPacket.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataPacket.sql) | `DEV_ITS015` | `ShareDataPacket` | `@XoaCaGoiCatalog = 1` xóa sạch cả 11 gói Catalog (trước bước `2` phải lấy & chạy lại tệp `1` từ `git show a9cf99ec^:"DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql/sharedata-seed-goi-tin-ShareDataPacket.sql"`); đặt `= 0` để giữ `101..111` và chạy thẳng `2 → 16`. |
+| **X12** | [`sharedata-xoa-du-lieu-SysOpConfig.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-SysOpConfig.sql) | `DEV_ITS015` | `SysOpConfig` | Chỉ xóa nhóm `sharedata_config` (nạp lại bằng tệp `7`). |
+| **X13** | [`sharedata-xoa-du-lieu-SysConfigData.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-SysConfigData.sql) | `DEV_ITS015` | `SysConfigData` | Chỉ xóa 26 mã `ESH-*` và mục `sharedata_config` (nạp lại bằng tệp `5`). |
+| **X14** | [`sharedata-xoa-du-lieu-SysConfigType.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-SysConfigType.sql) | `DEV_ITS015` | `SysConfigType` | Chỉ xóa `sharedata_error_code` (sau `X13`, nạp lại bằng tệp `4`). |
+| **X15** | [`sharedata-xoa-du-lieu-SysTerminology.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-SysTerminology.sql) | `DEV_ITS015` | `SysTerminology` | Chỉ xóa khóa `sharedata.%` (nạp lại bằng tệp `10`, xong bấm 🔄 Ngôn ngữ). |
+| **X16** | [`sharedata-xoa-du-lieu-ShareDataInboundPacket.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-ShareDataInboundPacket.sql) | `DEV_ITS015_Inbound` | `ShareDataInboundPacket` | Xóa gói thô chiều nhận để không trùng `SerialNbr`. |
+| **X17** | [`sharedata-xoa-du-lieu-BangDichInboundDB.sql`](xoa-du-lieu/sharedata-xoa-du-lieu-BangDichInboundDB.sql) | `DEV_ITS015_Inbound` | 14 bảng đích chiều nhận | Ngoại lệ Rule 19.103: xóa sạch 14 bảng đích chiều nhận tạo bởi `N1`. |
+
+- **Trình tự seed lại từ đầu sau khi chạy `X1 → X17`:** `(nếu X11 để @XoaCaGoiCatalog = 1 thì chạy tệp 1 từ git a9cf99ec^)` ➔ `2` ➔ `4` ➔ `5` ➔ `6` ➔ `7` ➔ `10` ➔ `13` ➔ `14` ➔ `15` ➔ `16` (CSDL nhận chạy `N1` nếu thiếu bảng, `I4`/`I7` nếu dựng lại chỉ mục) ➔ bật `TAC_WebAPI` + `ShareDataWorker*` và làm mới cache ngôn ngữ 🔄.
 
 ---
 

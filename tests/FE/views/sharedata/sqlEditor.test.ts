@@ -2082,6 +2082,68 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
     }
 
     /**
+     * Description: Gợi ý bí danh sau AS trong khung soạn SQL phải bỏ qua phần đầu TOP (...) PERCENT WITH TIES khi quét các cột đã có;
+     *              chỉ tính đã dùng khi bản thân tên đó là tên cột thực sự trong SELECT.
+     * Author: DatHQ
+     * Created date: 17/11/2026
+     */
+    const topModifierAliasCases = [
+        {
+            name: '71l. Gợi ý bí danh AS: bỏ qua TOP (@pageSize) WITH TIES nên ties chưa dùng vẫn đứng đầu',
+            fields: [
+                { key: 'ties', type: 'number', dbType: 'int', label: 'Nút thắt', required: false },
+                { key: 'speed', type: 'number', dbType: 'int', label: 'Tốc độ', required: false },
+            ],
+            sql: 'SELECT TOP (@pageSize) WITH TIES FROM (SELECT x.ID AS',
+            expectedOrder: ['ties', 'speed'],
+        },
+        {
+            name: '71m. Gợi ý bí danh AS: bỏ qua TOP 10 PERCENT nên percent chưa dùng vẫn đứng đầu',
+            fields: [
+                { key: 'percent', type: 'decimal', dbType: 'decimal', label: 'Tỷ lệ', required: false },
+                { key: 'speed', type: 'number', dbType: 'int', label: 'Tốc độ', required: false },
+            ],
+            sql: 'SELECT TOP 10 PERCENT FROM (SELECT x.ID AS',
+            expectedOrder: ['percent', 'speed'],
+        },
+        {
+            name: '71n. Gợi ý bí danh AS: cột thực tên ties trong SELECT TOP (@pageSize) PERCENT WITH TIES vẫn được tính đã dùng',
+            fields: [
+                { key: 'ties', type: 'number', dbType: 'int', label: 'Nút thắt', required: false },
+                { key: 'speed', type: 'number', dbType: 'int', label: 'Tốc độ', required: false },
+            ],
+            sql: 'SELECT TOP (@pageSize) PERCENT WITH TIES x.Ties, x.ID AS',
+            expectedOrder: ['speed', 'ties'],
+        },
+    ];
+
+    for (const c of topModifierAliasCases) {
+        test(c.name, async ({ page }) => {
+            await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
+                r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, fields: c.fields } }))
+            );
+            await openSqlCenter(page);
+            const editor = page.locator('.sql-section .sql-raw-textarea-fallback textarea');
+            await editor.fill(c.sql);
+            await page.waitForTimeout(600);
+            await page.locator('.sql-monaco-editor .view-lines').first().click();
+            await page.keyboard.press('End');
+            await page.keyboard.type(' ', { delay: 50 });
+            await page.keyboard.press('Control+Space');
+            const expectedKeys = new Set(c.expectedOrder);
+            await expect
+                .poll(
+                    async () =>
+                        (await suggestionLabels(page))
+                            .map((label) => label.split(',')[0].trim())
+                            .filter((key) => expectedKeys.has(key)),
+                    { timeout: 10_000 }
+                )
+                .toEqual(c.expectedOrder);
+        });
+    }
+
+    /**
      * Description: Ô Mốc bắt đầu ở bảng tham số là ô chữ: @pageSize tự điền 100 nên Lưu & phân tích lưu ngay; ô trống là gửi toàn bộ dữ liệu;
      *              gõ dạng cũ có dấu gạch và hai chấm thì báo dưới ô và không lưu; gõ tiền tố ngày 20261028 thì lưu đúng chuỗi đã gõ;
      *              câu khác công thức cột mốc thì khóa ô cho tới khi sửa câu.
@@ -2125,28 +2187,30 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             expect.objectContaining({ code: 'lastKey', valueKind: 'Builtin', value: 'lastKey', defaultValue: null }),
         ]);
 
-        // Chưa có mốc: ô trống là gửi toàn bộ dữ liệu, chữ gợi ý nêu ví dụ mốc
+        // Chưa có mốc: ô trống là gửi toàn bộ dữ liệu, không có nút chọn ngày, chữ gợi ý nêu ví dụ mốc đủ 17 số kèm _<đuôi>
         await expect(startInput).toHaveValue('', { timeout: 10_000 });
         await expect(startInput).toBeEnabled();
-        await expect(startInput).toHaveAttribute('placeholder', 'Ví dụ 20260101 hoặc 20261116102001123_<đuôi>');
+        await expect(panel.locator('.cvi-shortcut-btn')).toHaveCount(0);
+        await expect(startInput).toHaveAttribute('placeholder', 'Ví dụ 20261116102001123_<đuôi>');
         await expect(startError).toHaveCount(0);
 
-        // Dạng cũ có dấu gạch và hai chấm: báo dưới ô, bấm Lưu thì nhắc sửa dòng lỗi, không gọi API lưu bộ biến
-        await startInput.fill('2026-10-28 00:00:00.000_');
-        await expect(startError).toHaveText(
-            'Mốc gồm 8–17 chữ số năm, tháng, ngày, giờ, phút, giây, mili giây viết liền, ngày giờ phải có thật; muốn ghép đuôi thì viết đủ 17 số rồi thêm _<đuôi>.'
-        );
+        // Dạng cũ, chỉ gõ ngày, hay thiếu đuôi sau _: báo dưới ô, bấm Lưu thì nhắc sửa dòng lỗi, không gọi API lưu bộ biến
+        const expectedErr = 'Mốc phải gồm đủ 17 chữ số năm, tháng, ngày, giờ, phút, giây, mili giây viết liền (ngày giờ phải có thật), theo sau bởi _<đuôi>.';
+        for (const bad of ['2026-10-28 00:00:00.000_', '20261028', '20261028000000000_']) {
+            await startInput.fill(bad);
+            await expect(startError).toHaveText(expectedErr);
+        }
         await save.click();
         await expect(page.locator('.el-message--warning').last()).toContainText('Sửa các dòng tham số đang báo lỗi trước khi lưu.', { timeout: 10_000 });
         expect(variableSaves).toHaveLength(0);
 
-        // Tiền tố ngày: hết báo lỗi, có chữ "Từ" đứng trước, lưu đúng chuỗi đã gõ
-        await startInput.fill('20261028');
+        // Đủ 17 số kèm _<đuôi>: hết báo lỗi, có chữ "Từ" đứng trước, lưu đúng chuỗi đã gõ
+        await startInput.fill('20261028000000000_0');
         await expect(startError).toHaveCount(0);
         await expect(panel.locator('.cvi-from')).toHaveText('Đối tác chưa có mốc: từ');
         await save.click();
         await expect.poll(() => variableSaves.length, { timeout: 10_000 }).toBe(1);
-        expect(variableSaves[0].items[1]).toMatchObject({ code: 'lastKey', defaultValue: '20261028' });
+        expect(variableSaves[0].items[1]).toMatchObject({ code: 'lastKey', defaultValue: '20261028000000000_0' });
 
         await editor.fill('SELECT TOP (@pageSize) x.ID AS zoneId, x.ID AS __lastKey FROM TmsZone x WHERE x.ID > @lastKey ORDER BY __lastKey ASC');
         // Cột mốc khác công thức: khóa ô mốc cho tới khi sửa câu, không còn ô gõ được và biểu tượng thông tin
@@ -2247,7 +2311,8 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         await expect(paramCodes).toHaveText(['@pageSize', '@lastKey']);
         const lastKeyRow = page.locator('.sql-variable-panel .svp-params-card tbody tr', { hasText: '@lastKey' });
-        await expect(lastKeyRow.locator('.cvi-input input')).toHaveAttribute('placeholder', 'Ví dụ 20260101 hoặc 20261116102001123_<đuôi>');
+        await expect(lastKeyRow.locator('.cvi-input input')).toHaveAttribute('placeholder', 'Ví dụ 20261116102001123_<đuôi>');
+        await expect(lastKeyRow.locator('.cvi-shortcut-btn')).toHaveCount(0);
         await expect(lastKeyRow.locator('.cvi-info')).toHaveCount(0);
     });
 

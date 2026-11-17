@@ -861,12 +861,12 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             const editBtn = mainTable.locator('.cvi-edit');
 
             // Tab Mẫu chung: chỉ đặt mốc bắt đầu, để trống là gửi toàn bộ dữ liệu; khi đăng ký gửi đang bật thì cả 3 mục 1, 2, 3 khóa mờ và vô hiệu hóa thao tác
+            await expect(mainTable.locator('.cvi-shortcut-btn')).toHaveCount(0);
             if (c.locked) {
                 await expect(picker).toBeDisabled({ timeout: 10_000 });
-                // Ô khóa thì không bấm được: rê chuột hiện biểu tượng cấm, nút chọn nhanh khóa theo, không nhận con trỏ nhập
+                // Ô khóa thì không bấm được: rê chuột hiện biểu tượng cấm, không nhận con trỏ nhập
                 await expect(picker).toHaveCSS('cursor', 'not-allowed');
                 await expect(mainTable.locator('.cvi-input .el-input__wrapper')).toHaveCSS('cursor', 'not-allowed');
-                await expect(mainTable.locator('.cvi-shortcut-btn')).toBeDisabled();
                 await mainTable.locator('.cvi-input').click({ force: true });
                 await expect(picker).not.toBeFocused();
                 // Bấm chuột thật vào giữa ô: tiêu điểm không rơi vào ô nhập nào nên không có con trỏ nhập nhấp nháy
@@ -935,7 +935,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 await expect(mainTable.locator('.cvi-shortcut-btn')).toHaveCount(0);
             } else {
                 await expect(picker).toBeEnabled();
-                await expect(picker).toHaveAttribute('placeholder', 'Ví dụ 20260101 hoặc 20261116102001123_<đuôi>');
+                await expect(picker).toHaveAttribute('placeholder', 'Ví dụ 20261116102001123_<đuôi>');
             }
             await expect(editBtn).toHaveCount(0);
             await expect(mainTable).not.toContainText('Z02');
@@ -1017,7 +1017,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const expectNoCursorTab = async () => {
             await expect(paramCodes).toHaveText(['@lastKey'], { timeout: 10_000 });
             await expect(picker).toBeEnabled();
-            await expect(picker).toHaveAttribute('placeholder', 'Ví dụ 20260101 hoặc 20261116102001123_<đuôi>');
+            await expect(picker).toHaveAttribute('placeholder', 'Ví dụ 20261116102001123_<đuôi>');
             expect(variablePartners.at(-1)).toBe('p_b');
         };
 
@@ -2457,23 +2457,20 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(lastTimeRow).toHaveCount(0);
         await expect(lastKeyRow.locator('.cvi-prefix-label')).toHaveCount(0);
         await expect(lastKeyRow.locator('.cvi-input input')).toBeEnabled();
-        await expect(lastKeyRow.locator('.cvi-input input')).toHaveAttribute('placeholder', 'Ví dụ 20260101 hoặc 20261116102001123_<đuôi>');
+        await expect(lastKeyRow.locator('.cvi-input input')).toHaveAttribute('placeholder', 'Ví dụ 20261116102001123_<đuôi>');
+        await expect(lastKeyRow.locator('.cvi-shortcut-btn')).toHaveCount(0);
         const isValueSingleLine = await lastKeyRow.locator('.cvi-wrap').evaluate((el) => {
             const style = window.getComputedStyle(el);
             return style.flexWrap === 'nowrap' && el.getBoundingClientRect().height <= 32;
         });
         expect(isValueSingleLine).toBe(true);
 
-        // Nút chọn nhanh: các mốc hay dùng (Đầu ngày hôm nay, Đầu ngày hôm qua...) nằm trọn trên 1 dòng; chọn thì điền tiền tố ngày yyyyMMdd
-        await lastKeyRow.locator('.cvi-shortcut-btn').click();
-        const shortcuts = page.locator('.el-dropdown-menu:visible .el-dropdown-menu__item');
-        await expect(shortcuts).toHaveText(['Đầu ngày hôm nay', 'Đầu ngày hôm qua', '7 ngày gần nhất', 'Đầu tháng này']);
-        const allShortcutsSingleLine = await shortcuts.evaluateAll((els) => els.every((el) => el.getBoundingClientRect().height <= 36 && el.scrollWidth <= el.clientWidth + 1));
-        expect(allShortcutsSingleLine).toBe(true);
-        const now = new Date();
-        const today = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-        await shortcuts.first().click();
-        await expect(lastKeyRow.locator('.cvi-input input')).toHaveValue(today);
+        // Thiếu số hoặc thiếu đuôi sau _: báo lỗi dưới ô; gõ đủ 17 số + _<đuôi> thì hợp lệ, hiện chữ "Từ" trước ô
+        await lastKeyRow.locator('.cvi-input input').fill('20261116');
+        await expect(lastKeyRow.locator('.cvi-error')).toHaveText(
+            'Mốc phải gồm đủ 17 chữ số năm, tháng, ngày, giờ, phút, giây, mili giây viết liền (ngày giờ phải có thật), theo sau bởi _<đuôi>.'
+        );
+        await lastKeyRow.locator('.cvi-input input').fill('20261116000000000_0');
         await expect(lastKeyRow.locator('.cvi-from')).toHaveText('Đối tác chưa có mốc: từ');
         await expect(lastKeyRow.locator('.cvi-error')).toHaveCount(0);
     });

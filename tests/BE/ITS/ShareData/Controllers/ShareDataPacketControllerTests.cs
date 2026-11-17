@@ -1954,17 +1954,21 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Mốc bắt đầu (DefaultValue của @lastKey) sai dạng công thức PA1 (chữ số yyyyMMddHHmmssfff, có đuôi thì đủ 17 chữ số rồi dấu _)
-    ///              hoặc ngày giờ không có thật thì từ chối như Đặt mốc; Mốc bắt đầu đang lưu (20260101, chỉ ghi ngày) giữ nguyên.
+    /// Description: Mốc bắt đầu (DefaultValue của @lastKey) sai dạng công thức PA1 (thiếu 17 chữ số yyyyMMddHHmmssfff, thiếu _<đuôi>
+    ///              hoặc ngày giờ không có thật) thì từ chối như Đặt mốc; Mốc bắt đầu đang lưu đúng chuẩn giữ nguyên.
     /// Created date: 16/11/2026
+    /// Modified date: 17/11/2026
     /// </summary>
     [Theory]
     [InlineData("k_start")]
     [InlineData("2026-11-05 08:00:00.000_")]
-    [InlineData("20261105 080000000_")]
+    [InlineData("20261105 080000000_abc")]
+    [InlineData("20260101")]
+    [InlineData("20261105080000000")]
+    [InlineData("20261105080000000_")]
     [InlineData("2026110508000000_abc")]
     [InlineData("2026110")]
-    [InlineData("20261305080000000_")]
+    [InlineData("20261305080000000_abc")]
     public async Task UpdateSqlVariables_WhenCursorStartNotTimeKeyFormat_RejectsAndKeepsSavedStart_Test(string cursorStart)
     {
         // Arrange
@@ -1974,7 +1978,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = services.GetRequiredService<ISqlSugarClient>();
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
-        const string savedStart = "20260101";
+        const string savedStart = "20260101000000000_0";
         PacketSqlVariableItemInput CursorVar(string start) =>
             new() { Code = "lastKey", ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = start };
         var savedItem = CursorVar(savedStart);
@@ -2194,7 +2198,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             ]
         }));
 
-        const string cutoff = "20261027090000000_";
+        const string cutoff = "20261027090000000_0";
         await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
         {
             PacketCode = packet.Code!,
@@ -2956,7 +2960,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var subscription = NewPartnerSqlSubscription(ownSubscription ? partner : other, packet, direction, state);
         await db.Insertable(subscription).ExecuteCommandAsync();
 
-        const string newStart = "20261105080000000_";
+        const string newStart = "20261105080000000_0";
         var variableItems = new List<PacketSqlVariableItemInput>
         {
             new() { Code = "lastKey", ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = newStart }
@@ -3037,7 +3041,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var packetPage = await services.CallApiAsync<SqlSugarPagedList<ShareDataPagePacketOutput>>(
             new ShareDataPagePacketInput { Page = 1, PageSize = 500, Field = "orderNo", Order = "asc", DescStr = "desc", Code = packet.Code });
         var partners = await services.CallApiAsync<List<PartnerSqlListItemOutput>>(new GetPartnerSqlListInput { PacketCode = packet.Code! });
-        var key = "20261105080000000_";
+        var key = "20261105080000000_0";
         await services.CallApiAsync(new SetLastSendInput { PacketCode = packet.Code!, PartnerId = onCommon.ID, LastKey = key });
         var commonAfterSet = await SavedValue(onCommon);
         var customAfterSet = await SavedValue(custom);
@@ -4352,24 +4356,26 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Đặt mốc chỉ nhận mốc dạng công thức PA1: 8 đến 17 chữ số ngày giờ yyyyMMddHHmmssfff có thật (thiếu thì đệm 0 bên phải, 20260101 là đầu ngày),
-    ///              hoặc đủ 17 chữ số rồi dấu _ và đuôi (đuôi được trống), lưu sau khi bỏ khoảng trắng hai đầu. Dạng có '-', dấu cách, ':', thiếu chữ số
-    ///              hay ngày giờ không có thật thì từ chối, giữ nguyên mốc đang có.
+    /// Description: Đặt mốc chỉ nhận mốc dạng công thức PA1: đủ 17 chữ số ngày giờ yyyyMMddHHmmssfff có thật rồi dấu _ và đuôi không trống,
+    ///              lưu sau khi bỏ khoảng trắng hai đầu. Dạng chỉ ngày giờ không đuôi, kết thúc bằng _ trống, thiếu chữ số, chứa '-', khoảng trắng, ':'
+    ///              hay ngày giờ không có thật đều bị từ chối và giữ nguyên mốc đang có.
     /// Created date: 16/11/2026
+    /// Modified date: 17/11/2026
     /// </summary>
     [Theory]
-    [InlineData("20260101", true)]
-    [InlineData("2026110508", true)]
-    [InlineData("20261105080000123", true)]
-    [InlineData("20261105080000123_", true)]
+    [InlineData("20261105080000123_0", true)]
     [InlineData(" 20261105080000123_abc ", true)]
+    [InlineData("20260101", false)]
+    [InlineData("2026110508", false)]
+    [InlineData("20261105080000123", false)]
+    [InlineData("20261105080000123_", false)]
     [InlineData("k_set", false)]
     [InlineData("2026-11-05 08:00:00.000_abc", false)]
     [InlineData("20261105 080000000_abc", false)]
     [InlineData("2026110508000012_abc", false)]
     [InlineData("2026110", false)]
     [InlineData("20261305080000000_abc", false)]
-    [InlineData("20260230", false)]
+    [InlineData("20260230000000000_abc", false)]
     public async Task SetLastSend_WhenCursorFormatVaries_SavesOnlyTimeKey_Test(string lastKey, bool saved)
     {
         // Arrange

@@ -17,7 +17,7 @@ const PACKET_CODE = '101_commonData';
 const CURSOR_KEY = "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID";
 const CURSOR_SQL = `SELECT TOP (@pageSize) ID AS zoneId, ${CURSOR_KEY} AS __lastKey FROM TmsZone WHERE ${CURSOR_KEY} > @lastKey ORDER BY __lastKey ASC`;
 const SNAPSHOT_SQL = 'SELECT TOP (@pageSize) ID AS zoneId FROM TmsZone';
-const CURSOR_VALUE_ERROR = 'Mốc gồm 8–17 chữ số năm, tháng, ngày, giờ, phút, giây, mili giây viết liền, ngày giờ phải có thật; muốn ghép đuôi thì viết đủ 17 số rồi thêm _<đuôi>.';
+const CURSOR_VALUE_ERROR = 'Mốc phải gồm đủ 17 chữ số năm, tháng, ngày, giờ, phút, giây, mili giây viết liền (ngày giờ phải có thật), theo sau bởi _<đuôi>.';
 
 const pageSizeItem = { code: 'pageSize', valueKind: 'Const', value: '100', dataType: 'Int' };
 const keyItem = (savedValue: string | null, defaultValue: string | null = null, code = 'lastKey') => ({ code, valueKind: 'Builtin', value: 'lastKey', dataType: 'String', savedValue, defaultValue });
@@ -169,17 +169,18 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await rowB.locator('.sd-cursor-btn-wrapper').nth(1).hover();
         await expect(page.locator('.el-popper:visible', { hasText: 'Chưa có mốc gửi dữ liệu để đặt lại' })).toBeVisible({ timeout: 5_000 });
 
-        // Đặt mốc cho VDOT (chưa có mốc đang chạy): ô trống, gõ mốc là chọn chỗ bắt đầu, không báo gửi trùng hay bỏ qua
+        // Đặt mốc cho VDOT (chưa có mốc đang chạy): ô trống, không có nút chọn ngày, gõ đủ 17 số + _<đuôi>
         await rowB.locator('.sd-cursor-set-btn').click();
         const dialog = page.locator('.sd-set-cursor-dialog');
         await expect(dialog).toBeVisible();
+        await expect(dialog.locator('.cvi-shortcut-btn')).toHaveCount(0);
         await expect(dialog.locator('.cvi-input input')).toHaveValue('');
-        await typeCursor(dialog, '20261102080000000');
+        await typeCursor(dialog, '20261102080000000_0');
         await expect(dialog.locator('.sd-cursor-effect')).toHaveCount(0);
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
         await expect(dialog).toBeHidden();
         await expect(page.locator('.el-message--success')).toContainText('Đã cập nhật mốc gửi dữ liệu cho đối tác.');
-        await expectCursorCell(rowB, '20261102080000000');
+        await expectCursorCell(rowB, '20261102080000000_0');
 
         // Đặt lại CSGT: hỏi rõ gửi lại từ Mốc bắt đầu và bị gửi trùng, gửi đúng gói và đối tác, bảng về trạng thái chưa có mốc
         await rowA.locator('.sd-cursor-reset-btn').click();
@@ -287,17 +288,18 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(dialog.locator('.el-dialog__footer')).not.toContainText('Đặt lại');
         await expect(dialog.locator('.sd-cursor-current')).toHaveText('Mốc đang chạy: 20261028080000000_k_1');
         await expect(dialog.locator('.el-form-item')).toHaveCount(2);
+        await expect(dialog.locator('.cvi-shortcut-btn')).toHaveCount(0);
         await expect(dialog.locator('.cvi-input input')).toHaveValue('20261028080000000_k_1');
         await expect(confirmBtn).toBeDisabled();
         await expect(dialog.locator('.sd-cursor-effect')).toHaveCount(0);
-        await typeCursor(dialog, '20261027080000000');
-        await expect(dialog.locator('.sd-cursor-effect')).toHaveText('Gửi lại dữ liệu từ 20261027080000000 tới 20261028080000000_k_1: đối tác nhận trùng phần này.');
-        await typeCursor(dialog, '20261029');
-        await expect(dialog.locator('.sd-cursor-effect')).toHaveText('Bỏ qua dữ liệu từ 20261028080000000_k_1 tới 20261029: phần này không bao giờ được gửi.');
+        await typeCursor(dialog, '20261027080000000_0');
+        await expect(dialog.locator('.sd-cursor-effect')).toHaveText('Gửi lại dữ liệu từ 20261027080000000_0 tới 20261028080000000_k_1: đối tác nhận trùng phần này.');
+        await typeCursor(dialog, '20261029000000000_0');
+        await expect(dialog.locator('.sd-cursor-effect')).toHaveText('Bỏ qua dữ liệu từ 20261028080000000_k_1 tới 20261029000000000_0: phần này không bao giờ được gửi.');
         await expect(confirmBtn).toBeEnabled();
         await confirmBtn.click();
         await expect.poll(() => setPayloads.length).toBe(1);
-        expect(setPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_shared1', lastKey: '20261029' });
+        expect(setPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_shared1', lastKey: '20261029000000000_0' });
     });
 
     /**
@@ -327,22 +329,22 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         const dialog = page.locator('.sd-set-cursor-dialog');
         await expect(dialog.locator('.sd-cursor-section')).toHaveCount(2);
         const tollSection = dialog.locator('.sd-cursor-section', { hasText: '__lastKey_toll' });
-        await typeCursor(tollSection, '20261027092500000');
+        await typeCursor(tollSection, '20261027092500000_0');
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
         await expect(dialog).toBeHidden();
         await expect.poll(() => setPayloads.length).toBe(1);
-        expect(setPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_grp', cursorKey: 'toll', lastKey: '20261027092500000' });
+        expect(setPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_grp', cursorKey: 'toll', lastKey: '20261027092500000_0' });
     });
 
     /**
      * Author: DatHQ
-     * Description: Hộp Đặt mốc là ô chữ điền sẵn nguyên chuỗi mốc đang chạy, sửa tự do: nhận tiền tố ngày 20260101 và gửi đúng chuỗi đã gõ (bỏ khoảng trắng hai đầu);
-     *              dạng cũ có dấu gạch và hai chấm, ngày giờ không có thật, đuôi khi chưa đủ 17 số thì báo dưới ô và khóa Xác nhận; ô trống cũng khóa Xác nhận.
-     *              Nút chọn nhanh điền sẵn tiền tố ngày yyyyMMdd (đầu tháng là yyyyMM01).
+     * Description: Hộp Đặt mốc là ô chữ điền sẵn nguyên chuỗi mốc đang chạy, sửa tay trực tiếp, không có nút chọn ngày:
+     *              chỉ nhận đủ 17 chữ số yyyyMMddHHmmssfff có thật theo sau bởi _<đuôi> không rỗng; bỏ khoảng trắng hai đầu khi gửi.
+     *              Dạng cũ, chỉ gõ ngày, thiếu chữ số, ngày giờ không có thật hoặc thiếu đuôi sau _ đều báo dưới ô và khóa Xác nhận; ô trống cũng khóa Xác nhận.
      * Created date: 07/11/2026
-     * Modified date: 16/11/2026
+     * Modified date: 17/11/2026
      */
-    test('6. Hộp Đặt mốc: điền sẵn mốc đang chạy, nhận 20260101, chặn dạng cũ và ngày giờ không có thật, ô trống không Xác nhận được', async ({ page }) => {
+    test('6. Hộp Đặt mốc: điền sẵn mốc đang chạy, không có nút lịch, bắt buộc đủ 17 số kèm _<đuôi>, ô trống không Xác nhận được', async ({ page }) => {
         await mockExtractSql(page, CURSOR_SQL);
         await mockPartners(page, [{ partnerId: 'p_a', partnerCode: 'CSGT', partnerName: 'Cục CSGT', isCustom: false }]);
         await mockVariables(page, (partnerId) => [pageSizeItem, keyItem(partnerId ? '20261028080000000_k_1' : null)]);
@@ -354,13 +356,23 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         const input = dialog.locator('.cvi-input input');
         const error = dialog.locator('.cvi-error');
         const confirmBtn = dialog.locator('.el-dialog__footer .el-button--primary');
+        await expect(dialog.locator('.cvi-shortcut-btn')).toHaveCount(0);
         await expect(input).toHaveValue('20261028080000000_k_1');
-        await expect(input).toHaveAttribute('placeholder', 'Ví dụ 20260101 hoặc 20261116102001123_<đuôi>');
+        await expect(input).toHaveAttribute('placeholder', 'Ví dụ 20261116102001123_<đuôi>');
         await expect(error).toHaveCount(0);
         await expect(confirmBtn).toBeDisabled();
 
-        // Dạng cũ, ngày 30/02, giờ 24, đuôi khi chưa đủ 17 số, thiếu chữ số: báo dưới ô, không Xác nhận được, không báo hệ quả
-        for (const invalid of ['2026-01-01 00:00:00.000_x', '20260230', '2026010124', '2026010112_x', '2026011']) {
+        // Dạng cũ, thiếu số, thiếu đuôi, ngày 30/02, giờ 24: báo dưới ô, không Xác nhận được, không báo hệ quả
+        for (const invalid of [
+            '2026-01-01 00:00:00.000_x',
+            '20260101',
+            '20260101000000000',
+            '20260101000000000_',
+            '20260230000000000_x',
+            '20260101240000000_x',
+            '2026010112_x',
+            '2026011',
+        ]) {
             await typeCursor(dialog, invalid);
             await expect(error).toHaveText(CURSOR_VALUE_ERROR);
             await expect(confirmBtn).toBeDisabled();
@@ -372,23 +384,15 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(error).toHaveCount(0);
         await expect(confirmBtn).toBeDisabled();
 
-        // Nút chọn nhanh đầu tháng điền tiền tố yyyyMM01
-        const now = new Date();
-        const monthStart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}01`;
-        await dialog.locator('.cvi-shortcut-btn').click();
-        await page.locator('.el-dropdown-menu__item:visible', { hasText: 'Đầu tháng này' }).click();
-        await expect(input).toHaveValue(monthStart);
-        await expect(confirmBtn).toBeEnabled();
-
-        // Tiền tố ngày 20260101: hợp lệ, báo gửi trùng vì lùi so với mốc đang chạy, gửi đúng chuỗi đã gõ
-        await typeCursor(dialog, ' 20260101 ');
+        // Đủ 17 số kèm _<đuôi>: hợp lệ, báo gửi trùng vì lùi so với mốc đang chạy, gửi đúng chuỗi đã gõ (bỏ khoảng trắng hai đầu)
+        await typeCursor(dialog, ' 20260101000000000_0 ');
         await expect(error).toHaveCount(0);
-        await expect(dialog.locator('.sd-cursor-effect')).toHaveText('Gửi lại dữ liệu từ 20260101 tới 20261028080000000_k_1: đối tác nhận trùng phần này.');
+        await expect(dialog.locator('.sd-cursor-effect')).toHaveText('Gửi lại dữ liệu từ 20260101000000000_0 tới 20261028080000000_k_1: đối tác nhận trùng phần này.');
         await expect(confirmBtn).toBeEnabled();
         await confirmBtn.click();
         await expect(dialog).toBeHidden();
         await expect.poll(() => setPayloads.length).toBe(1);
-        expect(setPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_a', lastKey: '20260101' });
+        expect(setPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_a', lastKey: '20260101000000000_0' });
     });
 
     /**
@@ -567,17 +571,19 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await page.locator('.el-message-box__btns .el-button--primary').click();
         await expect(row.locator('.sd-cursor-line')).toHaveText('Chưa có, lượt gửi tới lấy toàn bộ dữ liệu');
         await expect(startInput).toBeEnabled();
-        await expect(startInput).toHaveAttribute('placeholder', 'Ví dụ 20260101 hoặc 20261116102001123_<đuôi>');
+        await expect(startInput).toHaveAttribute('placeholder', 'Ví dụ 20261116102001123_<đuôi>');
+        await expect(variables.locator('.cvi-shortcut-btn')).toHaveCount(0);
         await expect(pageSizeInput).toHaveValue('50');
 
         // Đặt mốc: đối tác có mốc lại nên ô Mốc bắt đầu khóa ngay
         await row.locator('.sd-cursor-set-btn').click();
         const dialog = page.locator('.sd-set-cursor-dialog');
         await expect(dialog).toBeVisible();
-        await typeCursor(dialog, '20261102080000000');
+        await expect(dialog.locator('.cvi-shortcut-btn')).toHaveCount(0);
+        await typeCursor(dialog, '20261102080000000_0');
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
         await expect(dialog).toBeHidden();
-        await expectCursorCell(row, '20261102080000000');
+        await expectCursorCell(row, '20261102080000000_0');
         await expect(startInput).toBeDisabled();
         await expect(startInput).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
         await expect(pageSizeInput).toHaveValue('50');

@@ -35,7 +35,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         private const string WriteSqlTimeFixScript = "sharedata-sua-cau-ghi-thoi-gian-ShareDataSql.sql";
 
         /// <summary>Mốc lần đầu của câu nối đuôi: chỉ lấy các dòng nguồn của bài test (giờ năm 2099), bỏ dữ liệu sẵn có.</summary>
-        private const string RoundTripCursorStart = "20980101000000000_";
+        private const string RoundTripCursorStart = "20980101000000000_0";
 
         /// <summary>Số đối tác cùng chạy vòng một gói: nửa sau dùng câu riêng biến tấu từ câu trích thật, đủ 5 kiểu biến tấu (số thứ tự chia 5 dư 0..4).</summary>
         private const int RoundTripPartnerCount = 10;
