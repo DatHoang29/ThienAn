@@ -17,7 +17,8 @@ GO
 --              @GoiBoQua: mã gói bỏ khỏi kiểm tải (giữ giống K2).
 --              @BuocGuiKhiCoDuLieuMoi: cứ mỗi N đối tác kiểm tải (theo số trong mã, vd KT002, KT004... khi N = 2) có 1 đối tác
 --              bật "Gửi khi có dữ liệu mới" (SendOnNewData = 1) ở mọi đăng ký gửi; các đối tác còn lại, PC08, TTDHT chỉ gửi theo chu kỳ.
---              @DanhSachChuKy: các chu kỳ gửi (giây) chia cho đăng ký gửi của đối tác kiểm tải, mặc định 15, 20, 25, 30, 60.
+--              @DanhSachChuKy: các chu kỳ gửi (giây) chia cho đăng ký gửi của đối tác kiểm tải, mặc định 30, 40, 50, 60, 120
+--              (giãn gấp đôi ngày 17/11/2026 để bớt lượt quét bảng nguồn lớn trên máy chủ ổ HDD).
 --              Mỗi cặp (đối tác × gói) luôn nhận cùng một chu kỳ trong danh sách (chọn theo CHECKSUM mã đối tác + mã gói),
 --              nên cùng một đối tác có gói chạy nhanh, gói chạy chậm. PC08, TTDHT và mọi đăng ký nhận giữ @ChuKyGiay.
 --              Chạy lại tệp thì chu kỳ của đăng ký gửi kiểm tải đã có được chỉnh theo danh sách; N'' = tất cả dùng @ChuKyGiay.
@@ -27,7 +28,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Staging (chạy theo yêu cầu kiểm tải). ⛔ Không chạy trên production.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): cặp đối tác × gói × chiều đã có đăng ký đang sống thì bỏ qua.
--- CẬP NHẬT LẦN CUỐI: 17/11/2026 (ghi chú số đăng ký theo mặc định K1 10 đối tác); 12112026 (thêm @BuocGuiKhiCoDuLieuMoi và @DanhSachChuKy: chu kỳ gửi khác nhau theo cặp đối tác × gói)
+-- CẬP NHẬT LẦN CUỐI: 17/11/2026 (giãn @DanhSachChuKy gấp đôi thành 30, 40, 50, 60, 120 giây; ghi chú số đăng ký theo mặc định K1 10 đối tác); 12112026 (thêm @BuocGuiKhiCoDuLieuMoi và @DanhSachChuKy: chu kỳ gửi khác nhau theo cặp đối tác × gói)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -51,7 +52,7 @@ DECLARE @TienToMa NVARCHAR(16) = N'KT';
 DECLARE @GoiBoQua NVARCHAR(256) = N'';                           -- Mã gói bỏ thêm khỏi kiểm tải, cách nhau dấu phẩy, vd N'109'; N'' = mọi gói đang bật. Gói chưa có câu ghi chiều nhận (vd 110) tệp tự bỏ
 DECLARE @BuocGuiKhiCoDuLieuMoi INT = 2;                          -- Cứ mỗi N đối tác kiểm tải có 1 đối tác bật Gửi khi có dữ liệu mới; 0 = không đối tác nào bật
 DECLARE @ChuKyGiay INT = 30;                                    -- Chu kỳ (giây) của PC08, TTDHT, đăng ký nhận, và của mọi đăng ký khi @DanhSachChuKy = N''
-DECLARE @DanhSachChuKy NVARCHAR(256) = N'15,20,25,30,60';        -- Các chu kỳ gửi (giây, từ 5 trở lên) chia cho đăng ký gửi của đối tác kiểm tải; N'' = tất cả dùng @ChuKyGiay
+DECLARE @DanhSachChuKy NVARCHAR(256) = N'30,40,50,60,120';       -- Các chu kỳ gửi (giây, từ 5 trở lên) chia cho đăng ký gửi của đối tác kiểm tải; N'' = tất cả dùng @ChuKyGiay
 DECLARE @TaoDangKyChieuNhan BIT = 1;                             -- 1 = tạo cả đăng ký chiều nhận (Direction = 1)
 DECLARE @XoaDuLieuKiemTai BIT = 0;                               -- 1 = xóa đăng ký kiểm tải (chạy đầu tiên khi dọn)
 

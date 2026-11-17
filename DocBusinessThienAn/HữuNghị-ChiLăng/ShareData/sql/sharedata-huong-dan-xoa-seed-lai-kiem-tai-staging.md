@@ -73,10 +73,10 @@ Chạy đúng thứ tự, từng tệp một.
   - Tệp không có chế độ xem trước: chạy là gỡ luôn.
   - Chỉ gỡ, không dựng gì nên xong trong vài giây, không cần giờ thấp điểm. Mỗi lệnh chờ khóa tối đa `@ChoKhoaMs` (5 giây), bảng có thể khựng chừng đó. Báo lỗi 1222 thì chạy lại tệp, bảng đã gỡ được bỏ qua.
   - Kết quả cuối tệp: mỗi bảng `CotMoc = đã gỡ`, `ChiMuc = đã gỡ`.
-- [ ] **Không chạy I1** (dựng `CursorTime`), xem khung dưới.
+- [ ] **Không chạy I1** (dựng `CursorTime`).
 - [ ] Không cần chạy I4, I7 (CSDL nhận vẫn giữ chỉ mục sau X16, X17).
 
-> ⚠️ **Đã chốt 17/11: 7 câu mẫu giữ một tầng, chấp nhận quét bảng, không dựng `CursorTime`.** Câu một tầng lọc và sắp theo cả chuỗi giờ + đuôi nên không dùng được chỉ mục nào: mỗi lượt gửi quét và sắp cả bảng nguồn, theo dõi sát tempdb và đĩa ở bước 8. Chỉ mục `CursorTime` (chỉ phần giờ) chỉ có ích cho câu hai tầng (câu trong `TOP ... WITH TIES` lọc và sắp theo phần giờ, có chặn dưới `>= CONVERT(varchar(17), LEFT(@lastKey, 17))`; câu ngoài sắp theo `__lastKey`). Khi nào có câu hai tầng thì mới chạy I1 [sharedata-chi-muc-them-BangNguonNoiDuoi.sql](chi-muc/sharedata-chi-muc-them-BangNguonNoiDuoi.sql), đọc phần Lưu ý cuối tệp trước khi chạy.
+> ⚠️ **Đã chốt 17/11: 7 câu mẫu giữ một tầng, chấp nhận quét bảng, không dựng `CursorTime`.** Câu một tầng lọc và sắp theo cả chuỗi giờ + đuôi nên không dùng được chỉ mục nào: mỗi lượt gửi quét và sắp cả bảng nguồn, theo dõi sát tempdb và đĩa ở bước 8.
 
 ## Bước 5. Seed lại dữ liệu chuẩn (tệp 2 → 16)
 
@@ -105,7 +105,7 @@ Chạy trên `DEV_ITS015`, giữ tham số mặc định.
 | :---: | :--- | :--- |
 | K1 | [sharedata-kiem-tai-ShareDataPartner.sql](kiem-tai/sharedata-kiem-tai-ShareDataPartner.sql) | `KT001`–`KT008` (`@SoDoiTac = 8`, cộng `PC08`, `TTDHT` là 10 đối tác), bật kết nối cho cả `PC08`, `TTDHT`; mọi đối tác gửi vào API nhận của chính WebAPI staging. `PC08` đã có từ tệp 14 nên K1 không tạo trùng |
 | K2 | [sharedata-kiem-tai-ShareDataMapping.sql](kiem-tai/sharedata-kiem-tai-ShareDataMapping.sql) | Hồ sơ ánh xạ gửi và nhận cho mọi gói đang bật |
-| K3 | [sharedata-kiem-tai-ShareDataSubscription.sql](kiem-tai/sharedata-kiem-tai-ShareDataSubscription.sql) | Đăng ký gửi và nhận. Chu kỳ gửi của đối tác kiểm tải chia theo `15,20,25,30,60` giây; đối tác số chẵn (`KT002`, `KT004`...) bật "Gửi khi có dữ liệu mới"; gói 110 chưa có câu ghi chiều nhận nên tự bỏ |
+| K3 | [sharedata-kiem-tai-ShareDataSubscription.sql](kiem-tai/sharedata-kiem-tai-ShareDataSubscription.sql) | Đăng ký gửi và nhận. Chu kỳ gửi của đối tác kiểm tải chia theo `30,40,50,60,120` giây (giãn gấp đôi ngày 17/11 để bớt lượt quét `TmsTrafficData`), `PC08`, `TTDHT` và đăng ký nhận 30 giây; đối tác số chẵn (`KT002`, `KT004`...) bật "Gửi khi có dữ liệu mới"; gói 110 chưa có câu ghi chiều nhận nên tự bỏ |
 | K4 | [sharedata-kiem-tai-ShareDataSql.sql](kiem-tai/sharedata-kiem-tai-ShareDataSql.sql) | Câu SQL riêng cho `KT005`–`KT008` (`KT001`–`KT004` dùng câu mẫu chung), mỗi cặp đối tác × gói một biến thể (thêm cột phụ, đổi `TOP 100` thành 20/50/200/500) |
 
 - [ ] Kiểm số lượng (chỉ đọc):
@@ -144,30 +144,11 @@ Chạy trên `DEV_ITS015`, giữ tham số mặc định.
 
 ---
 
-## Lưu ý: khi sau này dựng chỉ mục CursorTime (I1) lúc dữ liệu đang chạy
-
-Lần seed lại này không chạy I1 (bước 4 chỉ gỡ). Phần này dùng khi có câu hai tầng cần chỉ mục `CursorTime`. Các bảng ở bước 4 do phân hệ khác (TMS, thu phí) ghi liên tục, nên dừng ShareData vẫn chưa đủ.
-
-- **Kiểm bản SQL Server trước:**
-  ```sql
-  SELECT SERVERPROPERTY('Edition') AS Edition, SERVERPROPERTY('EngineEdition') AS EngineEdition;
-  ```
-  `EngineEdition` = 3 (Enterprise, Developer) thì dựng chỉ mục trực tuyến; 2 (Standard) hoặc 4 (Express) thì bảng bị chặn ghi trong lúc dựng. Chọn giờ thấp điểm, chạy riêng `@ChiBang = N'TmsTrafficData'` trước rồi để `NULL` chạy các bảng còn lại.
-
-- **Đọc vẫn chạy bình thường.** Bản không hỗ trợ trực tuyến (Standard, Express) thì **lệnh ghi vào bảng bị chặn suốt lúc dựng chỉ mục**. Bản Enterprise, Developer thì I1 tự dùng `ONLINE = ON`, chỉ khóa rất ngắn lúc bắt đầu và kết thúc.
-- **Thời gian chặn:** `TmsTrafficData` khoảng vài giây tới vài chục giây trên HDD; 5 bảng còn lại nhỏ, gần như tức thì. Dịch vụ ghi vào bảng đó phải chờ; chờ quá thời gian chờ lệnh của ứng dụng (mặc định 30 giây) thì phía ghi báo lỗi, ứng dụng không tự thử lại thì có thể mất dòng. Vì vậy chạy giờ thấp điểm và chạy riêng `TmsTrafficData`.
-- **Thêm hoặc gỡ cột tính toán** chỉ đổi định nghĩa bảng nhưng phải chờ các câu đang chạy trên bảng xong. Trong lúc chờ (tối đa `@ChoKhoaMs` = 5 giây), các câu mới trên bảng xếp hàng phía sau nên bảng khựng tối đa khoảng 5 giây. Quá thời gian thì báo lỗi 1222 và không đổi gì; chạy lại tệp là được.
-- **Gỡ `CursorKey` cũ khi Worker còn chạy câu mẫu cũ dạng `121`** thì Worker quét cả bảng mỗi lượt. Vì vậy dừng Worker trước khi chạy I1 hoặc I2 (bước 1).
-- **Lỗi 1934:** sau khi bảng có chỉ mục trên cột tính toán, phiên ghi phải bật `QUOTED_IDENTIFIER`, `ANSI_NULLS` (ứng dụng .NET, SqlSugar mặc định đã bật). Job SQL Agent bước T-SQL, `sqlcmd` cũ, thủ tục lưu tạo khi `QUOTED_IDENTIFIER OFF` sẽ lỗi khi thêm, sửa dòng. Trên staging, 6 bảng đã có chỉ mục loại này từ 12/11 (`CursorKey`) mà không thấy lỗi nên rủi ro thấp; CSDL mới lần đầu chạy I1 thì thử ghi một dòng vào từng bảng.
-- **Ảnh hưởng phụ:** kế hoạch thực thi các câu trên bảng bị biên dịch lại một lần (CPU nhích ngắn); cột `CursorTime` xuất hiện thêm khi `SELECT *` (thay cho `CursorKey` cũ nên số cột không đổi). `DEV_ITS015` để SIMPLE recovery nên log không phình lâu; dựng chỉ mục không dùng tempdb.
-- **Muốn bỏ chỉ mục đã dựng:** chạy I2 [sharedata-chi-muc-go-BangNguonNoiDuoi.sql](chi-muc/sharedata-chi-muc-go-BangNguonNoiDuoi.sql).
-
 ## Xử lý nhanh
 
 | Hiện tượng | Cách xử lý |
 | :--- | :--- |
 | Tệp X, K, I báo lỗi 1222 | Bảng đang bị câu khác giữ khóa; dừng dịch vụ liên quan rồi chạy lại tệp |
-| Phân hệ khác báo lỗi 1934 sau khi chạy I1 (về sau) | Chạy I2 để gỡ chỉ mục, báo lại để sửa phiên ghi |
 | Worker không lên | Event Viewer → Windows Logs → Application |
 | Cảnh báo ESH-1308 ngay sau khi bật | Worker và WebAPI lệch phiên bản; kiểm lại bước 2 |
 | Màn hình không thấy đối tác mới | Khởi động lại WebAPI (danh sách đối tác đọc qua cache) |
