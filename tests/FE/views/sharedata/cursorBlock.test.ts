@@ -17,7 +17,7 @@ const PACKET_CODE = '101_commonData';
 const CURSOR_KEY = "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID";
 const CURSOR_SQL = `SELECT TOP (@pageSize) ID AS zoneId, ${CURSOR_KEY} AS __lastKey FROM TmsZone WHERE ${CURSOR_KEY} > @lastKey ORDER BY __lastKey ASC`;
 const SNAPSHOT_SQL = 'SELECT TOP (@pageSize) ID AS zoneId FROM TmsZone';
-const CURSOR_VALUE_ERROR = 'Mốc phải gồm đủ 17 chữ số năm, tháng, ngày, giờ, phút, giây, mili giây viết liền (ngày giờ phải có thật), theo sau bởi _<đuôi>.';
+const CURSOR_VALUE_ERROR = 'Mốc phải là ngày giờ có thật viết liền: từ 8 chữ số năm, tháng, ngày (ví dụ 20260101) tới 17 chữ số có cả giờ, phút, giây, mili giây; muốn ghép _<đuôi> thì phần ngày giờ phải đủ 17 chữ số.';
 
 const pageSizeItem = { code: 'pageSize', valueKind: 'Const', value: '100', dataType: 'Int' };
 const keyItem = (savedValue: string | null, defaultValue: string | null = null, code = 'lastKey') => ({ code, valueKind: 'Builtin', value: 'lastKey', dataType: 'String', savedValue, defaultValue });
@@ -339,12 +339,13 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
     /**
      * Author: DatHQ
      * Description: Hộp Đặt mốc là ô chữ điền sẵn nguyên chuỗi mốc đang chạy, sửa tay trực tiếp, không có nút chọn ngày:
-     *              chỉ nhận đủ 17 chữ số yyyyMMddHHmmssfff có thật theo sau bởi _<đuôi> không rỗng; bỏ khoảng trắng hai đầu khi gửi.
-     *              Dạng cũ, chỉ gõ ngày, thiếu chữ số, ngày giờ không có thật hoặc thiếu đuôi sau _ đều báo dưới ô và khóa Xác nhận; ô trống cũng khóa Xác nhận.
+     *              nhận ngày giờ có thật viết liền 8 tới 17 chữ số yyyyMMddHHmmssfff (như 20260101), hoặc đủ 17 chữ số kèm _<đuôi>
+     *              (đuôi được để trống); bỏ khoảng trắng hai đầu khi gửi. Dạng cũ, thiếu chữ số, ghép _ khi chưa đủ 17 số hoặc ngày giờ
+     *              không có thật đều báo dưới ô và khóa Xác nhận; ô trống cũng khóa Xác nhận.
      * Created date: 07/11/2026
      * Modified date: 17/11/2026
      */
-    test('6. Hộp Đặt mốc: điền sẵn mốc đang chạy, không có nút lịch, bắt buộc đủ 17 số kèm _<đuôi>, ô trống không Xác nhận được', async ({ page }) => {
+    test('6. Hộp Đặt mốc: điền sẵn mốc đang chạy, không có nút lịch, nhận 8–17 số hoặc 17 số kèm _<đuôi>, ô trống không Xác nhận được', async ({ page }) => {
         await mockExtractSql(page, CURSOR_SQL);
         await mockPartners(page, [{ partnerId: 'p_a', partnerCode: 'CSGT', partnerName: 'Cục CSGT', isCustom: false }]);
         await mockVariables(page, (partnerId) => [pageSizeItem, keyItem(partnerId ? '20261028080000000_k_1' : null)]);
@@ -362,12 +363,10 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(error).toHaveCount(0);
         await expect(confirmBtn).toBeDisabled();
 
-        // Dạng cũ, thiếu số, thiếu đuôi, ngày 30/02, giờ 24: báo dưới ô, không Xác nhận được, không báo hệ quả
+        // Dạng cũ, thiếu số, ghép _ khi chưa đủ 17 số, ngày 30/02, giờ 24: báo dưới ô, không Xác nhận được, không báo hệ quả
         for (const invalid of [
             '2026-01-01 00:00:00.000_x',
-            '20260101',
-            '20260101000000000',
-            '20260101000000000_',
+            '20260230',
             '20260230000000000_x',
             '20260101240000000_x',
             '2026010112_x',
@@ -384,15 +383,22 @@ test.describe('ShareData — Khối 4 Mốc đang chạy (cursorBlock) @sharedat
         await expect(error).toHaveCount(0);
         await expect(confirmBtn).toBeDisabled();
 
-        // Đủ 17 số kèm _<đuôi>: hợp lệ, báo gửi trùng vì lùi so với mốc đang chạy, gửi đúng chuỗi đã gõ (bỏ khoảng trắng hai đầu)
-        await typeCursor(dialog, ' 20260101000000000_0 ');
+        // Đủ 17 số kèm đuôi, đuôi trống hay chỉ có ngày giờ (8 tới 17 số): hợp lệ, Xác nhận được
+        for (const valid of ['20260101000000000_0', '20260101000000000_', '20260101000000000', '2026010108']) {
+            await typeCursor(dialog, valid);
+            await expect(error).toHaveCount(0);
+            await expect(confirmBtn).toBeEnabled();
+        }
+
+        // Chỉ gõ ngày 20260101: báo gửi trùng vì lùi so với mốc đang chạy, gửi đúng chuỗi đã gõ (bỏ khoảng trắng hai đầu)
+        await typeCursor(dialog, ' 20260101 ');
         await expect(error).toHaveCount(0);
-        await expect(dialog.locator('.sd-cursor-effect')).toHaveText('Gửi lại dữ liệu từ 20260101000000000_0 tới 20261028080000000_k_1: đối tác nhận trùng phần này.');
+        await expect(dialog.locator('.sd-cursor-effect')).toHaveText('Gửi lại dữ liệu từ 20260101 tới 20261028080000000_k_1: đối tác nhận trùng phần này.');
         await expect(confirmBtn).toBeEnabled();
         await confirmBtn.click();
         await expect(dialog).toBeHidden();
         await expect.poll(() => setPayloads.length).toBe(1);
-        expect(setPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_a', lastKey: '20260101000000000_0' });
+        expect(setPayloads[0]).toEqual({ packetCode: PACKET_CODE, partnerId: 'p_a', lastKey: '20260101' });
     });
 
     /**

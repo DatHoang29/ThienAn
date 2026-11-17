@@ -23,5 +23,5 @@
 - [Biểu mẫu KPI](kpi-template.md) — tạo kỳ mới từ 2026.09; 2026.08 chỉ đọc để đối chiếu; quy chuẩn định dạng trong tệp
 
 ## Dự án
-- [ShareData](sharedata.md) — quyết định, kiểm tải; 16/11 khóa viết liền, CursorTime; 17/11 tạm dừng không đè cột Worker, FE câu hai tầng
+- [ShareData](sharedata.md) — quyết định, kiểm tải; 17/11: zip 20261117, câu 1 tầng quét bảng, kiểm tải 10 đối tác, ô mốc nhận 8–17 số theo biên bản
 - [Bàn giao 11/2026](handover-2026-11.md) — tài liệu ở `bangiao/`, tách theo phân hệ, bản html và md

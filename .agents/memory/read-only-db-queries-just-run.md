@@ -16,6 +16,6 @@ are the safe default; only writes need caution.
 
 **How to apply:** run SELECT / MCP read tools freely. Still never issue INSERT/UPDATE/DELETE/DDL
 against any DB, and keep `dotnet test` pointed at a **local** DB only (CLAUDE.md safeguard: abort if
-a test connection string points at a remote server such as `10.10.12.80` or the old `10.10.8.30`). Prefer MCP
-`mssql_staging` over a raw client when it's connected; a raw read-only client to staging (`10.10.12.80`, account in
+a test connection string points at a remote server, e.g. the staging server). Prefer MCP
+`mssql_staging` over a raw client when it's connected; a raw read-only client to staging (address and account in
 `.agents/mcp/.env`, which git ignores) is acceptable when MCP isn't loaded. See [mcp-dab-database-access](mcp-dab-database-access).

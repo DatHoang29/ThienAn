@@ -7,7 +7,7 @@ GO
 -- DESCRIPTION: Kiểm tải ShareData trên Staging (nhiều đối tác × nhiều gói tin):
 --              - Tạo / khôi phục hồ sơ ánh xạ đang bật cho toàn bộ các gói tin đang bật trên CSDL
 --                (trên staging là 9 gói: 101, 102, 103, 104, 106, 107, 108, 109, 110; nếu 105 bật thì có cả 105)
---                × cả 2 đối tác gốc (PC08, TTDHT) lẫn toàn bộ đối tác kiểm tải (KT001..KT050) do K1 tạo
+--                × cả 2 đối tác gốc (PC08, TTDHT) lẫn toàn bộ đối tác kiểm tải (KT001..) do K1 tạo
 --                × 2 chiều (Gửi đi: Direction = 0, mã ..._OUT; Nhận về: Direction = 1, mã ..._IN).
 --              - Gói 101 áp dụng sẵn bộ mã chuẩn hóa lane_code và traffic_condition; các gói 102..110 giữ nguyên
 --                tên trường khớp cột trả về của câu SQL mẫu chuẩn trong ShareDataSql.
@@ -649,7 +649,7 @@ N'{
     PRINT N'-> 2.1. Đã khôi phục ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' hồ sơ ánh xạ sẵn có của PC08, TTDHT cho các gói đang bật.';
 
     -- -------------------------------------------------------------------------------------
-    -- 2.2. THÊM MỚI HỒ SƠ ÁNH XẠ CÒN THIẾU CHO PC08, TTDHT VÀ KT001..KT050
+    -- 2.2. THÊM MỚI HỒ SƠ ÁNH XẠ CÒN THIẾU CHO PC08, TTDHT VÀ CÁC ĐỐI TÁC KIỂM TẢI
     -- -------------------------------------------------------------------------------------
     ;WITH [Src] AS (
         SELECT

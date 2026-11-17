@@ -9,10 +9,10 @@ GO
 --                 nếu trên CSDL đang bị mất dòng PC08.
 --              2. Đảm bảo 2 đối tác gốc (PC08, TTDHT) đều ở trạng thái Bật (Status = 1), Đã kết nối (SessionState = 1)
 --                 và có cấu hình kênh kết nối hợp lệ (nếu đang trống thì điền cấu hình mặc định đầu tệp).
---              3. Tạo @SoDoiTac đối tác kiểm tải (KT001 .. KT050, mặc định 50) ở trạng thái Bật (Status = 1)
+--              3. Tạo @SoDoiTac đối tác kiểm tải (KT001 .. KT008, mặc định 8) ở trạng thái Bật (Status = 1)
 --                 và Đã kết nối (SessionState = 1), chép cấu hình kết nối của đối tác mẫu @MaDoiTacMau
 --                 (để NULL thì dùng cấu hình mặc định đầu tệp); đối tác kiểm tải đã có thì cập nhật theo cấu hình đó.
---              Cấu hình mặc định gọi API nhận của chính WebAPI staging (https://10.10.12.80:12204/api/sharedata/sharedatainbound/receive,
+--              Cấu hình mặc định gọi API nhận của chính WebAPI staging (https://10.10.8.30:12204/api/sharedata/sharedatainbound/receive,
 --              kênh WebAPI): gói gửi đi mang header PartnerCode = mã đối tác nên WebAPI nhận dưới chính đối tác đó, dịch vụ chỉ nhận
 --              ghi vào CSDL nhận, nhờ vậy kiểm tải được cả chiều gửi lẫn chiều nhận. Gọi bằng IP nên tên không khớp chứng chỉ
 --              của máy chủ (cấp cho tên miền): cấu hình kết nối bật BypassSsl, bỏ đi thì Worker báo lỗi SSL.
@@ -26,7 +26,7 @@ GO
 -- MÔI TRƯỜNG: Staging (chạy theo yêu cầu kiểm tải). ⛔ Không chạy trên production.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): đối tác đã có cùng mã thì bỏ qua.
 --           Mọi dòng kiểm tải tạo mới gắn CreateUId = N'SHAREDATA-KIEM-TAI' để dọn sạch.
--- CẬP NHẬT LẦN CUỐI: 11112026 (mặc định gọi API nhận của WebAPI staging cổng 12204, cập nhật kết nối đối tác kiểm tải đã có)
+-- CẬP NHẬT LẦN CUỐI: 17/11/2026 (mặc định 8 đối tác kiểm tải, cộng PC08, TTDHT là 10 đối tác; máy chủ staging đổi lại địa chỉ 10.10.8.30); 11112026 (mặc định gọi API nhận của WebAPI staging cổng 12204, cập nhật kết nối đối tác kiểm tải đã có)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -48,8 +48,8 @@ GO
 -- -----------------------------------------------------------------------------------------
 DECLARE @MaDoiTacMau NVARCHAR(64) = NULL;                        -- Mã đối tác mẫu lấy cấu hình kết nối; NULL = dùng cấu hình mặc định dưới đây
 DECLARE @TienToMa NVARCHAR(16) = N'KT';                          -- Mã đối tác kiểm tải: KT001, KT002, ...
-DECLARE @SoDoiTac INT = 50;                                      -- Số đối tác kiểm tải cần tạo thêm (1..999)
-DECLARE @DiaChiMacDinh NVARCHAR(128) = N'https://10.10.12.80';   -- Địa chỉ WebAPI nhận, ghi kèm https:// (màn hình web là cổng 12205)
+DECLARE @SoDoiTac INT = 8;                                       -- Số đối tác kiểm tải cần tạo thêm (1..999); 8 + PC08, TTDHT = 10 đối tác
+DECLARE @DiaChiMacDinh NVARCHAR(128) = N'https://10.10.8.30';    -- Địa chỉ WebAPI nhận, ghi kèm https:// (màn hình web là cổng 12205)
 DECLARE @CongMacDinh INT = 12204;                                -- Cổng WebAPI
 DECLARE @EndPointMacDinh NVARCHAR(256) = N'/api/sharedata/sharedatainbound/receive';  -- API nhận gói tin của WebAPI
 DECLARE @KieuKetNoiMacDinh INT = 1;                              -- 1 = WebAPI; 2 = Xuất tệp tin vào sharedata/send (khi đó để @EndPointMacDinh = NULL)
@@ -137,7 +137,7 @@ BEGIN
         PRINT N'-> 2.2. Đã cập nhật trạng thái Đã kết nối và kênh kết nối cho ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' đối tác gốc (PC08, TTDHT).';
 
         -- ---------------------------------------------------------------------------------
-        -- 4. TẠO @SoDoiTac ĐỐI TÁC KIỂM TẢI (KT001 .. KT050)
+        -- 4. TẠO @SoDoiTac ĐỐI TÁC KIỂM TẢI (KT001 .. KT008 với mặc định)
         -- ---------------------------------------------------------------------------------
         DECLARE @MauAddress NVARCHAR(128) = @DiaChiMacDinh;
         DECLARE @MauPort INT = @CongMacDinh;

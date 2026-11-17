@@ -333,14 +333,18 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Author: DatHQ
-        /// Description: Đặt mốc đúng dạng yyyyMMddHHmmssfff_<đuôi> tại đầu thời điểm (đuôi '0' nhỏ hơn mã dòng thật): lượt tới gửi cả dòng đúng thời điểm đó,
-        ///              không gửi dòng trước đó, kể cả chỉ sớm hơn vài mili giây; áp dụng cho cả Đặt mốc qua API và Mốc lần đầu ở bảng tham số.
+        /// Description: Đặt mốc đúng dạng PA1 tại đầu thời điểm: đủ 17 số kèm đuôi '0' (nhỏ hơn mã dòng thật), 17 số không đuôi, kết thúc bằng _ trống
+        ///              hay chỉ viết tới giờ (2026103108): lượt tới gửi cả dòng đúng thời điểm đó, không gửi dòng trước đó, kể cả chỉ sớm hơn vài mili giây;
+        ///              áp dụng cho cả Đặt mốc qua API và Mốc lần đầu ở bảng tham số.
         /// Created date: 05/11/2026
         /// Modified date: 17/11/2026
         /// </summary>
         [Theory]
         [InlineData(true, "20261031080000000_0")]
+        [InlineData(true, "20261031080000000")]
+        [InlineData(true, "2026103108")]
         [InlineData(false, "20261031080000000_0")]
+        [InlineData(false, "20261031080000000_")]
         public async Task ProcessSubscriptions_WhenStartPickedByTime_IncludesRowAtExactlyThatTime_Test(bool setViaCursorApi, string pickedKey)
         {
             // Arrange

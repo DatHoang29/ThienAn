@@ -2,8 +2,8 @@
 
 Làm lần lượt từ trên xuống. Mỗi bước có hai phần: **Làm** là thao tác, **Thấy** là kết quả phải ra. Nếu thấy khác thì dừng lại và chụp màn hình.
 
-- **Môi trường:** Máy chủ DEV `10.10.12.80` (giao diện web `https://10.10.12.80:12205`, WebAPI `https://10.10.12.80:12204`), CSDL `DEV_ITS015` (và `DEV_ITS015_Inbound`). WebAPI và Worker chạy bản mới nhất. FE tải lại hẳn trang bằng `Cmd+Shift+R`.
-- **Dữ liệu test:** đối tác `KIEN`, gói `101_commonData`, chiều **Gửi đi**, **câu SQL riêng của Kien**. Kênh **Dịch vụ WebAPI** gửi ngược về API nhận của chính máy chủ DEV (`https://10.10.12.80:12204/api/sharedata/sharedatainbound/receive`); địa chỉ này giữ nguyên suốt kịch bản. Bảng `TmsZoneStatus` có 299 dòng (35 dòng chưa có `UpdateTime`), nhiều dòng trùng giờ.
+- **Môi trường:** Máy chủ DEV `10.10.8.30` (giao diện web `https://10.10.8.30:12205`, WebAPI `https://10.10.8.30:12204`), CSDL `DEV_ITS015` (và `DEV_ITS015_Inbound`). WebAPI và Worker chạy bản mới nhất. FE tải lại hẳn trang bằng `Cmd+Shift+R`.
+- **Dữ liệu test:** đối tác `KIEN`, gói `101_commonData`, chiều **Gửi đi**, **câu SQL riêng của Kien**. Kênh **Dịch vụ WebAPI** gửi ngược về API nhận của chính máy chủ DEV (`https://10.10.8.30:12204/api/sharedata/sharedatainbound/receive`); địa chỉ này giữ nguyên suốt kịch bản. Bảng `TmsZoneStatus` có 299 dòng (35 dòng chưa có `UpdateTime`), nhiều dòng trùng giờ.
 - **Chu kỳ:** đăng ký gửi 30 giây một lượt, mỗi lượt gửi 1 trang `@pageSize` dòng.
 - **Thứ tự bắt buộc:** Đối tác → Kết nối → Gói tin (Mẫu chung) → Đăng ký gửi (tự ở Tạm dừng) → Câu SQL riêng → Bộ mã chuẩn hóa → Hồ sơ ánh xạ (bật) → Bật đăng ký → Mốc đang chạy. Lý do: phải có đăng ký gửi gói `101_commonData` thì Kien mới xuất hiện trong hộp **Tạo cấu hình riêng +** ở màn **Cấu hình gói tin** và trong danh sách gói tin ở màn **Ánh xạ dữ liệu** (xem thêm [CHUC-NANG-SHAREDATA.md](../DacTa/CHUC-NANG-SHAREDATA.md) §1.1).
 - **Xem kết quả:** **Lịch sử chia sẻ → Nhật ký truyền nhận** (cột *Số bản ghi*), màn **Cảnh báo lỗi**. Mốc xem ở khối **4. Mốc đang chạy**, màn **Cấu hình gói tin**, tab **Kien**.
@@ -20,7 +20,7 @@ Làm lần lượt từ trên xuống. Mỗi bước có hai phần: **Làm** l�
   - Tên đối tác: `Kien`
   - Ghi chú: `Đối tác thử nghiệm`
 - [ ] **1.3** Tab **Cấu hình kết nối**: điền thông tin kết nối rồi bấm **Xác nhận**:
-  - Địa chỉ (IP/host): `https://10.10.12.80`
+  - Địa chỉ (IP/host): `https://10.10.8.30`
   - Cổng: `12204` *(cổng WebAPI của máy chủ DEV, không phải cổng giao diện web `12205`)*
   - Endpoint: `/api/sharedata/sharedatainbound/receive`
   - Loại kênh kết nối: **Dịch vụ WebAPI**
@@ -29,7 +29,7 @@ Làm lần lượt từ trên xuống. Mỗi bước có hai phần: **Làm** l�
   **Thấy:**
   - Kien xuất hiện trong danh sách đối tác.
   - Ô Loại kênh kết nối chỉ có 3 lựa chọn: *Dịch vụ WebAPI*, *Máy chủ FTP*, *Hàng đợi tin Kafka*.
-  - Dòng **Địa chỉ đầy đủ** tự ghép đúng: `https://10.10.12.80:12204/api/sharedata/sharedatainbound/receive`.
+  - Dòng **Địa chỉ đầy đủ** tự ghép đúng: `https://10.10.8.30:12204/api/sharedata/sharedatainbound/receive`.
 - [ ] **1.4** Kiểm chặn: bấm **Thêm** một đối tác nữa cũng mã `KIEN`. **Thấy:** báo trùng mã, không lưu được. Đóng hộp thoại.
 - [ ] **1.5** Chọn đối tác **Kien** rồi bấm **Kết nối**. **Thấy:** trạng thái đổi sang đã kết nối, thẻ **Phiên hoạt động** tăng 1, nút **Kết nối** ẩn đi (chỉ còn **Ngắt kết nối**).
 

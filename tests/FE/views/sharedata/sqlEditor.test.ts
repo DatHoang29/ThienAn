@@ -2145,10 +2145,10 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
     /**
      * Description: Ô Mốc bắt đầu ở bảng tham số là ô chữ: @pageSize tự điền 100 nên Lưu & phân tích lưu ngay; ô trống là gửi toàn bộ dữ liệu;
-     *              gõ dạng cũ có dấu gạch và hai chấm thì báo dưới ô và không lưu; gõ tiền tố ngày 20261028 thì lưu đúng chuỗi đã gõ;
-     *              câu khác công thức cột mốc thì khóa ô cho tới khi sửa câu.
+     *              gõ dạng cũ có dấu gạch và hai chấm, thiếu chữ số hay ghép _ khi chưa đủ 17 số thì báo dưới ô và không lưu; đủ 17 số kèm _ đuôi trống là hợp lệ;
+     *              gõ tiền tố ngày 20261028 thì lưu đúng chuỗi đã gõ; câu khác công thức cột mốc thì khóa ô cho tới khi sửa câu.
      * Created date: 03/11/2026
-     * Modified date: 16/11/2026
+     * Modified date: 17/11/2026
      */
     test('70. Mốc bắt đầu nhập bằng ô chữ: trống là gửi toàn bộ, sai luật thì báo và không lưu, tiền tố ngày lưu đúng; @pageSize mặc định 100', async ({ page }) => {
         await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
@@ -2194,9 +2194,9 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(startInput).toHaveAttribute('placeholder', 'Ví dụ 20261116102001123_<đuôi>');
         await expect(startError).toHaveCount(0);
 
-        // Dạng cũ, chỉ gõ ngày, hay thiếu đuôi sau _: báo dưới ô, bấm Lưu thì nhắc sửa dòng lỗi, không gọi API lưu bộ biến
-        const expectedErr = 'Mốc phải gồm đủ 17 chữ số năm, tháng, ngày, giờ, phút, giây, mili giây viết liền (ngày giờ phải có thật), theo sau bởi _<đuôi>.';
-        for (const bad of ['2026-10-28 00:00:00.000_', '20261028', '20261028000000000_']) {
+        // Dạng cũ, thiếu chữ số hay ghép _ khi chưa đủ 17 số: báo dưới ô, bấm Lưu thì nhắc sửa dòng lỗi, không gọi API lưu bộ biến
+        const expectedErr = 'Mốc phải là ngày giờ có thật viết liền: từ 8 chữ số năm, tháng, ngày (ví dụ 20260101) tới 17 chữ số có cả giờ, phút, giây, mili giây; muốn ghép _<đuôi> thì phần ngày giờ phải đủ 17 chữ số.';
+        for (const bad of ['2026-10-28 00:00:00.000_', '2026102', '20261028_0']) {
             await startInput.fill(bad);
             await expect(startError).toHaveText(expectedErr);
         }
@@ -2204,13 +2204,17 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(page.locator('.el-message--warning').last()).toContainText('Sửa các dòng tham số đang báo lỗi trước khi lưu.', { timeout: 10_000 });
         expect(variableSaves).toHaveLength(0);
 
-        // Đủ 17 số kèm _<đuôi>: hết báo lỗi, có chữ "Từ" đứng trước, lưu đúng chuỗi đã gõ
-        await startInput.fill('20261028000000000_0');
+        // Đủ 17 số kèm _ mà đuôi trống: hợp lệ
+        await startInput.fill('20261028000000000_');
+        await expect(startError).toHaveCount(0);
+
+        // Tiền tố ngày 20261028: hết báo lỗi, có chữ "Từ" đứng trước, lưu đúng chuỗi đã gõ
+        await startInput.fill('20261028');
         await expect(startError).toHaveCount(0);
         await expect(panel.locator('.cvi-from')).toHaveText('Đối tác chưa có mốc: từ');
         await save.click();
         await expect.poll(() => variableSaves.length, { timeout: 10_000 }).toBe(1);
-        expect(variableSaves[0].items[1]).toMatchObject({ code: 'lastKey', defaultValue: '20261028000000000_0' });
+        expect(variableSaves[0].items[1]).toMatchObject({ code: 'lastKey', defaultValue: '20261028' });
 
         await editor.fill('SELECT TOP (@pageSize) x.ID AS zoneId, x.ID AS __lastKey FROM TmsZone x WHERE x.ID > @lastKey ORDER BY __lastKey ASC');
         // Cột mốc khác công thức: khóa ô mốc cho tới khi sửa câu, không còn ô gõ được và biểu tượng thông tin

@@ -9,8 +9,8 @@ GO
 --                 (trên staging hiện chỉ có 1 đăng ký PC08 × 101_commonData đang State = 2 Tạm dừng).
 --              2. Tạo đăng ký chiều gửi (Direction = 0, Mode = 2 Liên tục, State = 1 Đang hoạt động, chạy 24/24,
 --                 chu kỳ @ChuKyGiay mặc định 30 giây) cho mọi cặp:
---                   (PC08, TTDHT, KT001..KT050) × (toàn bộ gói tin đang bật có câu ExtractSql và hồ sơ ánh xạ gửi).
---                 Gói chưa có câu ghi chiều nhận (vd 110) tự bỏ. Trên staging: 52 đối tác × 8 gói (101..104, 106..109) = 416 đăng ký gửi.
+--                   (PC08, TTDHT và các đối tác kiểm tải K1 đã tạo) × (toàn bộ gói tin đang bật có câu ExtractSql và hồ sơ ánh xạ gửi).
+--                 Gói chưa có câu ghi chiều nhận (vd 110) tự bỏ. Trên staging với mặc định K1: 10 đối tác × 8 gói (101..104, 106..109) = 80 đăng ký gửi.
 --              3. Tạo đăng ký chiều nhận (Direction = 1, State = 1 Đang hoạt động) khi @TaoDangKyChieuNhan = 1.
 --              Đăng ký mới được gán SerialNbr như khi tạo trên màn hình: số lớn nhất của đối tác (kể cả đăng ký đã xóa) cộng 1,
 --              nên gói gửi đầu tiên đã mang số thứ tự và WebAPI chặn được gói gửi trùng.
@@ -27,7 +27,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Staging (chạy theo yêu cầu kiểm tải). ⛔ Không chạy trên production.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): cặp đối tác × gói × chiều đã có đăng ký đang sống thì bỏ qua.
--- CẬP NHẬT LẦN CUỐI: 12112026 (thêm @BuocGuiKhiCoDuLieuMoi và @DanhSachChuKy: chu kỳ gửi khác nhau theo cặp đối tác × gói)
+-- CẬP NHẬT LẦN CUỐI: 17/11/2026 (ghi chú số đăng ký theo mặc định K1 10 đối tác); 12112026 (thêm @BuocGuiKhiCoDuLieuMoi và @DanhSachChuKy: chu kỳ gửi khác nhau theo cặp đối tác × gói)
 -- =========================================================================================
 
 SET NOCOUNT ON;

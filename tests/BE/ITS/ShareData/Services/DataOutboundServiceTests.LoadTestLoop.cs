@@ -193,10 +193,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// Author: DatHQ
         /// Description: Vòng kiểm tải theo seed: nhiều đối tác trộn câu mẫu chung và câu riêng gửi kênh WebAPI vào API nhận qua https cổng 12204,
         ///              4 bản chỉ gửi và 1 bản chỉ nhận chạy cùng lúc theo chu kỳ lẫn theo tín hiệu. Mọi yêu cầu đi đúng
-        ///              https://10.10.12.80:12204/api/sharedata/sharedatainbound/receive; WebAPI lưu mỗi trang thành một gói thô của đúng đối tác,
+        ///              https://127.0.0.1:12204/api/sharedata/sharedatainbound/receive; WebAPI lưu mỗi trang thành một gói thô của đúng đối tác,
         ///              số thứ tự không trùng, gói nào cũng Done; bản nhận ghi lại đủ mọi dòng nguồn đúng một lần, đúng mã, tên và giờ;
         ///              đăng ký nhận ghi tới số thứ tự gói lớn nhất, mốc gửi tới dòng cuối, khóa được nhả, không có cảnh báo.
         /// Created date: 11/11/2026
+        /// Modified date: 17/11/2026
         /// </summary>
         [Theory]
         [InlineData(10, false)]

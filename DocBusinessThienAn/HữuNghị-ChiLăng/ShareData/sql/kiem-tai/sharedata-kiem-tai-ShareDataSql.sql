@@ -4,8 +4,8 @@ GO
 -- =========================================================================================
 -- FILE: sharedata-kiem-tai-ShareDataSql.sql
 -- BẢNG GHI: [dbo].[ShareDataSql] — tệp chỉ thêm / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
--- DESCRIPTION: Kiểm tải ShareData: đối tác kiểm tải từ số @TuSoDoiTacRieng trở đi (mặc định KT026..KT050) có câu SQL
---              riêng cho mỗi gói tin mà đối tác đó có đăng ký gửi; các đối tác số nhỏ hơn (KT001..KT025) dùng câu mẫu chung.
+-- DESCRIPTION: Kiểm tải ShareData: đối tác kiểm tải từ số @TuSoDoiTacRieng trở đi (mặc định KT005..KT008) có câu SQL
+--              riêng cho mỗi gói tin mà đối tác đó có đăng ký gửi; các đối tác số nhỏ hơn (KT001..KT004) dùng câu mẫu chung.
 --              Câu riêng sinh từ câu mẫu chung của gói, mỗi cặp (đối tác × gói) một câu khác nhau, dài ngắn tùy cặp:
 --                - thêm 0..4 cột phụ (ktPartner, ktNo, ktReadAt, ktPad dài ngắn khác nhau) ngay sau cột __lastKey
 --                  (câu chụp nhanh: ngay sau SELECT);
@@ -13,7 +13,7 @@ GO
 --                - đổi xuống dòng CRLF thành LF;
 --                - thêm khối chú thích /* ... */ cuối câu, độ dài tùy cặp.
 --              KHÔNG đụng công thức cột mốc, mệnh đề WHERE, ORDER BY và biến @lastKey / @pageSize, nên câu riêng vẫn trả
---              đúng các dòng như câu mẫu chung: đối soát mốc (L2) và số dòng đã gửi (L3) vẫn so được giữa 50 đối tác.
+--              đúng các dòng như câu mẫu chung: đối soát mốc (L2) và số dòng đã gửi (L3) vẫn so được giữa các đối tác kiểm tải.
 --              Danh sách trường (FieldsJson), bộ biến (VariablesJson) chép từ dòng mẫu chung; cột phụ không có trong ánh xạ
 --              nên không được gửi đi, chỉ làm câu đọc nặng hơn.
 -- THỨ TỰ CHẠY: K4, chạy sau K1, K2, K3 (cần đăng ký của đối tác kiểm tải để biết gói nào cần câu riêng).
@@ -22,7 +22,7 @@ GO
 -- MÔI TRƯỜNG: Staging (chạy theo yêu cầu kiểm tải). ⛔ Không chạy trên production.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): cặp (gói × đối tác) đã có dòng thì bỏ qua (chỉ mục duy nhất PacketId, PartnerId).
 --           Cùng cặp luôn sinh cùng một câu (biến tấu theo CHECKSUM mã đối tác + mã gói), chạy lại không ra câu khác.
--- CẬP NHẬT LẦN CUỐI: 11112026 (tạo mới)
+-- CẬP NHẬT LẦN CUỐI: 17/11/2026 (câu riêng mặc định từ KT005 theo 8 đối tác kiểm tải; nhận cả câu mẫu xuống dòng LF khi chèn cột phụ và đổi TOP 100)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -43,7 +43,7 @@ GO
 -- THAM SỐ — giữ @TienToMa giống K1.
 -- -----------------------------------------------------------------------------------------
 DECLARE @TienToMa NVARCHAR(16) = N'KT';
-DECLARE @TuSoDoiTacRieng INT = 26;                    -- KT026 trở đi có câu riêng; KT001..KT025 dùng mẫu chung
+DECLARE @TuSoDoiTacRieng INT = 5;                     -- KT005 trở đi có câu riêng; KT001..KT004 dùng mẫu chung
 DECLARE @XoaDuLieuKiemTai BIT = 0;                    -- 1 = xóa câu riêng kiểm tải (chạy đầu tiên khi dọn)
 
 DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-KIEM-TAI';
@@ -132,7 +132,7 @@ BEGIN
             WHEN b1.[CotPhu] = N'' THEN k.[Goc]
             WHEN CHARINDEX(N'AS __lastKey,', k.[Goc]) > 0
                 THEN STUFF(k.[Goc], CHARINDEX(N'AS __lastKey,', k.[Goc]) + LEN(N'AS __lastKey,'), 0, b1.[CotPhu])
-            WHEN LEFT(k.[Goc], 8) = N'SELECT' + @CrLf
+            WHEN LEFT(k.[Goc], 8) = N'SELECT' + @CrLf OR LEFT(k.[Goc], 7) = N'SELECT' + @Lf
                 THEN STUFF(k.[Goc], 7, 0, b1.[CotPhu])
             ELSE k.[Goc]
         END AS [Cau]
@@ -140,7 +140,7 @@ BEGIN
     -- b3. Đổi TOP 100 viết bằng số thành cỡ trang khác
     CROSS APPLY (
         SELECT CASE
-            WHEN b1.[Kieu] IN (2, 4) AND LEFT(b2.[Cau], 16) = N'SELECT TOP 100' + @CrLf
+            WHEN b1.[Kieu] IN (2, 4) AND (LEFT(b2.[Cau], 16) = N'SELECT TOP 100' + @CrLf OR LEFT(b2.[Cau], 15) = N'SELECT TOP 100' + @Lf)
                 THEN STUFF(b2.[Cau], 12, 3, CAST(CHOOSE(k.[H] % 4 + 1, 20, 50, 200, 500) AS NVARCHAR(10)))
             ELSE b2.[Cau]
         END AS [Cau]

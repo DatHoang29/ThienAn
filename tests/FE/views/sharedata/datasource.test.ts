@@ -895,7 +895,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 await expect(svpCard).not.toHaveClass(/is-scope-locked/);
             }
             await expect(picker).toHaveValue('');
-            await expect(picker).toHaveAttribute('placeholder', 'Ví dụ 20260101 hoặc 20261116102001123_<đuôi>');
+            await expect(picker).toHaveAttribute('placeholder', 'Ví dụ 20261116102001123_<đuôi>');
             await expect(editBtn).toHaveCount(0);
             await expect(mainTable.locator('.cvi-modes')).toHaveCount(0);
             await expect(mainTable.locator('.cvi-info')).toHaveCount(0);
@@ -2370,9 +2370,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     /**
      * Description: Câu sai cấu trúc (__lastKey chưa ghép thời gian, còn @lastTime): dải Quy chuẩn mốc chưa đạt kèm cách sửa theo công thức 112 + 114; cột Nguồn chỉ là chữ theo tên biến, ô mốc khóa,
      *              không có câu nhắc dạng trước đó; bấm Sửa câu ở dòng @lastKey thì đạt 3/3, dòng @lastTime tự bỏ, ô mốc gõ được.
-     *              Nút chọn nhanh mở danh sách các mốc hay dùng trên một dòng, chọn Đầu ngày hôm nay thì điền tiền tố ngày yyyyMMdd.
+     *              Ô mốc không có nút chọn nhanh ngày; thiếu chữ số thì báo dưới ô, gõ tiền tố ngày yyyyMMdd hay đủ 17 số kèm _<đuôi> là hợp lệ.
      * Created date: 29/10/2026
-     * Modified date: 16/11/2026
+     * Modified date: 17/11/2026
      */
     test('63. Câu sai cấu trúc: không có ô chọn nguồn, ô mốc khóa, bấm Sửa câu thì đạt quy chuẩn và nhập được mốc', async ({ page }) => {
         const twoColumnSql =
@@ -2465,13 +2465,15 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         });
         expect(isValueSingleLine).toBe(true);
 
-        // Thiếu số hoặc thiếu đuôi sau _: báo lỗi dưới ô; gõ đủ 17 số + _<đuôi> thì hợp lệ, hiện chữ "Từ" trước ô
-        await lastKeyRow.locator('.cvi-input input').fill('20261116');
+        // Thiếu chữ số: báo lỗi dưới ô; gõ tiền tố ngày yyyyMMdd hay đủ 17 số + _<đuôi> thì hợp lệ, hiện chữ "Từ" trước ô
+        await lastKeyRow.locator('.cvi-input input').fill('2026111');
         await expect(lastKeyRow.locator('.cvi-error')).toHaveText(
-            'Mốc phải gồm đủ 17 chữ số năm, tháng, ngày, giờ, phút, giây, mili giây viết liền (ngày giờ phải có thật), theo sau bởi _<đuôi>.'
+            'Mốc phải là ngày giờ có thật viết liền: từ 8 chữ số năm, tháng, ngày (ví dụ 20260101) tới 17 chữ số có cả giờ, phút, giây, mili giây; muốn ghép _<đuôi> thì phần ngày giờ phải đủ 17 chữ số.'
         );
-        await lastKeyRow.locator('.cvi-input input').fill('20261116000000000_0');
+        await lastKeyRow.locator('.cvi-input input').fill('20261116');
         await expect(lastKeyRow.locator('.cvi-from')).toHaveText('Đối tác chưa có mốc: từ');
+        await expect(lastKeyRow.locator('.cvi-error')).toHaveCount(0);
+        await lastKeyRow.locator('.cvi-input input').fill('20261116000000000_0');
         await expect(lastKeyRow.locator('.cvi-error')).toHaveCount(0);
     });
 
