@@ -6,8 +6,8 @@ GO
 -- BẢNG GHI: [dbo].[ShareDataSession] (THÊM phiên), [dbo].[ShareDataPartner], [dbo].[ShareDataSubscription] (SỬA) —
 --           không xóa. Ngoại lệ Rule 19.103 (một tệp nhiều bảng): đây là đúng một thao tác "Kết nối" của màn hình kèm
 --           bật lại đăng ký, ba bảng phải đổi cùng một giao dịch; là chiều ngược của K5 (sharedata-kiem-tai-ngat-ket-noi.sql).
--- DESCRIPTION: Kết nối lại hàng loạt đối tác kiểm tải từ số @TuSo tới @DenSo (mặc định KT001 tới hết = toàn bộ), làm giống
---              PartnerCommandHandler.HandleAsync(ShareDataConnectPartnerInput), rồi bật lại đăng ký:
+-- DESCRIPTION: Kết nối lại hàng loạt đối tác (mặc định @TienToMa = NULL là toàn bộ đối tác hiện có; hoặc đặt @TienToMa = N'KT'
+--              và @TuSo/@DenSo để chỉ lọc nhóm mã kiểm tải), làm giống PartnerCommandHandler.HandleAsync(ShareDataConnectPartnerInput), rồi bật lại đăng ký:
 --                1) ShareDataSession: đối tác chưa có phiên đang hoạt động thì mở phiên mới State = 5 (Active),
 --                   StartedAt = AcceptedAt = LastHeartbeatAt = giờ hiện tại, PacketsSent = PacketsRecv = 0;
 --                   đã có phiên Active thì giữ phiên đó, không mở thêm;
@@ -19,12 +19,12 @@ GO
 --                - gói chiều nhận đang giữ ở Pending của các đối tác này được xử lý tiếp.
 --              Khác màn hình: tệp KHÔNG ghi nhật ký hoạt động (ShareDataActivityLog) và không xóa bộ nhớ đệm của WebAPI;
 --              màn hình có thể hiện trạng thái cũ cho tới khi bộ nhớ đệm hết hạn hoặc khởi động lại WebAPI.
--- THỨ TỰ CHẠY: K6, chạy độc lập bất cứ lúc nào sau K1–K4 (thường sau K5). Muốn xem trước số lượng: đặt @ChiXem = 1.
+-- THỨ TỰ CHẠY: K6, chạy độc lập bất cứ lúc nào (thường sau K5). Muốn xem trước số lượng: đặt @ChiXem = 1.
 -- PHÂN HỆ: ShareData (ESHARE)
--- MÔI TRƯỜNG: Staging (CSDL có dữ liệu kiểm tải KTxxx). ⛔ Không chạy trên CSDL vận hành thật.
+-- MÔI TRƯỜNG: Dev / Staging. ⛔ Không chạy trên CSDL vận hành thật.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): chỉ mở phiên cho đối tác chưa có phiên Active, chỉ đổi dòng đang
 --           ngắt / đang Paused; lỗi thì hoàn tác cả ba bảng.
--- CẬP NHẬT LẦN CUỐI: 12112026
+-- CẬP NHẬT LẦN CUỐI: 17112026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -47,8 +47,8 @@ GO
 -- -----------------------------------------------------------------------------------------
 -- THAM SỐ
 -- -----------------------------------------------------------------------------------------
-DECLARE @TienToMa NVARCHAR(16) = N'KT';               -- tiền tố mã đối tác kiểm tải
-DECLARE @TuSo INT = 1;                                -- từ số (KT001)
+DECLARE @TienToMa NVARCHAR(16) = NULL;                -- NULL = mọi đối tác hiện có; hoặc N'KT' để chỉ lọc đối tác kiểm tải
+DECLARE @TuSo INT = NULL;                             -- từ số (khi lọc theo @TienToMa, vd 1 cho KT001); NULL = từ đầu
 DECLARE @DenSo INT = NULL;                            -- tới số; NULL = tới hết
 DECLARE @ChiXem BIT = 0;                              -- 1 = chỉ liệt kê, không ghi
 
@@ -60,9 +60,11 @@ SELECT p.[ID], p.[Code], p.[Status], p.[SessionState], p.[TenantId]
 INTO #DoiTac
 FROM [dbo].[ShareDataPartner] p
 WHERE p.[IsDelete] IS NULL
-  AND p.[Code] LIKE @TienToMa + N'%'
-  AND TRY_CAST(SUBSTRING(p.[Code], LEN(@TienToMa) + 1, 16) AS INT) >= @TuSo
-  AND (@DenSo IS NULL OR TRY_CAST(SUBSTRING(p.[Code], LEN(@TienToMa) + 1, 16) AS INT) <= @DenSo);
+  AND (@TienToMa IS NULL OR (
+       p.[Code] LIKE @TienToMa + N'%'
+       AND (@TuSo IS NULL OR TRY_CAST(SUBSTRING(p.[Code], LEN(@TienToMa) + 1, 16) AS INT) >= @TuSo)
+       AND (@DenSo IS NULL OR TRY_CAST(SUBSTRING(p.[Code], LEN(@TienToMa) + 1, 16) AS INT) <= @DenSo)
+  ));
 
 DECLARE @SoDoiTac INT = (SELECT COUNT(*) FROM #DoiTac);
 DECLARE @SoDangTat INT = (SELECT COUNT(*) FROM #DoiTac WHERE ISNULL([Status], 0) <> 1);

@@ -6,8 +6,8 @@ GO
 -- BẢNG GHI: [dbo].[ShareDataSession], [dbo].[ShareDataPartner], [dbo].[ShareDataSubscription] — chỉ SỬA dữ liệu,
 --           không thêm / xóa. Ngoại lệ Rule 19.103 (một tệp nhiều bảng): đây là đúng một thao tác "Ngắt kết nối" của
 --           màn hình, ba bảng phải đổi cùng một giao dịch để không có đối tác Đã ngắt mà đăng ký vẫn chạy.
--- DESCRIPTION: Ngắt kết nối hàng loạt đối tác kiểm tải từ số @TuSo tới @DenSo (mặc định KT011 tới hết), làm giống
---              PartnerCommandHandler.HandleAsync(ShareDataDisconnectPartnerInput):
+-- DESCRIPTION: Ngắt kết nối hàng loạt đối tác (mặc định @TienToMa = NULL là toàn bộ đối tác hiện có; hoặc đặt @TienToMa = N'KT'
+--              và @TuSo/@DenSo để chỉ lọc nhóm mã kiểm tải), làm giống PartnerCommandHandler.HandleAsync(ShareDataDisconnectPartnerInput):
 --                1) ShareDataSession: phiên đang hoạt động (State = 5 Active) -> 8 Closed, EndedAt = giờ hiện tại,
 --                   EndReason = @LyDo (mặc định 'clientRequested', giống màn hình);
 --                2) ShareDataPartner: SessionState -> 0 (Đã ngắt kết nối);
@@ -16,14 +16,15 @@ GO
 --                - Worker chiều gửi bỏ qua đối tác ngay vòng quét sau (chỉ quét đối tác SessionState = 1);
 --                - gói tin chiều nhận của các đối tác này đang chờ / đến sau sẽ được GIỮ ở Pending (đăng ký nhận Paused),
 --                  không bị xử lý cho tới khi kết nối và bật lại đăng ký.
+--                - mở khóa nút "Lưu & phân tích", Đặt mốc, Đặt lại trên màn hình Cấu hình gói tin (ESH-2306).
 --              Khác màn hình: tệp KHÔNG ghi nhật ký hoạt động (ShareDataActivityLog) và không xóa bộ nhớ đệm của WebAPI;
 --              màn hình có thể hiện trạng thái cũ cho tới khi bộ nhớ đệm hết hạn hoặc khởi động lại WebAPI.
--- THỨ TỰ CHẠY: K5, chạy độc lập bất cứ lúc nào sau K1–K4. Muốn xem trước danh sách: đặt @ChiXem = 1.
+-- THỨ TỰ CHẠY: K5, chạy độc lập bất cứ lúc nào (hoặc sau K1–K4). Muốn xem trước danh sách: đặt @ChiXem = 1.
 --              MỞ LẠI: chạy K6 (sharedata-kiem-tai-ket-noi-lai.sql), hoặc kết nối lại từng đối tác và bật lại đăng ký trên màn hình.
 -- PHÂN HỆ: ShareData (ESHARE)
--- MÔI TRƯỜNG: Staging (CSDL có dữ liệu kiểm tải KTxxx). ⛔ Không chạy trên CSDL vận hành thật.
+-- MÔI TRƯỜNG: Dev / Staging. ⛔ Không chạy trên CSDL vận hành thật.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): chỉ đổi dòng đang Active / đang kết nối; lỗi thì hoàn tác cả ba bảng.
--- CẬP NHẬT LẦN CUỐI: 12112026
+-- CẬP NHẬT LẦN CUỐI: 17112026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -46,8 +47,8 @@ GO
 -- -----------------------------------------------------------------------------------------
 -- THAM SỐ
 -- -----------------------------------------------------------------------------------------
-DECLARE @TienToMa NVARCHAR(16) = N'KT';               -- tiền tố mã đối tác kiểm tải
-DECLARE @TuSo INT = 11;                               -- từ số (KT011)
+DECLARE @TienToMa NVARCHAR(16) = NULL;                -- NULL = mọi đối tác hiện có; hoặc N'KT' để chỉ lọc đối tác kiểm tải
+DECLARE @TuSo INT = NULL;                             -- từ số (khi lọc theo @TienToMa, vd 1 cho KT001); NULL = từ đầu
 DECLARE @DenSo INT = NULL;                            -- tới số; NULL = tới hết
 DECLARE @LyDo NVARCHAR(64) = N'clientRequested';      -- lý do đóng phiên (giống màn hình)
 DECLARE @ChiXem BIT = 0;                              -- 1 = chỉ liệt kê, không ghi
@@ -59,9 +60,11 @@ SELECT p.[ID], p.[Code], p.[SessionState]
 INTO #DoiTac
 FROM [dbo].[ShareDataPartner] p
 WHERE p.[IsDelete] IS NULL
-  AND p.[Code] LIKE @TienToMa + N'%'
-  AND TRY_CAST(SUBSTRING(p.[Code], LEN(@TienToMa) + 1, 16) AS INT) >= @TuSo
-  AND (@DenSo IS NULL OR TRY_CAST(SUBSTRING(p.[Code], LEN(@TienToMa) + 1, 16) AS INT) <= @DenSo);
+  AND (@TienToMa IS NULL OR (
+       p.[Code] LIKE @TienToMa + N'%'
+       AND (@TuSo IS NULL OR TRY_CAST(SUBSTRING(p.[Code], LEN(@TienToMa) + 1, 16) AS INT) >= @TuSo)
+       AND (@DenSo IS NULL OR TRY_CAST(SUBSTRING(p.[Code], LEN(@TienToMa) + 1, 16) AS INT) <= @DenSo)
+  ));
 
 DECLARE @SoDoiTac INT = (SELECT COUNT(*) FROM #DoiTac);
 DECLARE @SoDangKetNoi INT = (SELECT COUNT(*) FROM #DoiTac WHERE [SessionState] = 1);
