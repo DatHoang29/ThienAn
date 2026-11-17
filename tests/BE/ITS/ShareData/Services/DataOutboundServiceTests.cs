@@ -8402,10 +8402,11 @@ ORDER BY __lastKey ASC";
         /// Created date: 12/11/2026
         /// </summary>
         [Theory]
-        [InlineData(4, false)]
-        [InlineData(6, false)]
-        [InlineData(6, true)]
-        public async Task ProcessSubscriptions_WhenManyPartnersShareOnePacket_EachPartnerUsesOwnMappingSqlAndCursor_Test(int partnerCount, bool oneWithoutMapping)
+        [InlineData(4, false, false)]
+        [InlineData(6, false, false)]
+        [InlineData(6, true, false)]
+        [InlineData(4, false, true)]
+        public async Task ProcessSubscriptions_WhenManyPartnersShareOnePacket_EachPartnerUsesOwnMappingSqlAndCursor_Test(int partnerCount, bool oneWithoutMapping, bool byEvent)
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -8427,7 +8428,8 @@ ORDER BY __lastKey ASC";
                     SubCode = $"SUB_{name}_{packet.Unique}",
                     DatatypeId = packet.PacketId,
                     MappingShape = shape,
-                    ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/{ClonePath(packet, name)}"
+                    ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/{ClonePath(packet, name)}",
+                    ConfigureSub = s => s.SendOnNewData = true
                 });
                 int? ownRow = null;
                 if (index % 2 == 0)
@@ -8453,7 +8455,7 @@ ORDER BY __lastKey ASC";
             var sender = CreateClone(scope, null);
 
             // Act
-            await sender.ProcessSubscriptions(CancellationToken.None);
+            await RunCloneAsync(sender, packet, byEvent);
 
             // Assert
             var healthy = partners.Where(p => p != withoutMapping).ToList();

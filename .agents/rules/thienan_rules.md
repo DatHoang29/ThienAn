@@ -57,6 +57,7 @@ description: Single Source of Truth for ThienAn project — P0 safeguards; domai
 | **79** | **Báo việc cần làm ghi tên tệp** (19.117) | Cần người dùng chạy, mở tệp nào thì ghi tên tệp kèm link, mã README chỉ đi kèm: `K7 (sharedata-kiem-tai-go-ket-ShareDataSubscription.sql)`; ⛔ báo mã trơn `K1`, `K2`, `D10`. documentation §2 |
 | **80** | **Lỗi phải giả lập được trước khi sửa** (19.118) | Lỗi đã thấy phải dựng lại bằng test theo luồng thật, đỏ trên mã cũ, xanh trên mã mới; ghi chen giả lập bằng khóa dòng CSDL (`UPDLOCK`), ⛔ mock; ⛔ không giả lập được thì không sửa mã. testing §2.9 |
 | **81** | **Cấm tự xử lý conflict Git** (19.119) | Gặp conflict khi `merge`, `rebase`, `cherry-pick`, `checkout`, `pull`, `stash pop/apply` (kể cả tệp binary `.dll`): ⛔ tự chọn `--ours`/`--theirs`, sửa đè, `reset`, `checkout --`, `add` hay `stash drop`; dừng ngay, liệt kê tệp conflict và chờ người dùng cho phép. git §4.9 |
+| **82** | **Chống N+1 & truy vấn lặp** (19.120) | Vòng lặp xử lý lô (Worker, handler) nạp trước cấu hình/danh mục một lần đầu vòng (`IN`/batch); ⛔ `SELECT` lặp từng phần tử, đọc lại cùng bảng nhiều lần trong một bước hay gọi `db.GetDate()` lặp. backend §4.32 |
 
 ## Luật cốt lõi theo miền (áp cho mọi mã mới; mã lân cận sai thì không chép theo)
 

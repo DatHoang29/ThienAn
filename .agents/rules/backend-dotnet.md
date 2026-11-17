@@ -544,3 +544,9 @@ return Convert.ToHexString(hashBytes);
 
 * Không áp dụng cho chuỗi gọi nối tiếp đã xuống dòng theo từng bước (LINQ, SqlSugar `.Where().Select()`), vì mỗi bước đã nằm trên một dòng riêng.
 * Áp dụng cho mã mới và đoạn đang sửa. Mã cũ ngoài phạm vi công việc thì không tự dọn.
+
+### 4.32. Chống N+1 Query & Truy Vấn Lặp Trong Vòng Lặp / Xử Lý Lô (Rule 19.120)
+
+* **Nạp trước cấu hình/danh mục một lần đầu vòng (Batch Preload):** Khi xử lý danh sách bản ghi hoặc vòng quét Worker (cả đường chạy theo lịch lẫn đường kích hoạt theo sự kiện như `SendOnNewData`), các bảng cấu hình/danh mục dùng chung (`Partner`, `Packet`, `Mapping`, `Sql`, `CodeSet`...) **BẮT BUỘC nạp một lần đầu vòng** bằng `IN (...)` hoặc `ToListAsync`, rồi truyền xuống tra cứu trên RAM (`Dictionary`/`HashSet`). ⛔ **CẤM** truy vấn bảng cấu hình/danh mục bên trong vòng lặp `foreach` (`N+1 query`).
+* **Đọc một lần trên cùng bảng trạng thái trong một pha:** Khi cần nhiều nhánh dữ liệu hoặc vừa kiểm tra vừa chụp dấu vết trên cùng một bảng theo cùng khóa (ví dụ `ShareDataLastSend` theo `PartnerCode, PacketCode`), **BẮT BUỘC gộp thành 1 câu `SELECT`** rồi lọc trên RAM. ⛔ **CẤM** gọi nhiều câu `SELECT` liên tiếp trên cùng bảng/khóa trong cùng một pha, và ⛔ **CẤM** đọc lại từ CSDL sau khi `Commit` nếu kết quả không còn được sử dụng tiếp.
+* **Không gọi `db.GetDate()` (`SELECT GETDATE()`) lặp lại theo từng phần tử:** Đọc giờ máy chủ CSDL một lần ở đầu vòng rồi cộng `Stopwatch.Elapsed` cho các bước sau (hoặc dùng `SqlFunc.GetDate()` trực tiếp trong câu lệnh ghi), ⛔ **CẤM** gọi `db.GetDate()` lặp lại bên trong từng phần tử hay từng bước con của một lượt xử lý.
