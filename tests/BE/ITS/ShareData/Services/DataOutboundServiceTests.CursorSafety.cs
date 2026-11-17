@@ -21,7 +21,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
     public partial class DataOutboundServiceTests
     {
         /// <summary>Cột mốc tính theo bảng cha: mọi dòng con của một cha cùng một giá trị.</summary>
-        private const string ParentCursorKey = "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID";
+        private const string ParentCursorKey = "CONVERT(varchar(8), COALESCE(z.UpdateTime, z.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(z.UpdateTime, z.CreateTime), 114), ':', '') + '_' + z.ID";
 
         /// <summary>Cột mốc có thêm khóa bảng con: mỗi dòng con một giá trị.</summary>
         private const string ParentChildCursorKey = ParentCursorKey + " + '_' + zs.ID";
@@ -302,6 +302,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         [InlineData("SELECT TOP (@pageSize) x.rowCode, x.__lastKey FROM (SELECT z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC", false)]
         [InlineData("SELECT TOP (@pageSize) x.rowCode, x.__lastKey FROM (SELECT z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC", true)]
         [InlineData("WITH x AS (SELECT z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix) SELECT TOP (@pageSize) x.rowCode, x.__lastKey FROM x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC", false)]
+        [InlineData("SELECT TOP (@pageSize) p.rowCode, p.__lastKey FROM (SELECT TOP (@pageSize) WITH TIES z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix AND {T} >= CONVERT(varchar(17), LEFT(@lastKey, 17)) AND {K} > @lastKey ORDER BY {T} ASC) p ORDER BY p.__lastKey ASC", false)]
+        [InlineData("SELECT TOP (@pageSize) p.rowCode, p.__lastKey FROM (SELECT TOP (@pageSize) WITH TIES {K} AS __lastKey, z.Code AS rowCode FROM TmsZone z WHERE z.Code LIKE @prefix AND {T} >= CONVERT(varchar(17), LEFT(@lastKey, 17)) AND {K} > @lastKey ORDER BY {T} ASC) p ORDER BY p.__lastKey ASC", true)]
+        [InlineData("SELECT TOP (@pageSize) p.rowCode, p.__lastKey FROM (SELECT TOP (@pageSize) WITH TIES z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix AND {K} > @lastKey ORDER BY {T} ASC) p ORDER BY p.__lastKey ASC", false)]
         public async Task ProcessSubscriptions_WhenCursorFormulaWrittenOnceInSubquery_SendsEveryRowOnce_Test(string template, bool byEvent)
         {
             // Arrange
@@ -310,7 +313,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = services.GetRequiredService<ISqlSugarClient>();
             var packet = await SeedClonePacketAsync(db, rowCount: 5, pageSize: 5);
             UseSuperAdmin(packet.Unique);
-            var sql = template.Replace("{K}", "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID");
+            const string timePart = "CONVERT(varchar(8), COALESCE(z.UpdateTime, z.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(z.UpdateTime, z.CreateTime), 114), ':', '')";
+            var sql = template
+                .Replace("{K}", $"{timePart} + '_' + z.ID")
+                .Replace("{T}", timePart);
             await SaveCommonSqlAsync(services, db, packet.PacketCode, sql);
             var (_, sub) = await SeedClonePartnerAsync(db, packet, "A101");
             var newRowCode = $"{packet.RowPrefix}R06";
@@ -390,9 +396,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     FROM TmsZone z INNER JOIN TmsZoneStatus zs ON zs.ZoneId = z.ID
                     WHERE z.Code LIKE @prefix AND {ParentCursorKey} > @lastKey_a
                     UNION ALL
-                    SELECT w.RefId, CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID, NULL, CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID
+                    SELECT w.RefId, CONVERT(varchar(8), COALESCE(w.UpdateTime, w.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(w.UpdateTime, w.CreateTime), 114), ':', '') + '_' + w.ID, NULL, CONVERT(varchar(8), COALESCE(w.UpdateTime, w.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(w.UpdateTime, w.CreateTime), 114), ':', '') + '_' + w.ID
                     FROM TmsWeather w
-                    WHERE w.RefId LIKE @prefix AND CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID > @lastKey_b
+                    WHERE w.RefId LIKE @prefix AND CONVERT(varchar(8), COALESCE(w.UpdateTime, w.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(w.UpdateTime, w.CreateTime), 114), ':', '') + '_' + w.ID > @lastKey_b
                 ) u
                 ORDER BY u.sortKey ASC
                 """;
@@ -424,9 +430,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 10/11/2026
         /// </summary>
         [Theory]
-        [InlineData("f3d2", "0a9b", "7c1e", "b4a8")]
-        [InlineData("D4f3", "b2d1", "C3e2", "a1c0")]
-        public async Task ProcessSubscriptions_WhenSameTimeRowsHaveGuidIds_SendsEachRowOnceIncludingLaterSmallerId_Test(string id1, string id2, string id3, string id4)
+        [InlineData("f3d2", "0a9b", "7c1e", "b4a8", false)]
+        [InlineData("D4f3", "b2d1", "C3e2", "a1c0", false)]
+        [InlineData("f3d2", "0a9b", "7c1e", "b4a8", true)]
+        public async Task ProcessSubscriptions_WhenSameTimeRowsHaveGuidIds_SendsEachRowOnceIncludingLaterSmallerId_Test(string id1, string id2, string id3, string id4, bool twoTier)
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -447,7 +454,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await db.Insertable(new ShareDataPacket { ID = packetId, Code = packetCode, Name = $"Packet {packetCode}", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
             var variables = ZoneVariables(2, rowPrefix, null);
             await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, variables);
-            var sql = ZoneCursorSql();
+            const string timePart = "CONVERT(varchar(8), COALESCE(z.UpdateTime, z.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(z.UpdateTime, z.CreateTime), 114), ':', '')";
+            var key = $"{timePart} + '_' + z.ID";
+            var sql = twoTier
+                ? $"SELECT TOP (@pageSize) p.rowCode, p.__lastKey FROM (SELECT TOP (@pageSize) WITH TIES z.Code AS rowCode, {key} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix AND {timePart} >= CONVERT(varchar(17), LEFT(@lastKey, 17)) AND {key} > @lastKey ORDER BY {timePart} ASC) p ORDER BY p.__lastKey ASC"
+                : ZoneCursorSql();
             await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql);
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
             {
@@ -485,7 +496,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var alertCount = await db.Queryable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).CountAsync();
             Assert.True(sentPerRow.Values.All(n => n == 1), $"Mỗi dòng phải gửi đúng một lần: {sentSummary}");
             Assert.Equal(3, bodies.Count);
-            Assert.Equal($"{laterTime:yyyy-MM-dd HH:mm:ss.fff}_{laterId}_{unique}", cursor.LastKey);
+            Assert.Equal($"{laterTime:yyyyMMddHHmmssfff}_{laterId}_{unique}", cursor.LastKey);
             Assert.Equal(0, alertCount);
         }
     }

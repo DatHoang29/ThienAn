@@ -163,6 +163,11 @@ Khi lập trình viên yêu cầu: *"cho nội dung commit -m theo rule thienan"
    - ⛔ **TUYỆT ĐỐI CẤM** tự ý chạy `git checkout -- <file>`, `git restore <file>`, `git clean`, `git reset --hard` hoặc bất kỳ thao tác nào nhằm discard/hoàn tác các thay đổi trên Working Tree của lập trình viên (bao gồm các file cấu hình, khóa bảo mật, DLL nội bộ, dữ liệu sửa dở).
    - Khi phát hiện file cấu hình local hoặc bí mật bị sửa đổi: giữ nguyên 100% tại Working Tree; nếu gặp lỗi runtime hoặc license thì báo rõ cho người dùng chứ ⛔ **KHÔNG ĐƯỢC TỰ Ý DISCARD**.
 8. **Xem thay đổi gọn trước (tiết kiệm ngữ cảnh)**: dùng `git status --short`, `git diff --stat` (hoặc `--name-only`) trước; chỉ mở `git diff -- <tệp>` cho tệp cần xem; lịch sử dùng `git log --oneline -n 20`.
+9. **Cấm Tự Động Xử Lý Conflict Git (Rule 19.119)**:
+   - Khi thực hiện bất kỳ thao tác Git nào (`git merge`, `git rebase`, `git cherry-pick`, `git checkout`, `git pull`, `git stash apply/pop`) mà phát sinh xung đột (`CONFLICT`, `UU`, `AA`, `DD` — kể cả tệp mã nguồn hay tệp nhị phân như `.dll`):
+     + **DỪNG NGAY LẬP TỨC**: ⛔ **TUYỆT ĐỐI KHÔNG** tự động xử lý hoặc chọn phía xung đột nếu người dùng chưa cho phép rõ ràng.
+     + ⛔ **Cấm** tự chạy `--ours` / `--theirs`, tự sửa/xóa marker xung đột, `git reset`, `git checkout -- <tệp>`, `git restore`, `git add` để ép kết thúc trạng thái unmerged, hoặc `git stash drop` làm mất bản stash chứa thay đổi của lập trình viên.
+     + Giữ nguyên trạng thái (hoặc khôi phục/báo rõ bản stash tạm chưa drop), liệt kê chính xác từng tệp đang conflict cùng thông tin hai phía (`ours` từ nhánh đích vs `theirs` từ nhánh/stash của dev) và chờ người dùng quyết định trước khi làm bước tiếp theo.
 
 ---
 

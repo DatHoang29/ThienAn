@@ -35,7 +35,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         private const string WriteSqlTimeFixScript = "sharedata-sua-cau-ghi-thoi-gian-ShareDataSql.sql";
 
         /// <summary>Mốc lần đầu của câu nối đuôi: chỉ lấy các dòng nguồn của bài test (giờ năm 2099), bỏ dữ liệu sẵn có.</summary>
-        private const string RoundTripCursorStart = "2098-01-01 00:00:00.000_";
+        private const string RoundTripCursorStart = "20980101000000000_";
 
         /// <summary>Số đối tác cùng chạy vòng một gói: nửa sau dùng câu riêng biến tấu từ câu trích thật, đủ 5 kiểu biến tấu (số thứ tự chia 5 dư 0..4).</summary>
         private const int RoundTripPartnerCount = 10;
@@ -441,7 +441,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var elapsedSeconds = Math.Floor(elapsed.TotalSeconds);
             var sentAt = TrafficDataTimeBase.AddSeconds(elapsedSeconds);
             var resentAt = sentAt.AddMinutes(1);
-            var sentAtText = sentAt.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+            var sentAtText = sentAt.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
             var cursorStart = $"{sentAtText}_";
             var vdsPacket = await SeedRoundTripPacketAsync(db, "103", unique, prefix);
             var wimPacket = await SeedRoundTripPacketAsync(db, "106", unique, prefix);

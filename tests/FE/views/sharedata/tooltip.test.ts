@@ -200,9 +200,8 @@ test.describe('ShareData — Tooltip ngắn gọn, bề rộng theo tỷ lệ m�
 
     test('1. Cấu hình gói tin: bảng gói tin, khung soạn SQL, tham số, mốc đang chạy, so sánh đối tác và câu ghi chiều nhận', async ({ context, page }) => {
         const PACKET_CODE = '101_commonData';
-        const CURSOR_SQL =
-            "SELECT TOP (@pageSize) ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone " +
-            "WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
+        const CURSOR_KEY = "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID";
+        const CURSOR_SQL = `SELECT TOP (@pageSize) ID AS zoneId, ${CURSOR_KEY} AS __lastKey FROM TmsZone WHERE ${CURSOR_KEY} > @lastKey ORDER BY __lastKey ASC`;
         const partnerIdOf = (url: string) => new URL(url).searchParams.get('PartnerId') ?? new URL(url).searchParams.get('partnerId') ?? '';
         const partners = [
             { partnerId: 'p_a', partnerCode: 'CSGT', partnerName: 'Cục CSGT', isCustom: false },
@@ -243,7 +242,7 @@ test.describe('ShareData — Tooltip ngắn gọn, bề rộng theo tỷ lệ m�
             r.fulfill(ok({
                 items: [
                     { code: 'pageSize', valueKind: 'Const', value: '100', dataType: 'Int' },
-                    { code: 'lastKey', valueKind: 'Builtin', value: 'lastKey', dataType: 'String', savedValue: partnerIdOf(r.request().url()) ? `2026-10-27 10:05:00.000_${LONG_TOKEN}` : null, defaultValue: '2026-10-22 00:00:00.000_' },
+                    { code: 'lastKey', valueKind: 'Builtin', value: 'lastKey', dataType: 'String', savedValue: partnerIdOf(r.request().url()) ? `20261027100500000_${LONG_TOKEN}` : null, defaultValue: '20261022' },
                 ],
             }))
         );
@@ -252,14 +251,15 @@ test.describe('ShareData — Tooltip ngắn gọn, bề rộng theo tỷ lệ m�
         await page.goto('/#/sharedata/dataSource');
         await page.locator('.packet-col .vxe-body--row').first().click({ timeout: 60_000 });
         await page.locator('.sql-monaco-editor .monaco-editor').first().waitFor({ timeout: 60_000 });
-        await expect(page.locator('.sd-cursor-block .el-table__body tr')).toHaveCount(1, { timeout: 15_000 });
+        /* Khối 4 tab Mẫu chung hiện mỗi đối tác dùng mẫu chung một dòng (CSGT, VDOT); ô mốc hiện nguyên chuỗi, không có tooltip */
+        await expect(page.locator('.sd-cursor-block .el-table__body tr')).toHaveCount(2, { timeout: 15_000 });
 
         const found: Record<string, string[]> = {};
         await audit(page, {
             name: 'Cấu hình gói tin - chiều gửi',
             scope: '.layout-main',
-            data: '.partner-count-tag, .partner-tab-jump, .svp-check-lead, .sd-cursor-value',
-            mustShow: ['.partner-count-tag', '.vxe-body--row .el-button--danger', '.svp-check-lead', '.sd-cursor-reset-btn', '.svp-source-select', '.sd-cursor-value'],
+            data: '.partner-count-tag, .partner-tab-jump, .svp-check-lead',
+            mustShow: ['.partner-count-tag', '.vxe-body--row .el-button--danger', '.svp-check-lead', '.sd-cursor-reset-btn', '.svp-source-select'],
         }, found);
 
         await page.setViewportSize({ width: 1920, height: 900 });
@@ -276,7 +276,7 @@ test.describe('ShareData — Tooltip ngắn gọn, bề rộng theo tỷ lệ m�
         await audit(page, {
             name: 'Cấu hình gói tin - đối tác riêng',
             scope: '.layout-main',
-            data: '.partner-count-tag, .partner-tab-jump, .svp-check-lead, .cmp-st, .sd-cursor-value',
+            data: '.partner-count-tag, .partner-tab-jump, .svp-check-lead, .cmp-st',
             mustShow: ['.cmp-legend', '.cmp-cell-wrapper .cmp-st'],
         }, found);
 

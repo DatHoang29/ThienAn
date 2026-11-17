@@ -2102,13 +2102,13 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId";
     td.EquipmentId AS equipmentId,
     e.KmNumber AS locationKm,
     e.MetNumber AS locationMet,
-    CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + '_' + td.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 114), ':', '') + '_' + td.ID AS __lastKey,
     td.UpdateTime AS __auditUpdate,
     td.CreateTime AS __auditCreate
 FROM TmsTrafficData td
 LEFT JOIN TmsEquipment e ON td.EquipmentId = e.ID
 WHERE td.IsDelete IS NULL
-  AND CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + '_' + td.ID > @lastKey
+  AND CONVERT(varchar(8), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 114), ':', '') + '_' + td.ID > @lastKey
 ORDER BY __lastKey ASC";
 
             foreach (var packet103 in await db.Queryable<ShareDataPacket>().Where(p => p.Code == "103" || p.Code == "103_vdsData").ToListAsync())
@@ -3687,9 +3687,9 @@ ORDER BY __lastKey ASC";
             var packet105 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "105").FirstAsync();
             const string tollOutSql = "SELECT TOP 100 t.TransactionId AS transactionId, t.TransactionDateTimeIn AS entryTime, t.TransactionDateTime AS exitTime, "
                 + "t.VehicleTypeId AS vehicleTypeId, ISNULL(t.PlateEdit, t.PlateLpr) AS licensePlate, t.TagId AS tagId, t.LaneId AS laneId, t.StationId AS stationId, "
-                + "CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 121) + '_' + t.ID AS __lastKey "
+                + "CONVERT(varchar(8), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 114), ':', '') + '_' + t.ID AS __lastKey "
                 + "FROM TollTransactionOut t WHERE t.IsDelete IS NULL "
-                + "AND CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 121) + '_' + t.ID > @lastKey ORDER BY __lastKey ASC";
+                + "AND CONVERT(varchar(8), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 114), ':', '') + '_' + t.ID > @lastKey ORDER BY __lastKey ASC";
             await ShareDataSqlSeed.SetCommonAsync(db, packet105.ID, tollOutSql);
 
             var unique = Guid.NewGuid().ToString("N")[..8];
@@ -6014,10 +6014,10 @@ ORDER BY __lastKey ASC";
         /// nên @pc chỉ khớp khi bộ biến được dùng gán đúng mã đối tác.
         /// </summary>
         private static string AllSourcesSql(string packetId, string partnerCode) =>
-            "SELECT TOP (@pageSize) CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
+            "SELECT TOP (@pageSize) CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
             + $"WHERE ID = '{packetId}' AND @pc = '{partnerCode}' AND @constTag = 'ACTIVE' AND @minRate <= 1.5 "
             + "AND UpdateTime <= GETDATE() "
-            + "AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @afterKey "
+            + "AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @afterKey "
             + "ORDER BY __lastKey ASC";
 
         /// <summary>
@@ -6105,7 +6105,7 @@ ORDER BY __lastKey ASC";
             if (expectSent)
             {
                 Assert.True(received == 1, $"Đối tác phải nhận đúng 1 lần gửi, nhận {received}. Cảnh báo: {string.Join(" | ", alerts)}");
-                Assert.Equal($"{rowTime:yyyy-MM-dd HH:mm:ss.fff}_{packetId}", lastSend.LastKey);
+                Assert.Equal($"{rowTime:yyyyMMddHHmmssfff}_{packetId}", lastSend.LastKey);
             }
             else
             {
@@ -6234,8 +6234,8 @@ ORDER BY __lastKey ASC";
                 .ExecuteCommandAsync();
 
             // Cỡ trang (@pageSize kiểu Int) và tiền tố mã (@prefix kiểu String) truyền qua biến "Giá trị nhập" (Const); có TOP nên Worker lặp nhiều trang mỗi lượt
-            var sql = "SELECT TOP (@pageSize) CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
-                + "WHERE Code LIKE @prefix AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @afterKey ORDER BY __lastKey ASC";
+            var sql = "SELECT TOP (@pageSize) CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @afterKey ORDER BY __lastKey ASC";
 
             await db.Insertable(new ShareDataPacket
             {
@@ -6350,8 +6350,8 @@ ORDER BY __lastKey ASC";
             }
 
             var g = groupCursor ? "_a" : string.Empty;
-            var sql = $"SELECT CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey{g}, Code AS code FROM ShareDataPacket "
-                + $"WHERE Code LIKE '{rowPrefix}%' AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey{g} ORDER BY __lastKey{g} ASC";
+            var sql = $"SELECT CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey{g}, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE '{rowPrefix}%' AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey{g} ORDER BY __lastKey{g} ASC";
             await db.Insertable(new ShareDataPacket
             {
                 ID = packetId,
@@ -6439,8 +6439,8 @@ ORDER BY __lastKey ASC";
                 .Where(p => p.Code!.StartsWith(rowPrefix))
                 .ExecuteCommandAsync();
 
-            var sql = "SELECT CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
-                + $"WHERE Code LIKE '{rowPrefix}%' AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @afterKey {orderBy}";
+            var sql = "SELECT CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE '{rowPrefix}%' AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @afterKey {orderBy}";
 
             await db.Insertable(new ShareDataPacket
             {
@@ -6542,8 +6542,8 @@ ORDER BY __lastKey ASC";
                 Status = BaseEnums.StatusEnum.Enable
             }).ExecuteCommandAsync();
 
-            var commonSql = "SELECT CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
-                + $"WHERE Code LIKE '{rowPrefix}%' AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey";
+            var commonSql = "SELECT CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE '{rowPrefix}%' AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey";
             await ShareDataSqlSeed.SetCommonAsync(db, packetId, commonSql);
 
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
@@ -6600,7 +6600,7 @@ ORDER BY __lastKey ASC";
         }
 
         /// <summary>
-        /// Description: Nối đuôi gộp 1 cột (@lastKey = CONVERT(varchar(23), UpdateTime, 121) + '_' + ID):
+        /// Description: Nối đuôi gộp 1 cột (@lastKey = CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID):
         ///              - Lượt 1: 5 dòng trùng đúng một thời điểm, phân trang TOP (@pageSize = 2) gửi đủ 3 trang (2+2+1) không lặp không sót,
         ///                không rò cột hệ thống __lastKey ra payload JSON, và lưu mốc dòng thứ 5.
         ///              - Lượt 2: dòng thứ 6 có thời gian lớn hơn nhưng ID nhỏ hơn từ điển vẫn được gửi đúng và tiến mốc.
@@ -6636,8 +6636,8 @@ ORDER BY __lastKey ASC";
                 .Where(z => z.Code!.StartsWith(rowPrefix))
                 .ExecuteCommandAsync();
 
-            const string compositeExpr = "CONVERT(varchar(23), UpdateTime, 121) + '_' + ID";
-            var lowerBound = withLowerBound ? "UpdateTime >= ISNULL(TRY_CONVERT(datetime, LEFT(@lastKey, 23), 121), '17530101') AND " : string.Empty;
+            const string compositeExpr = "CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID";
+            var lowerBound = withLowerBound ? "UpdateTime >= ISNULL(TRY_CONVERT(date, LEFT(@lastKey, 8), 112), '17530101') AND " : string.Empty;
             var sql = $"SELECT TOP (@pageSize) Code AS zoneCode, {compositeExpr} AS __lastKey FROM TmsZone "
                 + $"WHERE Code LIKE @prefix AND {lowerBound}({compositeExpr}) > @lastKey ORDER BY __lastKey ASC";
 
@@ -6690,7 +6690,7 @@ ORDER BY __lastKey ASC";
             var lastSendAfterRun1 = await db.Queryable<ShareDataLastSend>()
                 .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
                 .FirstAsync();
-            Assert.Equal($"2026-10-27 10:00:00.120_f5_{unique}", lastSendAfterRun1.LastKey);
+            Assert.Equal($"20261027100000120_f5_{unique}", lastSendAfterRun1.LastKey);
 
             // Act 2: thêm dòng thứ 6 có thời gian mới hơn nhưng ID nhỏ hơn từ điển ("00_..." < "f5_...")
             var laterTime = sameTime.AddSeconds(1);
@@ -6710,7 +6710,7 @@ ORDER BY __lastKey ASC";
             var lastSendAfterRun2 = await db.Queryable<ShareDataLastSend>()
                 .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
                 .FirstAsync();
-            Assert.Equal($"2026-10-27 10:00:01.120_00_{unique}", lastSendAfterRun2.LastKey);
+            Assert.Equal($"20261027100001120_00_{unique}", lastSendAfterRun2.LastKey);
 
             // Act 3: không phát sinh dòng mới -> không gửi HTTP, giữ nguyên mốc
             dueNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
@@ -6724,7 +6724,7 @@ ORDER BY __lastKey ASC";
             var lastSendAfterRun3 = await db.Queryable<ShareDataLastSend>()
                 .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
                 .FirstAsync();
-            Assert.Equal($"2026-10-27 10:00:01.120_00_{unique}", lastSendAfterRun3.LastKey);
+            Assert.Equal($"20261027100001120_00_{unique}", lastSendAfterRun3.LastKey);
         }
 
         /// <summary>
@@ -6745,7 +6745,7 @@ ORDER BY __lastKey ASC";
             var packetId = $"pkt-iso-{unique}";
             var packetCode = $"PKT_ISO_{unique}";
             var rowPrefix = $"ZC_ISO_{unique}_";
-            const string cutoff = "2026-10-27 09:00:00.000_";
+            const string cutoff = "20261027090000000_";
 
             var oldZones = new[]
             {
@@ -6764,7 +6764,7 @@ ORDER BY __lastKey ASC";
                 await db.Updateable<TmsZone>().SetColumns(z => z.UpdateTime == time).Where(z => z.ID == zone.ID).ExecuteCommandAsync();
             }
 
-            const string compositeExpr = "CONVERT(varchar(23), UpdateTime, 121) + '_' + ID";
+            const string compositeExpr = "CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID";
             var commonSql = $"SELECT TOP 50 Code AS zoneCode, {compositeExpr} AS __lastKey FROM TmsZone "
                 + $"WHERE Code LIKE @prefix AND ({compositeExpr}) > @lastKey ORDER BY __lastKey ASC";
 
@@ -6836,7 +6836,7 @@ ORDER BY __lastKey ASC";
 
             var lastSendA1 = await db.Queryable<ShareDataLastSend>().Where(ls => ls.PartnerCode == partnerA.Code && ls.PacketCode == packetCode).FirstAsync();
             var lastSendB1 = await db.Queryable<ShareDataLastSend>().Where(ls => ls.PartnerCode == partnerB.Code && ls.PacketCode == packetCode).FirstAsync();
-            Assert.Equal($"2026-10-27 09:20:00.000_new2_{unique}", lastSendA1.LastKey);
+            Assert.Equal($"20261027092000000_new2_{unique}", lastSendA1.LastKey);
             Assert.Null(lastSendB1?.LastKey);
 
             // Act 2: thêm NEW3, khôi phục Partner B -> Partner A chỉ nhận NEW3, Partner B nhận đủ NEW1..NEW3 từ DefaultValue
@@ -6945,9 +6945,9 @@ ORDER BY __lastKey ASC";
             await db.Updateable<TmsZone>().SetColumns(z => z.UpdateTime == new DateTime(2026, 10, 27, 10, 0, 0)).Where(z => z.ID == zone1.ID).ExecuteCommandAsync();
             await db.Updateable<TmsZone>().SetColumns(z => z.UpdateTime == new DateTime(2026, 10, 27, 10, 5, 0)).Where(z => z.ID == zone2.ID).ExecuteCommandAsync();
 
-            var key1 = $"2026-10-27 10:00:00.000_{zone1.ID}";
-            var key2 = $"2026-10-27 10:05:00.000_{zone2.ID}";
-            const string compositeExpr = "CONVERT(varchar(23), UpdateTime, 121) + '_' + ID";
+            var key1 = $"20261027100000000_{zone1.ID}";
+            var key2 = $"20261027100500000_{zone2.ID}";
+            const string compositeExpr = "CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID";
 
             var (sql, priorLastTime, priorLastKey) = scenario switch
             {
@@ -7309,8 +7309,8 @@ ORDER BY __lastKey ASC";
             Assert.Equal(1, CountOccurrences(allBodies, $"\"{a1.Code}\""));
             Assert.Equal(1, CountOccurrences(allBodies, $"\"{a2.Code}\""));
             var groupCursors = await db.Queryable<ShareDataLastSend>().Where(k => k.PacketCode == packetCode && k.CursorKey != null).ToListAsync();
-            Assert.Equal($"2026-10-27 09:30:00.000_{a2.ID}", groupCursors.Single(k => k.CursorKey == "pkt").LastKey);
-            Assert.Equal($"2026-10-27 09:20:00.000_{priceId}", groupCursors.Single(k => k.CursorKey == "toll").LastKey);
+            Assert.Equal($"20261027093000000_{a2.ID}", groupCursors.Single(k => k.CursorKey == "pkt").LastKey);
+            Assert.Equal($"20261027092000000_{priceId}", groupCursors.Single(k => k.CursorKey == "toll").LastKey);
         }
 
         /// <summary>
@@ -7382,7 +7382,7 @@ ORDER BY __lastKey ASC";
                 PacketCode = packetCode,
                 PartnerId = partner.ID,
                 CursorKey = "toll",
-                LastKey = $"{baseTime.AddMinutes(10):yyyy-MM-dd HH:mm:ss.fff}_{prices[1].ID}"
+                LastKey = $"{baseTime.AddMinutes(10):yyyyMMddHHmmssfff}_{prices[1].ID}"
             });
             await worker.ProcessSubscriptions(CancellationToken.None);
             var firstRun = string.Join(" ", PartnerBodies($"partner-grp-{unique}"));
@@ -7424,7 +7424,7 @@ ORDER BY __lastKey ASC";
             var packetId = $"pkt-num-{unique}";
             var packetCode = $"PKT_NUM_{unique}";
             var rowPrefix = $"ROW_NUM_{unique}_";
-            var keyExpr = "CONVERT(varchar(23), UpdateTime, 121) + '_' + RIGHT('0000000000' + CAST(OrderNo AS varchar(10)), 10)";
+            var keyExpr = "CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + RIGHT('0000000000' + CAST(OrderNo AS varchar(10)), 10)";
             var pa1Sql = $"SELECT TOP (@pageSize) Code AS rowCode, {keyExpr} AS __lastKey FROM ShareDataPacket "
                 + $"WHERE Code LIKE @prefix AND {keyExpr} > @lastKey ORDER BY __lastKey";
 
@@ -7564,22 +7564,22 @@ ORDER BY __lastKey ASC";
         /// Description: Câu nối đuôi lưu được nhưng dễ lấy sai: Worker ghi rủi ro vào nhật ký cấu hình (ShareDataActivityLog, LogType CONFIG) một lần cho mỗi (đăng ký, câu SQL),
         ///              không lặp lại mỗi lượt, không ghi cảnh báo, không lẫn vào nhật ký truyền nhận. Câu không có rủi ro thì không ghi.
         ///              Câu lưu từ trước khi chặn UpdateTime trơn vẫn chạy, Worker ghi rủi ro dòng mới thêm không được gửi.
-        ///              Chặn dưới theo cột thời gian gốc dùng >= chỉ giới hạn vùng đọc, không gửi lặp dòng nên không tính là rủi ro.
+        ///              Chặn dưới theo cột thời gian gốc dùng >= chỉ giới hạn vùng đọc, không gửi lặp dòng nên không tính là rủi ro. Đuôi có phần có thể NULL (ép số sang chuỗi không bọc ISNULL) là rủi ro.
         /// Created date: 01/11/2026
-        /// Modified date: 05/11/2026
+        /// Modified date: 16/11/2026
         /// </summary>
         [Theory]
         [InlineData("Code AS rowCode, ID AS __lastKey", "ID > @lastKey", "ID", "không tăng theo thứ tự ghi")]
-        [InlineData("Code AS rowCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID >= @lastKey", "__lastKey", ">=")]
+        [InlineData("Code AS rowCode, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey", "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID >= @lastKey", "__lastKey", ">=")]
         [InlineData("Code AS rowCode, FORMAT(COALESCE(UpdateTime, CreateTime), 'HHmm') + '_' + ID AS __lastKey", "FORMAT(COALESCE(UpdateTime, CreateTime), 'HHmm') + '_' + ID > @lastKey", "__lastKey", "sai định dạng")]
         [InlineData("Code AS rowCode, FORMAT(COALESCE(UpdateTime, CreateTime), 'dd/MM/yyyy') + '_' + ID AS __lastKey", "FORMAT(COALESCE(UpdateTime, CreateTime), 'dd/MM/yyyy') + '_' + ID > @lastKey", "__lastKey", "sai định dạng")]
         [InlineData("Code AS rowCode, CAST(OrderNo AS varchar(10)) + '_' + ID AS __lastKey", "CAST(OrderNo AS varchar(10)) + '_' + ID > @lastKey", "__lastKey", "đệm 0")]
-        [InlineData("Code AS rowCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + CAST(OrderNo AS varchar(10)) AS __lastKey", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + CAST(OrderNo AS varchar(10)) > @lastKey", "__lastKey", "cột ID")]
-        [InlineData("Code AS rowCode, CONVERT(varchar(23), IsDelete, 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), IsDelete, 121) + '_' + ID > @lastKey", "__lastKey", "không có CreateTime")]
-        [InlineData("Code AS rowCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey", "__lastKey", "UpdateTime trơn")]
-        [InlineData("Code AS rowCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey", "__lastKey", null)]
-        [InlineData("Code AS rowCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey",
-            "COALESCE(UpdateTime, CreateTime) >= ISNULL(TRY_CONVERT(datetime, LEFT(@lastKey, 23), 121), '17530101') AND CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey", "__lastKey", null)]
+        [InlineData("Code AS rowCode, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + CAST(OrderNo AS varchar(10)) AS __lastKey", "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + CAST(OrderNo AS varchar(10)) > @lastKey", "__lastKey", "có thể NULL")]
+        [InlineData("Code AS rowCode, CONVERT(varchar(8), IsDelete, 112) + REPLACE(CONVERT(varchar(12), IsDelete, 114), ':', '') + '_' + ID AS __lastKey", "CONVERT(varchar(8), IsDelete, 112) + REPLACE(CONVERT(varchar(12), IsDelete, 114), ':', '') + '_' + ID > @lastKey", "__lastKey", "không có CreateTime")]
+        [InlineData("Code AS rowCode, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey", "CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey", "__lastKey", "UpdateTime trơn")]
+        [InlineData("Code AS rowCode, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey", "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID > @lastKey", "__lastKey", null)]
+        [InlineData("Code AS rowCode, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey",
+            "COALESCE(UpdateTime, CreateTime) >= ISNULL(TRY_CONVERT(date, LEFT(@lastKey, 8), 112), '17530101') AND CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID > @lastKey", "__lastKey", null)]
         public async Task ProcessSubscriptions_WhenCursorSqlRisky_LogsActivityOnceWithoutAlert_Test(string columns, string where, string orderBy, string? expectedRisk)
         {
             // Arrange
@@ -7671,8 +7671,8 @@ ORDER BY __lastKey ASC";
             }).ExecuteCommandAsync();
             await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(5, rowPrefix));
             await ShareDataSqlSeed.SetCommonAsync(db, packetId,
-                "SELECT TOP (@pageSize) Code AS rowCode, CAST(Name AS int) AS nameNumber, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM ShareDataPacket "
-                + "WHERE Code LIKE @prefix AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC");
+                "SELECT TOP (@pageSize) Code AS rowCode, CAST(Name AS int) AS nameNumber, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey ASC");
 
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
             {
@@ -7718,8 +7718,8 @@ ORDER BY __lastKey ASC";
             var packetId = $"pkt-setcur-{unique}";
             var packetCode = $"PKT_SETCUR_{unique}";
             var rowPrefix = $"ROW_SETCUR_{unique}_";
-            var cursorSql = "SELECT TOP (@pageSize) Code AS rowCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM ShareDataPacket "
-                + "WHERE Code LIKE @prefix AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
+            var cursorSql = "SELECT TOP (@pageSize) Code AS rowCode, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey ASC";
 
             var baseTime = new DateTime(2026, 10, 28, 8, 0, 0);
             var rows = Enumerable.Range(1, 6).Select(i => new ShareDataPacket
@@ -7772,7 +7772,7 @@ ORDER BY __lastKey ASC";
                 ], "TestAuth"))
             };
 
-            var cursorKey = $"{baseTime.AddMinutes(20):yyyy-MM-dd HH:mm:ss.fff}_c03_{unique}";
+            var cursorKey = $"{baseTime.AddMinutes(20):yyyyMMddHHmmssfff}_c03_{unique}";
             await SetCursorWhilePausedAsync(scope.ServiceProvider, db, sub.ID!, new SetLastSendInput
             {
                 PacketCode = packetCode,
@@ -7837,8 +7837,8 @@ ORDER BY __lastKey ASC";
                 await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == time).Where(p => p.ID == rows[i].ID).ExecuteCommandAsync();
             }
 
-            var commonSql = "SELECT TOP (@pageSize) Code AS rowCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM ShareDataPacket "
-                + "WHERE Code LIKE @prefix AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
+            var commonSql = "SELECT TOP (@pageSize) Code AS rowCode, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey ASC";
 
             await db.Insertable(new ShareDataPacket
             {
@@ -7943,8 +7943,8 @@ ORDER BY __lastKey ASC";
             var packetId = $"pkt-mid-{unique}";
             var packetCode = $"PKT_MID_{unique}";
             var rowPrefix = $"ROW_MID_{unique}_";
-            var cursorSql = "SELECT TOP (@pageSize) Code AS rowCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM ShareDataPacket "
-                + "WHERE Code LIKE @prefix AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
+            var cursorSql = "SELECT TOP (@pageSize) Code AS rowCode, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey ASC";
 
             var baseTime = new DateTime(2026, 10, 28, 8, 0, 0);
             var rows = Enumerable.Range(1, 3).Select(i => new ShareDataPacket
@@ -7983,7 +7983,7 @@ ORDER BY __lastKey ASC";
                 ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-mid-{unique}"
             });
 
-            var userKey = $"{baseTime.AddHours(-1):yyyy-MM-dd HH:mm:ss.fff}_";
+            var userKey = $"{baseTime.AddHours(-1):yyyyMMddHHmmssfff}_";
             var fired = 0;
             _host.PartnerServer.Responder = (_, request) =>
             {
@@ -8173,7 +8173,7 @@ ORDER BY __lastKey ASC";
                 await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null,
                 [
                     new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "50", OrderNo = 1 },
-                    new SqlVariableItem { Code = "lastKey", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = "2090-01-01 00:00:00.000_", OrderNo = 2 }
+                    new SqlVariableItem { Code = "lastKey", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = "20900101000000000_", OrderNo = 2 }
                 ]);
                 Assert.True(PacketTemplateSeed.TryGet("101", out var template));
                 await ShareDataSqlSeed.SetCommonAsync(db, packetId, template.ExtractSql);
@@ -8305,16 +8305,16 @@ ORDER BY __lastKey ASC";
 
         /// <summary>Câu hai nhóm mốc dạng một chuỗi ghép: upd theo chuỗi UpdateTime_ID, new (UpdateTime trống) theo chuỗi CreateTime_ID.</summary>
         private const string UpdNewGroupStringKeySql = "SELECT TOP (@pageSize) u.rowCode, u.__lastKey_upd, u.__lastKey_new FROM ("
-            + "SELECT p.Code AS rowCode, CONVERT(varchar(23), p.UpdateTime, 121) + '_' + p.ID AS sortKey, CONVERT(varchar(23), p.UpdateTime, 121) + '_' + p.ID AS __lastKey_upd, "
+            + "SELECT p.Code AS rowCode, CONVERT(varchar(8), p.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), p.UpdateTime, 114), ':', '') + '_' + p.ID AS sortKey, CONVERT(varchar(8), p.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), p.UpdateTime, 114), ':', '') + '_' + p.ID AS __lastKey_upd, "
             + "CAST(NULL AS nvarchar(100)) AS __lastKey_new FROM ShareDataPacket p "
-            + "WHERE p.Code LIKE @prefix AND CONVERT(varchar(23), p.UpdateTime, 121) + '_' + p.ID > @lastKey_upd "
-            + "UNION ALL SELECT n.Code, CONVERT(varchar(23), n.CreateTime, 121) + '_' + n.ID, NULL, CONVERT(varchar(23), n.CreateTime, 121) + '_' + n.ID FROM ShareDataPacket n "
-            + "WHERE n.Code LIKE @prefix AND n.UpdateTime IS NULL AND CONVERT(varchar(23), n.CreateTime, 121) + '_' + n.ID > @lastKey_new"
+            + "WHERE p.Code LIKE @prefix AND CONVERT(varchar(8), p.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), p.UpdateTime, 114), ':', '') + '_' + p.ID > @lastKey_upd "
+            + "UNION ALL SELECT n.Code, CONVERT(varchar(8), n.CreateTime, 112) + REPLACE(CONVERT(varchar(12), n.CreateTime, 114), ':', '') + '_' + n.ID, NULL, CONVERT(varchar(8), n.CreateTime, 112) + REPLACE(CONVERT(varchar(12), n.CreateTime, 114), ':', '') + '_' + n.ID FROM ShareDataPacket n "
+            + "WHERE n.Code LIKE @prefix AND n.UpdateTime IS NULL AND CONVERT(varchar(8), n.CreateTime, 112) + REPLACE(CONVERT(varchar(12), n.CreateTime, 114), ':', '') + '_' + n.ID > @lastKey_new"
             + ") u ORDER BY u.sortKey ASC";
 
         /// <summary>Câu một chuỗi ghép từ cột mốc gộp: thiếu UpdateTime thì lấy CreateTime, không cần hai nhóm.</summary>
-        private const string MergedTimeStringKeySql = "SELECT TOP (@pageSize) p.Code AS rowCode, CONVERT(varchar(23), ISNULL(p.UpdateTime, p.CreateTime), 121) + '_' + p.ID AS __lastKey "
-            + "FROM ShareDataPacket p WHERE p.Code LIKE @prefix AND CONVERT(varchar(23), ISNULL(p.UpdateTime, p.CreateTime), 121) + '_' + p.ID > @lastKey ORDER BY __lastKey ASC";
+        private const string MergedTimeStringKeySql = "SELECT TOP (@pageSize) p.Code AS rowCode, CONVERT(varchar(8), ISNULL(p.UpdateTime, p.CreateTime), 112) + REPLACE(CONVERT(varchar(12), ISNULL(p.UpdateTime, p.CreateTime), 114), ':', '') + '_' + p.ID AS __lastKey "
+            + "FROM ShareDataPacket p WHERE p.Code LIKE @prefix AND CONVERT(varchar(8), ISNULL(p.UpdateTime, p.CreateTime), 112) + REPLACE(CONVERT(varchar(12), ISNULL(p.UpdateTime, p.CreateTime), 114), ':', '') + '_' + p.ID > @lastKey ORDER BY __lastKey ASC";
 
         /// <summary>Bộ biến của câu nối đuôi tự viết: @pageSize, @prefix và @lastKey.</summary>
         private static List<SqlVariableItem> CursorVariables(int pageSize, string prefix) =>
@@ -8326,11 +8326,11 @@ ORDER BY __lastKey ASC";
 
         /// <summary>Câu gộp hai nguồn, mỗi nguồn một nhóm mốc ghép thời gian_ID: pkt (ShareDataPacket) và toll (TollPriceList); lọc dòng theo tiền tố @prefix.</summary>
         private const string TwoSourceGroupSql = "SELECT TOP (@pageSize) u.rowCode, u.__lastKey_pkt, u.__lastKey_toll FROM ("
-            + "SELECT p.Code AS rowCode, CONVERT(varchar(23), p.UpdateTime, 121) + '_' + p.ID AS sortKey, CONVERT(varchar(23), p.UpdateTime, 121) + '_' + p.ID AS __lastKey_pkt, "
+            + "SELECT p.Code AS rowCode, CONVERT(varchar(8), p.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), p.UpdateTime, 114), ':', '') + '_' + p.ID AS sortKey, CONVERT(varchar(8), p.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), p.UpdateTime, 114), ':', '') + '_' + p.ID AS __lastKey_pkt, "
             + "CAST(NULL AS nvarchar(100)) AS __lastKey_toll FROM ShareDataPacket p "
-            + "WHERE p.Code LIKE @prefix AND CONVERT(varchar(23), p.UpdateTime, 121) + '_' + p.ID > @lastKey_pkt "
-            + "UNION ALL SELECT t.SourceId, CONVERT(varchar(23), t.SourceWriteDate, 121) + '_' + t.ID, NULL, CONVERT(varchar(23), t.SourceWriteDate, 121) + '_' + t.ID FROM TollPriceList t "
-            + "WHERE t.SourceId LIKE @prefix AND CONVERT(varchar(23), t.SourceWriteDate, 121) + '_' + t.ID > @lastKey_toll"
+            + "WHERE p.Code LIKE @prefix AND CONVERT(varchar(8), p.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), p.UpdateTime, 114), ':', '') + '_' + p.ID > @lastKey_pkt "
+            + "UNION ALL SELECT t.SourceId, CONVERT(varchar(8), CAST(t.SourceWriteDate AS datetime), 112) + REPLACE(CONVERT(varchar(12), CAST(t.SourceWriteDate AS datetime), 114), ':', '') + '_' + t.ID, NULL, CONVERT(varchar(8), CAST(t.SourceWriteDate AS datetime), 112) + REPLACE(CONVERT(varchar(12), CAST(t.SourceWriteDate AS datetime), 114), ':', '') + '_' + t.ID FROM TollPriceList t "
+            + "WHERE t.SourceId LIKE @prefix AND CONVERT(varchar(8), CAST(t.SourceWriteDate AS datetime), 112) + REPLACE(CONVERT(varchar(12), CAST(t.SourceWriteDate AS datetime), 114), ':', '') + '_' + t.ID > @lastKey_toll"
             + ") u ORDER BY u.sortKey ASC";
 
         /// <summary>Bộ biến của câu gộp nhiều nguồn: @pageSize, @prefix và mỗi nhóm mốc một biến @lastKey_&lt;nhóm&gt;.</summary>

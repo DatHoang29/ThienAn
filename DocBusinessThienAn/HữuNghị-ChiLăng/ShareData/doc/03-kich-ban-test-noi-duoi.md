@@ -22,7 +22,7 @@ Làm từ trên xuống. Mỗi bước: **Làm** → **Thấy**. Thấy khác th
 
 ```sql
 SELECT TOP (@pageSize)
-    CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), ':', '') + '_' + zs.ID AS __lastKey,
     zs.ID AS zoneStatusId,
     zs.ZoneId AS zoneId,
     z.Name AS zoneName,
@@ -39,7 +39,7 @@ SELECT TOP (@pageSize)
 FROM dbo.TmsZoneStatus zs
 LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
-WHERE CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID > @lastKey
+WHERE CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), ':', '') + '_' + zs.ID > @lastKey
 ORDER BY __lastKey ASC
 ```
 
@@ -56,7 +56,7 @@ ORDER BY __lastKey ASC
 - [ ] **2.1** Mở lại gói 101 → tab PC08. **Thấy:**
   - **Lưu & phân tích** mờ, có biểu tượng khóa;
   - ô `@lastKey` ghi "Đã có mốc, gửi tiếp";
-  - khối 4 hiện mốc `yyyy-MM-dd HH:mm:ss.fff_<ID>`; **Đặt mốc**, **Đặt lại** mờ.
+  - khối 4 hiện nguyên chuỗi mốc `yyyyMMddHHmmssfff_<ID>`; **Đặt mốc**, **Đặt lại** mờ.
 - [ ] **2.2** Tab **Bộ mã Chuẩn hóa** → sửa `lane_code`. **Thấy:** báo vàng bộ mã đang dùng, bảng quy đổi bị khóa.
 
 ## 3. Câu sai bị chặn khi lưu
@@ -69,42 +69,42 @@ Tắt đăng ký trước. Mỗi ca:
 | Ca | Sửa | Thấy (đầu câu báo) |
 |---|---|---|
 | 3.1 | `WHERE zs.ID > @lastKey` | "Biểu thức so với biến lastKey trong WHERE phải viết giống hệt…" |
-| 3.2 | `WHERE` dùng `CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID` | Như 3.1 |
+| 3.2 | `WHERE` dùng `CONVERT(varchar(8), zs.CreateTime, 112) + REPLACE(CONVERT(varchar(12), zs.CreateTime, 114), ':', '') + '_' + zs.ID` | Như 3.1 |
 | 3.3 | `ORDER BY zs.ID ASC` | "…phải sắp xếp ORDER BY ngoài cùng theo cột [__lastKey]…" |
 | 3.4 | `ORDER BY __lastKey DESC` | "…bắt buộc sắp xếp tăng dần (ASC)…" |
 | 3.5 | Bỏ `COALESCE`, chỉ còn `zs.UpdateTime` (dòng 2 và `WHERE`) | "Cột mốc dùng UpdateTime trơn…"; bấm **Sửa câu** thì về 3/3 |
 | 3.6 | Dòng 2: `zs.UpdateTime AS __lastKey`; `WHERE zs.UpdateTime > @lastKey` | "Cột mốc chỉ có ngày giờ…"; **Sửa câu** về 3/3 |
 | 3.7 | `WHERE K >= @lastKey` | "…phải dùng dấu >…" (dải vẫn 3/3) |
-| 3.8 | `varchar(23) … 121` đổi thành `varchar(10) … 103` (dòng 2 và `WHERE`) | "…ghép ngày giờ sai định dạng…" |
+| 3.8 | `CONVERT(varchar(8), …, 112) + REPLACE(CONVERT(varchar(12), …, 114), ':', '')` đổi thành `CONVERT(varchar(10), …, 103)` (dòng 2 và `WHERE`) | "…ghép ngày giờ sai định dạng…" |
 | 3.9 | Xóa dòng `WHERE` | "Câu có cột mốc nhưng không dùng biến mốc…" |
 | 3.10 | Dòng 2: `zs.ID AS __lastKey`; `WHERE zs.ID > @lastKey` | "Cột mốc phải viết đúng công thức…"; **Sửa câu** về 3/3 |
 | 3.11 | `K` thay bằng `CAST(z.FromKmNumber AS varchar(10))` (dòng 2 và `WHERE`) | Như 3.10 |
 | 3.12 | `COALESCE(zs.UpdateTime, zs.CreateTime)` thay bằng `zs.DetectWay` (dòng 2 và `WHERE`) | Như 3.10; **Sửa câu** ra `COALESCE(zs.DetectWay, zs.CreateTime)` |
-| 3.13 | `'_' + zs.ID` thay bằng `'_' + z.Name` (dòng 2 và `WHERE`) | Như 3.10 |
+| 3.13 | `'_' + zs.ID` thay bằng `'_' + z.Name` (dòng 2 và `WHERE`) | Như 3.10 (bọc `ISNULL(z.Name, '')` ở cả 2 chỗ hoặc dùng `'_' + z.Code` có `ISNULL` thì lưu được) |
 | 3.14 | Bỏ `TOP (@pageSize)`, thêm cuối câu `OFFSET 1 ROWS FETCH NEXT @pageSize ROWS ONLY` | "…không được dùng OFFSET…" |
 | 3.15 | Câu A bên dưới | "…không dùng chung một mốc…" |
-| 3.16 | Câu B bên dưới | "Câu con có TOP phải sắp…" |
+| 3.16 | Câu B bên dưới | "Câu con có TOP phải sắp…" (riêng câu hai tầng dùng `TOP (@pageSize) WITH TIES ... ORDER BY ... ASC` theo phần thời gian PA1 thì lưu được) |
 
 ```sql
 -- Câu A (3.15): hai nguồn dùng chung @lastKey
 SELECT TOP (@pageSize) u.__lastKey, u.zoneId
 FROM (
-    SELECT CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID AS __lastKey, zs.ZoneId AS zoneId
+    SELECT CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), ':', '') + '_' + zs.ID AS __lastKey, zs.ZoneId AS zoneId
     FROM dbo.TmsZoneStatus zs
-    WHERE CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID > @lastKey
+    WHERE CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), ':', '') + '_' + zs.ID > @lastKey
     UNION ALL
-    SELECT CONVERT(varchar(23), COALESCE(e.UpdateTime, e.CreateTime), 121) + '_' + e.ID, e.Code
+    SELECT CONVERT(varchar(8), COALESCE(e.UpdateTime, e.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(e.UpdateTime, e.CreateTime), 114), ':', '') + '_' + e.ID, e.Code
     FROM TmsEquipment e
-    WHERE CONVERT(varchar(23), COALESCE(e.UpdateTime, e.CreateTime), 121) + '_' + e.ID > @lastKey
+    WHERE CONVERT(varchar(8), COALESCE(e.UpdateTime, e.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(e.UpdateTime, e.CreateTime), 114), ':', '') + '_' + e.ID > @lastKey
 ) u
 ORDER BY u.__lastKey ASC
 
 -- Câu B (3.16): câu con có TOP sắp theo cột khác cột mốc
 SELECT T.__lastKey, T.zoneId
 FROM (
-    SELECT TOP (@pageSize) CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID AS __lastKey, zs.ZoneId AS zoneId
+    SELECT TOP (@pageSize) CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), ':', '') + '_' + zs.ID AS __lastKey, zs.ZoneId AS zoneId
     FROM dbo.TmsZoneStatus zs
-    WHERE CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID > @lastKey
+    WHERE CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), ':', '') + '_' + zs.ID > @lastKey
     ORDER BY zs.AverageSpeed
 ) T
 ORDER BY T.__lastKey ASC
@@ -122,22 +122,22 @@ SELECT TOP (@pageSize)
     u.zoneStatusId, u.zoneId, u.zoneName, u.averageSpeed, u.trafficCondition, u.dataTime
 FROM (
     SELECT
-        CONVERT(varchar(23), zs.UpdateTime, 121) + '_' + zs.ID AS sortKey,
-        CONVERT(varchar(23), zs.UpdateTime, 121) + '_' + zs.ID AS __lastKey_upd,
+        CONVERT(varchar(8), zs.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), zs.UpdateTime, 114), ':', '') + '_' + zs.ID AS sortKey,
+        CONVERT(varchar(8), zs.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), zs.UpdateTime, 114), ':', '') + '_' + zs.ID AS __lastKey_upd,
         CAST(NULL AS NVARCHAR(100)) AS __lastKey_new,
         zs.ID AS zoneStatusId, zs.ZoneId AS zoneId, z.Name AS zoneName,
         CAST(zs.AverageSpeed AS DECIMAL(18, 2)) AS averageSpeed, zs.Condition AS trafficCondition, zs.UpdateTime AS dataTime
     FROM dbo.TmsZoneStatus zs
     LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
-    WHERE CONVERT(varchar(23), zs.UpdateTime, 121) + '_' + zs.ID > @lastKey_upd
+    WHERE CONVERT(varchar(8), zs.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), zs.UpdateTime, 114), ':', '') + '_' + zs.ID > @lastKey_upd
     UNION ALL
     SELECT
-        CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID, NULL, CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID,
+        CONVERT(varchar(8), zs.CreateTime, 112) + REPLACE(CONVERT(varchar(12), zs.CreateTime, 114), ':', '') + '_' + zs.ID, NULL, CONVERT(varchar(8), zs.CreateTime, 112) + REPLACE(CONVERT(varchar(12), zs.CreateTime, 114), ':', '') + '_' + zs.ID,
         zs.ID, zs.ZoneId, z.Name, CAST(zs.AverageSpeed AS DECIMAL(18, 2)), zs.Condition, zs.CreateTime
     FROM dbo.TmsZoneStatus zs
     LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
     WHERE zs.UpdateTime IS NULL
-      AND CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID > @lastKey_new
+      AND CONVERT(varchar(8), zs.CreateTime, 112) + REPLACE(CONVERT(varchar(12), zs.CreateTime, 114), ':', '') + '_' + zs.ID > @lastKey_new
 ) u
 ORDER BY u.sortKey ASC
 ```
@@ -154,7 +154,7 @@ ORDER BY u.sortKey ASC
 
 ## 6. Mẫu gợi ý
 
-- [ ] **6.1** Khung soạn: Cmd+A, Delete, gõ `SEL` → chọn **select-incremental**. **Thấy:** câu một chuỗi ghép có `COALESCE(... UpdateTime, ... CreateTime)`, không có `@lastTime`. Chọn lại gói → bỏ thay đổi.
+- [ ] **6.1** Khung soạn: Cmd+A, Delete, gõ `SEL` → chọn **select-incremental**. **Thấy:** câu một chuỗi ghép `112 + 114` có `COALESCE(... UpdateTime, ... CreateTime)`, không có `@lastTime`. Chọn lại gói → bỏ thay đổi.
 
 ## 7. Câu mẫu các gói khác
 
@@ -162,12 +162,13 @@ ORDER BY u.sortKey ASC
 
 ## 8. Khối 4. Mốc đang chạy *(làm khi PC08 còn cấu hình riêng)*
 
-- [ ] **8.1** Tab **Mẫu chung**: khối 4 không có PC08. Tab PC08: khối 4 có 1 dòng PC08, ô mốc ghi "Đã gửi tới" kèm ngày giờ, rê chuột thấy mã dòng.
+- [ ] **8.1** Tab **Mẫu chung**: khối 4 không có PC08. Tab PC08: khối 4 có 1 dòng PC08, ô mốc hiện nguyên chuỗi đang lưu `yyyyMMddHHmmssfff_<ID>`.
 - [ ] **8.2** Đăng ký đang bật. **Thấy:** **Đặt mốc**, **Đặt lại** mờ.
 - [ ] **8.3** Tắt đăng ký, tải lại trang → **Đặt mốc**:
-  - chọn giờ **sớm hơn** mốc. **Thấy:** "Gửi lại dữ liệu từ … tới …";
-  - chọn giờ **muộn hơn**. **Thấy:** "Bỏ qua dữ liệu từ … tới …";
-  - **Xác nhận**. **Thấy:** "Đã cập nhật mốc gửi dữ liệu cho đối tác.", mốc thành `yyyy-MM-dd HH:mm:ss.000_`.
+  - ô **Mốc mới** điền sẵn nguyên chuỗi mốc đang chạy, kèm nút lịch chọn nhanh (`Đầu ngày hôm nay`, `Đầu ngày hôm qua`, `7 ngày trước`, `Đầu tháng này`); thử gõ sai dạng (vd `< 8` số, ngày `20260230`, hoặc có `_abc` nhưng trước `_` chưa đủ 17 số) → thấy viền đỏ và câu báo dưới ô, **Xác nhận** mờ;
+  - nhập mốc **nhỏ hơn** chuỗi đang chạy (vd đổi ngày sớm hơn: `20261001`). **Thấy:** "Gửi lại dữ liệu từ … tới …";
+  - nhập mốc **lớn hơn** chuỗi đang chạy (vd bấm nút lịch **Đầu ngày hôm nay** hoặc gõ `yyyyMMddHHmmssfff`). **Thấy:** "Bỏ qua dữ liệu từ … tới …";
+  - **Xác nhận**. **Thấy:** "Đã cập nhật mốc gửi dữ liệu cho đối tác.", ô mốc khối 4 hiện đúng chuỗi vừa nhập.
 - [ ] **8.4** **Đặt lại** → xác nhận. **Thấy:** "Đã bỏ Mốc đang chạy."; dòng PC08 ghi "Chưa có, lượt gửi tới lấy …".
 - [ ] **8.5** Bật đăng ký, chờ 1 lượt. **Thấy:** gửi lại từ Mốc bắt đầu; tải lại trang thì mốc đã tiến.
 - [ ] **8.6** Tab **Mẫu chung**, bảng tham số. **Thấy:** ô `@lastKey` trống ghi "Đối tác chưa có mốc: gửi toàn bộ". Không lưu.

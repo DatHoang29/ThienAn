@@ -50,7 +50,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         private const int LoadTestSnapshotPacketCount = 2;
 
         /// <summary>Công thức cột mốc của các câu kiểu catalog trên TmsZone.</summary>
-        private const string LoadTestCursorKey = "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID";
+        private const string LoadTestCursorKey = "CONVERT(varchar(8), COALESCE(z.UpdateTime, z.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(z.UpdateTime, z.CreateTime), 114), ':', '') + '_' + z.ID";
 
         /// <summary>Đối tác của bộ seed: mỗi gói (theo PacketId) có một đăng ký gửi và một đăng ký nhận, kèm ID mọi hồ sơ ánh xạ.</summary>
         private sealed record LoadTestSeedPartner(

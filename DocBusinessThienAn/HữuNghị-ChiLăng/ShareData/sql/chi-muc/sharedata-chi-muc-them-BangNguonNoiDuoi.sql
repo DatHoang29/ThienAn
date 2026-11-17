@@ -12,28 +12,32 @@ GO
 --             [dbo].[TmsWeather]          (gói 104)
 --           Ngoại lệ Rule 19.103 (một tệp nhiều bảng) và Rule 19.85 (script tạo cột, chỉ mục cho bảng có entity):
 --           SqlSugar CodeFirst không tạo được cột tính toán và chỉ mục có INCLUDE.
--- DESCRIPTION: Câu nối đuôi so mốc trên chuỗi ghép CONVERT(varchar(23), COALESCE(<thời gian>), 121) + '_' + ID nên không
---              chỉ mục thường nào dùng được: mỗi lượt quét và sắp xếp cả bảng, bảng lớn thì tràn xuống tempdb.
+-- DESCRIPTION: Câu nối đuôi hai tầng lọc chặn dưới và sắp câu con theo phần giờ 17 ký tự (yyyyMMddHHmmssfff) rồi mới
+--              sắp trang ngoài theo cả khóa __lastKey (gồm cả đuôi động ID, Code...). Vì cột mốc ghép chuỗi nên không
+--              chỉ mục thường nào dùng được; nếu không có chỉ mục phần giờ thì mỗi lượt phải quét và sắp xếp cả bảng,
+--              bảng lớn thì tràn xuống tempdb.
 --              Tệp này thêm vào mỗi bảng:
---                - cột tính toán [CursorKey] (không PERSISTED) bằng ĐÚNG biểu thức mốc của câu mẫu gói đọc bảng đó;
---                - chỉ mục [IX_<TênBảng>_CursorKey] trên cột đó, INCLUDE ([IsDelete]).
---              Bảng đã chạy bản đầu của tệp này (cột [ShareDataCursorKey], chỉ mục [IX_<TênBảng>_ShareDataCursorKey])
---              được gỡ tên cũ trước rồi tạo lại theo tên mới.
---              Câu nối đuôi KHÔNG phải đổi: SQL Server tự khớp biểu thức trong câu với cột tính toán và đi theo chỉ mục,
---              đọc đúng một trang, không còn phép sắp xếp. Câu ghép mốc bằng biểu thức khác thì không dùng được chỉ mục này.
+--                - cột tính toán [CursorTime] (không PERSISTED) chỉ chứa phần giờ 17 ký tự:
+--                  CONVERT(varchar(8), COALESCE(<thời gian>), 112) + REPLACE(CONVERT(varchar(12), COALESCE(<thời gian>), 114), ':', '');
+--                - chỉ mục [IX_<TênBảng>_CursorTime] trên cột đó, INCLUDE ([IsDelete]).
+--              Bảng đã chạy các bản cũ (cột [CursorKey] hoặc [ShareDataCursorKey], hoặc [CursorTime] khác công thức)
+--              được tự động gỡ tên cũ trước rồi tạo lại theo tên và công thức mới.
+--              Câu nối đuôi hai tầng giữ nguyên biểu thức phần giờ (cùng COALESCE và kiểu varchar) kèm chặn dưới
+--              >= CONVERT(varchar(17), LEFT(@lastKey, 17)) để SQL Server khớp chỉ mục [IX_<TênBảng>_CursorTime],
+--              chỉ đọc quanh một trang thay vì quét cả bảng. Câu dùng biểu thức giờ khác thì không khớp chỉ mục này.
 -- THỨ TỰ CHẠY: Chạy độc lập, sau CodeFirst (bảng phải có sẵn). Nên dừng các dịch vụ ShareDataWorker trước khi chạy.
 --              GỠ: chạy sharedata-chi-muc-go-BangNguonNoiDuoi.sql.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi CSDL vận hành có bảng nguồn.
--- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): bảng đã có cột / chỉ mục thì bỏ qua; bảng chưa tồn tại thì bỏ qua;
---           không còn cột / chỉ mục tên cũ thì bỏ qua bước gỡ.
+-- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): bảng đã có cột / chỉ mục đúng công thức thì bỏ qua;
+--           bảng chưa tồn tại thì bỏ qua; không còn cột / chỉ mục tên cũ thì bỏ qua bước gỡ.
 --           Lệnh thêm cột chỉ đổi metadata nhưng cần khóa bảng trong tích tắc; chờ khóa tối đa @ChoKhoaMs rồi báo lỗi 1222,
 --           khi đó chạy lại tệp (các bảng đã xong được bỏ qua).
 --           Dựng chỉ mục: bản SQL Server hỗ trợ thì dùng ONLINE = ON (đọc ghi vẫn chạy); bản khác thì bảng bị chặn GHI
 --           cho tới khi dựng xong.
 --           Sau khi chạy, phiên ghi vào 6 bảng phải bật QUOTED_IDENTIFIER, ANSI_NULLS, ANSI_PADDING, ANSI_WARNINGS,
 --           ARITHABORT, CONCAT_NULL_YIELDS_NULL (mặc định của SqlClient / SqlSugar đã bật); phiên không đạt sẽ lỗi 1934.
--- CẬP NHẬT LẦN CUỐI: 12112026 (đổi tên cột mốc ShareDataCursorKey -> CursorKey, tự gỡ cột và chỉ mục tên cũ)
+-- CẬP NHẬT LẦN CUỐI: 16/11/2026 (đổi từ CursorKey cả khóa sang CursorTime chỉ phần giờ yyyyMMddHHmmssfff, tự gỡ CursorKey / ShareDataCursorKey)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -60,12 +64,13 @@ INSERT INTO @Bang ([Stt], [TenBang], [CotThoiGian]) VALUES
     (5, N'TmsZoneStatus',      N'[UpdateTime], [CreateTime]'),
     (6, N'TmsWeather',         N'[UpdateTime], [CreateTime], [TimeDetect]');
 
-DECLARE @CotMoc SYSNAME = N'CursorKey';
-DECLARE @CotMocCu SYSNAME = N'ShareDataCursorKey';   -- tên của bản đầu, gỡ nếu còn
+DECLARE @CotMoc SYSNAME = N'CursorTime';
+DECLARE @TenCotCu TABLE ([Thu] INT PRIMARY KEY, [CotMoc] SYSNAME);
+INSERT INTO @TenCotCu ([Thu], [CotMoc]) VALUES (1, N'CursorKey'), (2, N'ShareDataCursorKey');
 -- Bản hỗ trợ dựng chỉ mục trực tuyến: 3 = Enterprise / Developer / Evaluation, 5 = Azure SQL Database, 8 = Managed Instance.
 DECLARE @TrucTuyen BIT = CASE WHEN CAST(SERVERPROPERTY('EngineEdition') AS INT) IN (3, 5, 8) THEN 1 ELSE 0 END;
 
-DECLARE @Stt INT = 0, @TenBang SYSNAME, @CotThoiGian NVARCHAR(256), @TenChiMuc SYSNAME, @TenChiMucCu SYSNAME, @DoiTuong NVARCHAR(300), @Sql NVARCHAR(MAX);
+DECLARE @Stt INT = 0, @Thu INT, @CotMocCu SYSNAME, @TenBang SYSNAME, @CotThoiGian NVARCHAR(256), @TenChiMuc SYSNAME, @TenChiMucCu SYSNAME, @DoiTuong NVARCHAR(300), @Sql NVARCHAR(MAX);
 
 IF @TrucTuyen = 0
     PRINT N'⚠️ Bản SQL Server này không dựng chỉ mục trực tuyến: mỗi bảng bị chặn GHI trong lúc dựng chỉ mục.';
@@ -80,7 +85,6 @@ BEGIN
 
     SET @DoiTuong = N'[dbo].' + QUOTENAME(@TenBang);
     SET @TenChiMuc = N'IX_' + @TenBang + N'_' + @CotMoc;
-    SET @TenChiMucCu = N'IX_' + @TenBang + N'_' + @CotMocCu;
 
     IF OBJECT_ID(@DoiTuong, N'U') IS NULL
     BEGIN
@@ -89,28 +93,57 @@ BEGIN
     END;
 
     BEGIN TRY
-        -- 0. Gỡ chỉ mục và cột tính toán tên cũ (nếu còn)
-        IF EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(@DoiTuong) AND [name] = @TenChiMucCu)
+        -- 0. Gỡ chỉ mục và cột tính toán tên cũ (CursorKey, ShareDataCursorKey) nếu còn
+        SET @Thu = 0;
+        WHILE 1 = 1
         BEGIN
-            SET @Sql = N'SET LOCK_TIMEOUT ' + CAST(@ChoKhoaMs AS NVARCHAR(12)) + N';
+            SELECT TOP 1 @Thu = [Thu], @CotMocCu = [CotMoc] FROM @TenCotCu WHERE [Thu] > @Thu ORDER BY [Thu];
+            IF @@ROWCOUNT = 0 BREAK;
+            SET @TenChiMucCu = N'IX_' + @TenBang + N'_' + @CotMocCu;
+
+            IF EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(@DoiTuong) AND [name] = @TenChiMucCu)
+            BEGIN
+                SET @Sql = N'SET LOCK_TIMEOUT ' + CAST(@ChoKhoaMs AS NVARCHAR(12)) + N';
 DROP INDEX ' + QUOTENAME(@TenChiMucCu) + N' ON ' + @DoiTuong + N';';
-            EXEC sys.sp_executesql @Sql;
-            PRINT N'-> ' + @TenBang + N': đã gỡ chỉ mục tên cũ ' + @TenChiMucCu + N'.';
-        END;
-        IF EXISTS (SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID(@DoiTuong) AND [name] = @CotMocCu AND [is_computed] = 1)
-        BEGIN
-            SET @Sql = N'SET LOCK_TIMEOUT ' + CAST(@ChoKhoaMs AS NVARCHAR(12)) + N';
+                EXEC sys.sp_executesql @Sql;
+                PRINT N'-> ' + @TenBang + N': đã gỡ chỉ mục tên cũ ' + @TenChiMucCu + N'.';
+            END;
+            IF EXISTS (SELECT 1 FROM sys.columns WHERE [object_id] = OBJECT_ID(@DoiTuong) AND [name] = @CotMocCu AND [is_computed] = 1)
+            BEGIN
+                SET @Sql = N'SET LOCK_TIMEOUT ' + CAST(@ChoKhoaMs AS NVARCHAR(12)) + N';
 ALTER TABLE ' + @DoiTuong + N' DROP COLUMN ' + QUOTENAME(@CotMocCu) + N';';
-            EXEC sys.sp_executesql @Sql;
-            PRINT N'-> ' + @TenBang + N': đã gỡ cột tính toán tên cũ ' + @CotMocCu + N'.';
+                EXEC sys.sp_executesql @Sql;
+                PRINT N'-> ' + @TenBang + N': đã gỡ cột tính toán tên cũ ' + @CotMocCu + N'.';
+            END;
         END;
 
-        -- 1. Cột tính toán
+        -- Gỡ nếu cột CursorTime đã có nhưng dùng công thức khác (chưa dùng 112 + 114)
+        IF EXISTS (
+            SELECT 1
+            FROM sys.columns c
+            JOIN sys.computed_columns cc ON cc.[object_id] = c.[object_id] AND cc.[column_id] = c.[column_id]
+            WHERE c.[object_id] = OBJECT_ID(@DoiTuong) AND c.[name] = @CotMoc AND c.[is_computed] = 1
+              AND (cc.[definition] NOT LIKE N'%(112)%' OR cc.[definition] NOT LIKE N'%(114)%'))
+        BEGIN
+            IF EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(@DoiTuong) AND [name] = @TenChiMuc)
+            BEGIN
+                SET @Sql = N'SET LOCK_TIMEOUT ' + CAST(@ChoKhoaMs AS NVARCHAR(12)) + N';
+DROP INDEX ' + QUOTENAME(@TenChiMuc) + N' ON ' + @DoiTuong + N';';
+                EXEC sys.sp_executesql @Sql;
+                PRINT N'-> ' + @TenBang + N': đã gỡ chỉ mục công thức cũ ' + @TenChiMuc + N'.';
+            END;
+            SET @Sql = N'SET LOCK_TIMEOUT ' + CAST(@ChoKhoaMs AS NVARCHAR(12)) + N';
+ALTER TABLE ' + @DoiTuong + N' DROP COLUMN ' + QUOTENAME(@CotMoc) + N';';
+            EXEC sys.sp_executesql @Sql;
+            PRINT N'-> ' + @TenBang + N': đã gỡ cột công thức cũ ' + @CotMoc + N'.';
+        END;
+
+        -- 1. Cột tính toán phần giờ (yyyyMMddHHmmssfff)
         IF COL_LENGTH(@DoiTuong, @CotMoc) IS NULL
         BEGIN
             SET @Sql = N'SET LOCK_TIMEOUT ' + CAST(@ChoKhoaMs AS NVARCHAR(12)) + N';
 ALTER TABLE ' + @DoiTuong + N' ADD ' + QUOTENAME(@CotMoc) + N' AS
-    (CONVERT(varchar(23), COALESCE(' + @CotThoiGian + N'), 121) + ''_'' + [ID]);';
+    (CONVERT(varchar(8), COALESCE(' + @CotThoiGian + N'), 112) + REPLACE(CONVERT(varchar(12), COALESCE(' + @CotThoiGian + N'), 114), '':'', ''''));';
             EXEC sys.sp_executesql @Sql;
             PRINT N'-> ' + @TenBang + N': đã thêm cột tính toán ' + @CotMoc + N'.';
         END

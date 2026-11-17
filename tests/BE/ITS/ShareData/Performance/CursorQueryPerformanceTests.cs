@@ -315,30 +315,55 @@ namespace Tests.ShareData.Performance
 
         /// <summary>
         /// Author: DatHQ
-        /// Description: Bảng nguồn có cột tính toán bằng đúng biểu thức mốc và chỉ mục trên cột đó: câu nối đuôi vẫn ghép biểu thức mốc
-        ///              như câu mẫu (không gọi tên cột tính toán) phải đi Index Seek trên chỉ mục cột mốc, không còn phép sắp xếp,
-        ///              và trả đúng trang, đúng mốc kế tiếp như khi bảng chưa có chỉ mục. Kiểm cả dạng người dùng tự viết:
-        ///              nối bảng danh mục trước khi lấy trang, TOP lớn hơn 100, TOP theo biến @pageSize.
-        /// Created date: 12/11/2026
+        /// Description: Bảng nguồn có cột tính toán chỉ chứa phần giờ của mốc (yyyyMMddHHmmssfff) và chỉ mục trên cột đó. Câu nối đuôi hai tầng:
+        ///              tầng trong lấy TOP (@pageSize) WITH TIES sắp theo phần giờ, chặn dưới bằng CONVERT(varchar(17), LEFT(@lastKey, 17)); tầng ngoài sắp theo cả khóa.
+        ///              Với đuôi bất kỳ (mã dòng, mã có thể trống), có hay không nối bảng danh mục, mốc ở đầu (quét có thứ tự IX_CursorSource_CursorTime 102–204 dòng),
+        ///              giữa, mốc chỉ có ngày giờ, gần cuối và không có dòng mới: câu phải dùng chỉ mục phần giờ (Index Seek ở giữa/cuối), chỉ đọc quanh một trang
+        ///              và trả đúng trang như câu một tầng khi bảng chưa có chỉ mục. Nếu bỏ CONVERT(varchar(17), ...) ở vế chặn dưới của cột varchar,
+        ///              SQL Server đổi kiểu cả cột theo @lastKey (nvarchar) và quét 30.102–60.000 dòng.
+        /// Created date: 16/11/2026
         /// </summary>
         [Theory]
         [Trait("Feature", "Performance")]
-        [InlineData("TOP 100", false, "start")]
-        [InlineData("TOP 100", false, "middle")]
-        [InlineData("TOP 100", true, "start")]
-        [InlineData("TOP 100", true, "middle")]
-        [InlineData("TOP 500", true, "start")]
-        [InlineData("TOP 500", true, "middle")]
-        [InlineData("TOP (@pageSize)", true, "start")]
-        [InlineData("TOP (@pageSize)", true, "middle")]
-        public async Task CursorQuery_WhenSourceHasCursorKeyIndex_SeeksWithoutSortAndReturnsSamePage_Test(string top, bool joinCatalog, string position)
+        [InlineData("varchar-cast", "s.ID", false, "start")]
+        [InlineData("varchar-cast", "s.ID", false, "middle")]
+        [InlineData("varchar-cast", "s.ID", false, "idle")]
+        [InlineData("varchar-cast", "s.ID", true, "middle")]
+        [InlineData("varchar-cast", "s.ID", true, "prefix")]
+        [InlineData("varchar-cast", "s.ID", true, "end")]
+        [InlineData("varchar-cast", "ISNULL(s.Code, '')", false, "middle")]
+        [InlineData("varchar-cast", "ISNULL(s.Code, '')", true, "start")]
+        [InlineData("varchar-cast", "ISNULL(s.Code, '')", true, "middle")]
+        [InlineData("varchar-cast", "ISNULL(s.Code, '')", true, "idle")]
+        [InlineData("nvarchar", "s.ID", false, "middle")]
+        [InlineData("nvarchar", "s.ID", false, "idle")]
+        [InlineData("nvarchar-cast", "s.ID", false, "middle")]
+        [InlineData("nvarchar-cast", "s.ID", false, "idle")]
+        [InlineData("nvarchar-cast", "ISNULL(s.Code, '')", true, "middle")]
+        public async Task CursorQuery_WhenSourceHasCursorTimeIndex_SeeksAndReadsAboutOnePage_Test(string timeType, string tail, bool joinCatalog, string position)
         {
-            // Arrange: bảng nguồn 60.000 dòng, bảng danh mục 500 dòng, trang đọc được khi bảng chưa có chỉ mục cột mốc
+            // Arrange: bảng nguồn 60.000 dòng (3 dòng mỗi mốc giờ), bảng danh mục 500 dòng; trang mong đợi đọc bằng câu một tầng khi chưa có chỉ mục phần giờ
             const int rowCount = 60_000;
-            const string cursorKey = "CONVERT(varchar(23), COALESCE(s.UpdateTime, s.CreateTime, s.DetectTime), 121) + '_' + s.ID";
+            var castType = timeType.StartsWith("nvarchar", StringComparison.Ordinal) ? "nvarchar" : "varchar";
+            var timePart = TimePart(castType, "s.");
+            var columnTimePart = TimePart(castType, string.Empty);
+            var lowerBound = timeType.EndsWith("-cast", StringComparison.Ordinal) ? "CONVERT(varchar(17), LEFT(@lastKey, 17))" : "LEFT(@lastKey, 17)";
+            var cursorKey = $"{timePart} + '_' + {tail}";
+            var join = joinCatalog ? "LEFT JOIN #CursorCatalog c ON s.Code = c.Code" : string.Empty;
             var connectionString = _host.Services.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Thiếu ConnectionStrings:DefaultConnection trong appsettings.Test.json.");
             await using var conn = new SqlConnection(connectionString);
+            var messages = new List<string>();
+            conn.InfoMessage += (_, e) =>
+            {
+                lock (messages)
+                {
+                    foreach (SqlError error in e.Errors)
+                    {
+                        messages.Add(error.Message);
+                    }
+                }
+            };
             await conn.OpenAsync();
             await SeedSourceAsync(conn, rowCount);
             await ExecuteAsync(conn, """
@@ -347,26 +372,44 @@ namespace Tests.ShareData.Performance
                 INSERT INTO #CursorCatalog (Code, KmNumber)
                 SELECT DISTINCT s.Code, 1 FROM #CursorSource s;
                 """);
-            var lastKey = position == "start"
-                ? string.Empty
-                : (await ReadPositionAsync(conn, position, position, rowCount / 2)).ConcatKey;
-            var join = joinCatalog ? "LEFT JOIN #CursorCatalog c ON s.Code = c.Code" : string.Empty;
-            var pageSql = $"""
-                SELECT {top} s.ID, {cursorKey} AS __lastKey
+            var rowNumber = position switch { "end" => rowCount - 50, "idle" => rowCount, _ => rowCount / 2 };
+            var positionKey = await ReadCursorKeyAsync(conn, cursorKey, join, rowNumber);
+            var lastKey = position switch { "start" => string.Empty, "prefix" => positionKey[..12], _ => positionKey };
+            var expectedCount = position switch { "end" => 50, "idle" => 0, _ => PageSize };
+            var flatSql = $"""
+                SELECT TOP (@pageSize) s.ID, {cursorKey} AS __lastKey
                 FROM #CursorSource s
                 {join}
                 WHERE s.IsDelete IS NULL
                   AND {cursorKey} > @lastKey
                 ORDER BY __lastKey ASC
                 """;
+            var pageSql = $"""
+                SELECT TOP (@pageSize) p.ID, p.__lastKey
+                FROM (
+                    SELECT TOP (@pageSize) WITH TIES s.ID, {cursorKey} AS __lastKey
+                    FROM #CursorSource s
+                    {join}
+                    WHERE s.IsDelete IS NULL
+                      AND {timePart} >= {lowerBound}
+                      AND {cursorKey} > @lastKey
+                    ORDER BY {timePart} ASC
+                ) p
+                ORDER BY p.__lastKey ASC
+                """;
             var expectedParameters = BuildCursorKeyParameters(lastKey);
-            var expected = await QueryAsync(conn, $"/* trước chỉ mục */ {pageSql}", expectedParameters);
-            await ExecuteAsync(conn, """
-                ALTER TABLE #CursorSource ADD CursorKey AS
-                    (CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime, DetectTime), 121) + '_' + ID);
-                CREATE NONCLUSTERED INDEX IX_CursorSource_CursorKey ON #CursorSource (CursorKey) INCLUDE (IsDelete);
+            var expected = await QueryAsync(conn, $"/* trước chỉ mục */ {flatSql}", expectedParameters);
+            await ExecuteAsync(conn, $"""
+                ALTER TABLE #CursorSource ADD CursorTime AS ({columnTimePart});
+                CREATE NONCLUSTERED INDEX IX_CursorSource_CursorTime ON #CursorSource (CursorTime) INCLUDE (IsDelete);
+                SET STATISTICS IO ON;
                 SET STATISTICS XML ON;
                 """, 600);
+            lock (messages)
+            {
+                _output.WriteLine($"Thông báo khi tạo chỉ mục: {string.Join(" | ", messages)}");
+                messages.Clear();
+            }
 
             // Act
             var actualParameters = BuildCursorKeyParameters(lastKey);
@@ -374,13 +417,22 @@ namespace Tests.ShareData.Performance
 
             // Assert
             var planXml = new[] { actual.PlanXml };
-            var plan = SummarizePlans(planXml).Plan;
+            var (rowsRead, plan) = SummarizePlans(planXml);
+            long logicalReads;
+            lock (messages)
+            {
+                logicalReads = messages
+                    .SelectMany(m => IoStatistics.Matches(m))
+                    .Sum(m => long.Parse(m.Groups["reads"].Value, CultureInfo.InvariantCulture));
+            }
+            _output.WriteLine($"{timeType} | đuôi {tail} | nối danh mục {joinCatalog} | mốc {position}: trả {actual.Rows.Count} dòng, đọc {rowsRead:N0} dòng, {logicalReads:N0} trang; {plan}");
             var expectedPage = expected.Rows.Select(r => $"{r.Id}|{r.LastKey}").ToList();
             var actualPage = actual.Rows.Select(r => $"{r.Id}|{r.LastKey}").ToList();
-            Assert.NotEmpty(expectedPage);
+            Assert.Equal(expectedCount, expectedPage.Count);
             Assert.Equal(expectedPage, actualPage);
-            Assert.Contains("Index Seek (IX_CursorSource_CursorKey)", plan);
-            Assert.DoesNotContain("Sort", plan);
+            var expectedOperator = position == "start" ? "IX_CursorSource_CursorTime" : "Index Seek (IX_CursorSource_CursorTime)";
+            Assert.Contains(expectedOperator, plan);
+            Assert.True(rowsRead <= 1_000, $"Câu hai tầng đọc {rowsRead:N0} dòng.");
         }
 
         private enum CursorShape
@@ -540,6 +592,29 @@ namespace Tests.ShareData.Performance
             new SqlParameter("@lastKey", SqlDbType.NVarChar, 4000) { Value = lastKey },
             new SqlParameter("@pageSize", SqlDbType.Int) { Value = PageSize }
         ];
+
+        /// <summary>Phần giờ của mốc: yyyyMMddHHmmssfff (17 chữ số) từ COALESCE(UpdateTime, CreateTime, DetectTime); alias rỗng là dạng định nghĩa cột tính toán.</summary>
+        private static string TimePart(string type, string alias) =>
+            $"CONVERT({type}(8), COALESCE({alias}UpdateTime, {alias}CreateTime, {alias}DetectTime), 112) + REPLACE(CONVERT({type}(12), COALESCE({alias}UpdateTime, {alias}CreateTime, {alias}DetectTime), 114), ':', '')";
+
+        private static async Task<string> ReadCursorKeyAsync(SqlConnection conn, string cursorKey, string join, int rowNumber)
+        {
+            var sql = $"""
+                SELECT x.__lastKey
+                FROM (
+                    SELECT {cursorKey} AS __lastKey, ROW_NUMBER() OVER (ORDER BY {cursorKey}) AS rn
+                    FROM #CursorSource s
+                    {join}
+                    WHERE s.IsDelete IS NULL
+                ) x
+                WHERE x.rn = @rowNumber
+                """;
+            await using var cmd = new SqlCommand(sql, conn) { CommandTimeout = 600 };
+            var rowParameter = new SqlParameter("@rowNumber", SqlDbType.BigInt) { Value = (long)rowNumber };
+            cmd.Parameters.Add(rowParameter);
+            var key = await cmd.ExecuteScalarAsync();
+            return Assert.IsType<string>(key);
+        }
 
         private static SqlParameter LastRowIdParameter(string id) => new("@lastRowId", SqlDbType.NVarChar, 64) { Value = id };
 

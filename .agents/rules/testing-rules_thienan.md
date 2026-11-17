@@ -114,6 +114,11 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
   - **Cập nhật dữ liệu test theo chuẩn mới**: Sửa dữ liệu mẫu trong bài test cũ để tuân thủ đúng chuẩn nghiệp vụ mới.
   - **Viết bài test từ chối (Negative Test)**: Nếu muốn kiểm chứng rằng Validator hoạt động đúng và đã chặn thành công trường hợp vi phạm, hãy dùng `AssertRejectedWith(error, BaseMsg...)`.
 
+### 2.9. Lỗi Phải Giả Lập Được Trước Khi Sửa (Rule 19.118, 17/11/2026)
+* Đã thấy lỗi (log, số liệu, nhật ký) thì bắt buộc dựng lại lỗi bằng test theo luồng thật trước khi sửa mã: test phải đỏ trên mã cũ, xanh trên mã mới.
+* Lỗi chạy đua, ghi chen (hai bên đọc rồi ghi cùng dòng) giả lập bằng cơ chế thật của CSDL, ⛔ mock: một kết nối riêng giữ `UPDLOCK` trên dòng để API đọc được bản cũ nhưng chờ khi ghi, chờ tới khi `sys.dm_exec_requests.blocking_session_id` thấy API bị chặn, ghi giá trị mới như bên kia rồi nhả khóa (mẫu: `ChangeSubscriptionState_WhenWorkerWritesBetweenReadAndSave_KeepsWorkerColumns_Test`).
+* ⛔ Không giả lập được thì không sửa mã: báo người dùng lỗi, bằng chứng và lý do chưa dựng lại được.
+
 ---
 
 ## 🎭 3. Quy Chuẩn Kiểm Thử Frontend (Playwright E2E)

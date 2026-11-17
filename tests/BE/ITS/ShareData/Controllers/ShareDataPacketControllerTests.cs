@@ -1666,8 +1666,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_DIFF_MODE_{unique}";
         var stdSql = "SELECT ID, Code, Name FROM TmsZone";
-        var customSql = "SELECT TOP 100 CONVERT(varchar(23), CreateTime, 121) + '_' + ID AS __lastKey, Code FROM TmsZone "
-            + "WHERE CONVERT(varchar(23), CreateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
+        var customSql = "SELECT TOP 100 CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID AS __lastKey, Code FROM TmsZone "
+            + "WHERE CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey ASC";
         var packet = NewPartnerSqlPacket(packetCode, unique);
         var partner = NewPartnerSqlPartner($"PT_DM_{unique}", unique);
 
@@ -1954,16 +1954,17 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Mốc bắt đầu (DefaultValue của @lastKey) sai dạng công thức PA1 hoặc ngày giờ không có thật thì từ chối như Đặt mốc,
-    ///              Mốc bắt đầu đang lưu giữ nguyên.
+    /// Description: Mốc bắt đầu (DefaultValue của @lastKey) sai dạng công thức PA1 (chữ số yyyyMMddHHmmssfff, có đuôi thì đủ 17 chữ số rồi dấu _)
+    ///              hoặc ngày giờ không có thật thì từ chối như Đặt mốc; Mốc bắt đầu đang lưu (20260101, chỉ ghi ngày) giữ nguyên.
     /// Created date: 16/11/2026
     /// </summary>
     [Theory]
     [InlineData("k_start")]
-    [InlineData("2026-11-05 08:00:00_abc")]
-    [InlineData("2026-11-05 08:00:00.000")]
-    [InlineData("2026-13-05 08:00:00.000_")]
-    [InlineData("2026-11-5 08:00")]
+    [InlineData("2026-11-05 08:00:00.000_")]
+    [InlineData("20261105 080000000_")]
+    [InlineData("2026110508000000_abc")]
+    [InlineData("2026110")]
+    [InlineData("20261305080000000_")]
     public async Task UpdateSqlVariables_WhenCursorStartNotTimeKeyFormat_RejectsAndKeepsSavedStart_Test(string cursorStart)
     {
         // Arrange
@@ -1973,7 +1974,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = services.GetRequiredService<ISqlSugarClient>();
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
-        const string savedStart = "2026-11-05 08:00:00.000_";
+        const string savedStart = "20260101";
         PacketSqlVariableItemInput CursorVar(string start) =>
             new() { Code = "lastKey", ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = start };
         var savedItem = CursorVar(savedStart);
@@ -2119,7 +2120,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Items = [BuiltinVar("lastKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableSourceLastKey)]
         });
 
-        const string compositeExpr = "CONVERT(varchar(23), CreateTime, 121) + '_' + ID";
+        const string compositeExpr = "CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID";
         var sql = variant switch
         {
             "alias-asc" => $"SELECT TOP 50 ID AS zoneId, Name AS zoneName, {compositeExpr} AS __lastKey FROM TmsZone WHERE ({compositeExpr}) > @lastKey ORDER BY __lastKey ASC",
@@ -2174,8 +2175,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await db.Insertable(partnerB).ExecuteCommandAsync();
 
         var newTime = new DateTime(2026, 10, 27, 9, 30, 0);
-        var zoneOld = new TmsZone { ID = $"z_old_{unique}", Code = $"ZO_{unique}", Name = "2026-10-27 08:30:00.000" };
-        var zoneNew = new TmsZone { ID = $"z_new_{unique}", Code = $"ZN_{unique}", Name = "2026-10-27 09:30:00.000" };
+        var zoneOld = new TmsZone { ID = $"z_old_{unique}", Code = $"ZO_{unique}", Name = "20261027083000000" };
+        var zoneNew = new TmsZone { ID = $"z_new_{unique}", Code = $"ZN_{unique}", Name = "20261027093000000" };
         await db.Insertable(new List<TmsZone> { zoneOld, zoneNew }).ExecuteCommandAsync();
 
         await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
@@ -2193,7 +2194,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             ]
         }));
 
-        const string cutoff = "2026-10-27 09:00:00.000_";
+        const string cutoff = "20261027090000000_";
         await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
         {
             PacketCode = packet.Code!,
@@ -2222,7 +2223,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             PartnerCode = partnerA.Code,
             PacketCode = packet.Code,
             LastTime = newTime,
-            LastKey = $"2026-10-27 09:30:00.000_{zoneNew.ID}"
+            LastKey = $"20261027093000000_{zoneNew.ID}"
         }).ExecuteCommandAsync();
 
         const string sampleSql = "SELECT TOP 10 Code AS zoneCode, Name + '_' + ID AS __lastKey "
@@ -2245,7 +2246,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         var partnerALastKey = Assert.Single(partnerAVars.Items, i => i.Code == "lastKey");
         Assert.Equal(cutoff, partnerALastKey.DefaultValue);
-        Assert.Equal($"2026-10-27 09:30:00.000_{zoneNew.ID}", partnerALastKey.SavedValue);
+        Assert.Equal($"20261027093000000_{zoneNew.ID}", partnerALastKey.SavedValue);
         Assert.Null(Assert.Single(partnerAVars.Items, i => i.Code == "prefix").SavedValue);
 
         var partnerBLastKey = Assert.Single(partnerBVars.Items, i => i.Code == "lastKey");
@@ -2551,23 +2552,23 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>Câu nối đuôi một chuỗi ghép CreateTime + ID trên TmsZone.</summary>
-    private const string CursorCreateTimeSql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), CreateTime, 121) + '_' + ID AS __lastKey FROM TmsZone "
-        + "WHERE CONVERT(varchar(23), CreateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
+    private const string CursorCreateTimeSql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone "
+        + "WHERE CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey ASC";
 
     /// <summary>Cùng công thức mốc với CursorCreateTimeSql, chỉ đổi TOP và thêm bí danh bảng.</summary>
-    private const string CursorSameFormulaSql = "SELECT TOP 20 z.ID AS zoneId, CONVERT(varchar(23), z.CreateTime, 121) + '_' + z.ID AS __lastKey FROM TmsZone z "
-        + "WHERE CONVERT(varchar(23), z.CreateTime, 121) + '_' + z.ID > @lastKey ORDER BY __lastKey ASC";
+    private const string CursorSameFormulaSql = "SELECT TOP 20 z.ID AS zoneId, CONVERT(varchar(8), z.CreateTime, 112) + REPLACE(CONVERT(varchar(12), z.CreateTime, 114), ':', '') + '_' + z.ID AS __lastKey FROM TmsZone z "
+        + "WHERE CONVERT(varchar(8), z.CreateTime, 112) + REPLACE(CONVERT(varchar(12), z.CreateTime, 114), ':', '') + '_' + z.ID > @lastKey ORDER BY __lastKey ASC";
 
     /// <summary>Đổi công thức mốc: ghép COALESCE(UpdateTime, CreateTime) + ID thay cho CreateTime + ID.</summary>
-    private const string CursorKeyOnlySql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
-        + "WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey ORDER BY __lastKey";
+    private const string CursorKeyOnlySql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone "
+        + "WHERE CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey";
 
     /// <summary>Câu một chuỗi ghép từ UpdateTime trơn: dòng mới thêm chưa có UpdateTime nên không được gửi.</summary>
-    private const string InclusiveKeySql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
-        + "WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID >= @lastKey ORDER BY __lastKey ASC";
+    private const string InclusiveKeySql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone "
+        + "WHERE CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID >= @lastKey ORDER BY __lastKey ASC";
 
-    private const string BareUpdateTimeSql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone "
-        + "WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey";
+    private const string BareUpdateTimeSql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone "
+        + "WHERE CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey";
 
     private async Task SeedCursorAsync(ISqlSugarClient db, ShareDataPartner partner, ShareDataPacket packet, string unique) =>
         await db.Insertable(new ShareDataLastSend
@@ -2724,7 +2725,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [BuiltinVar("lastKey", "", "lastKey")] });
         await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorCreateTimeSql });
         await SeedCursorAsync(db, partner, packet, unique);
-        const string key = "CONVERT(varchar(23), CreateTime, 121) + '_' + ID";
+        const string key = "CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID";
         const string otherTableSql = $"SELECT TOP 10 ID AS statusId, {key} AS __lastKey FROM TmsZoneStatus WHERE {key} > @lastKey ORDER BY __lastKey ASC";
 
         // Act
@@ -2814,9 +2815,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [BuiltinVar("lastKey", "", "lastKey")] });
         await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorCreateTimeSql });
         await SeedCursorAsync(db, partner, packet, unique);
-        const string key = "CONVERT(varchar(23), CreateTime, 121) + '_' + ID";
-        const string aliasKey = "CONVERT(varchar(23), z.CreateTime, 121) + '_' + z.ID";
-        const string updateKey = "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID";
+        const string key = "CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID";
+        const string aliasKey = "CONVERT(varchar(8), z.CreateTime, 112) + REPLACE(CONVERT(varchar(12), z.CreateTime, 114), ':', '') + '_' + z.ID";
+        const string updateKey = "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID";
         var renamedKey = aliasKey.Replace("z.", "k.");
         var joinedKey = aliasKey.Replace("z.", "s.");
         var sql = edit switch
@@ -2824,17 +2825,17 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             "themCot" => $"SELECT TOP 10 ID AS zoneId, Code AS zoneCode, {key} AS __lastKey FROM TmsZone WHERE {key} > @lastKey ORDER BY __lastKey ASC",
             "themJoin" => $"SELECT TOP 10 z.ID AS zoneId, s.Condition AS trafficCondition, {aliasKey} AS __lastKey FROM TmsZone z LEFT JOIN TmsZoneStatus s ON s.ZoneId = z.ID WHERE {aliasKey} > @lastKey ORDER BY __lastKey ASC",
             "doiBiDanh" => $"SELECT TOP 10 k.ID AS zoneId, {renamedKey} AS __lastKey FROM TmsZone k WHERE {renamedKey} > @lastKey ORDER BY __lastKey ASC",
-            "doiKhoangTrangChuThichHoaThuong" => "SELECT TOP 10 ID AS zoneId, convert( varchar(23),  CreateTime , 121 ) /* mốc */ + '_' + id AS __lastKey FROM TmsZone "
-                + "WHERE convert( varchar(23), CreateTime, 121 ) + '_' + id > @lastKey ORDER BY __lastKey ASC",
+            "doiKhoangTrangChuThichHoaThuong" => "SELECT TOP 10 ID AS zoneId, convert( varchar(8),  CreateTime , 112 ) + replace( convert( varchar(12), CreateTime, 114 ), ':', '' ) /* mốc */ + '_' + id AS __lastKey FROM TmsZone "
+                + "WHERE convert( varchar(8), CreateTime, 112 ) + replace( convert( varchar(12), CreateTime, 114 ), ':', '' ) + '_' + id > @lastKey ORDER BY __lastKey ASC",
             "vietLaiCauCon" => $"SELECT TOP 10 x.zoneId, x.__lastKey FROM (SELECT ID AS zoneId, {key} AS __lastKey FROM TmsZone) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC",
             "doiCongThucTrongCauCon" => $"SELECT TOP 10 x.zoneId, x.__lastKey FROM (SELECT ID AS zoneId, {updateKey} AS __lastKey FROM TmsZone) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC",
             "doiBangNguon" => $"SELECT TOP 10 ID AS statusId, {key} AS __lastKey FROM TmsZoneStatus WHERE {key} > @lastKey ORDER BY __lastKey ASC",
             "cotMocTuBangJoin" => $"SELECT TOP 10 z.ID AS zoneId, {joinedKey} AS __lastKey FROM TmsZone z JOIN TmsZoneStatus s ON s.ZoneId = z.ID WHERE {joinedKey} > @lastKey ORDER BY __lastKey ASC",
             _ => "SELECT TOP 10 u.zoneId, u.__lastKey_upd, u.__lastKey_new FROM ("
-                + "SELECT ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS sortKey, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey_upd, CAST(NULL AS nvarchar(100)) AS __lastKey_new FROM TmsZone "
-                + "WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey_upd "
-                + "UNION ALL SELECT ID, CONVERT(varchar(23), CreateTime, 121) + '_' + ID, NULL, CONVERT(varchar(23), CreateTime, 121) + '_' + ID FROM TmsZone "
-                + "WHERE UpdateTime IS NULL AND CONVERT(varchar(23), CreateTime, 121) + '_' + ID > @lastKey_new"
+                + "SELECT ID AS zoneId, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS sortKey, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey_upd, CAST(NULL AS nvarchar(100)) AS __lastKey_new FROM TmsZone "
+                + "WHERE CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey_upd "
+                + "UNION ALL SELECT ID, CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID, NULL, CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID FROM TmsZone "
+                + "WHERE UpdateTime IS NULL AND CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID > @lastKey_new"
                 + ") u ORDER BY u.sortKey ASC"
         };
         List<PacketSqlVariableItemInput>? variables = edit == "sangHaiNhom"
@@ -2955,7 +2956,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var subscription = NewPartnerSqlSubscription(ownSubscription ? partner : other, packet, direction, state);
         await db.Insertable(subscription).ExecuteCommandAsync();
 
-        const string newStart = "2026-11-05 08:00:00.000_";
+        const string newStart = "20261105080000000_";
         var variableItems = new List<PacketSqlVariableItemInput>
         {
             new() { Code = "lastKey", ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = newStart }
@@ -3036,7 +3037,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var packetPage = await services.CallApiAsync<SqlSugarPagedList<ShareDataPagePacketOutput>>(
             new ShareDataPagePacketInput { Page = 1, PageSize = 500, Field = "orderNo", Order = "asc", DescStr = "desc", Code = packet.Code });
         var partners = await services.CallApiAsync<List<PartnerSqlListItemOutput>>(new GetPartnerSqlListInput { PacketCode = packet.Code! });
-        var key = "2026-11-05 08:00:00.000_";
+        var key = "20261105080000000_";
         await services.CallApiAsync(new SetLastSendInput { PacketCode = packet.Code!, PartnerId = onCommon.ID, LastKey = key });
         var commonAfterSet = await SavedValue(onCommon);
         var customAfterSet = await SavedValue(custom);
@@ -3083,9 +3084,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Task<List<ShareDataLastSend>> Cursors() => db.Queryable<ShareDataLastSend>().Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code).ToListAsync();
 
         // Act
-        await SetGroup("a", "2026-11-05 08:00:00.000_a");
-        await SetGroup("b", "2026-11-05 08:00:00.000_b");
-        var unknown = await Record.ExceptionAsync(() => SetGroup("khongCo", "2026-11-05 08:00:00.000_x"));
+        await SetGroup("a", "20261105080000000_a");
+        await SetGroup("b", "20261105080000000_b");
+        var unknown = await Record.ExceptionAsync(() => SetGroup("khongCo", "20261105080000000_x"));
         var cursorsAfterSet = await Cursors();
         await services.CallApiAsync(new ResetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID! });
 
@@ -3095,7 +3096,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var cursorsAfterReset = await Cursors();
         AssertRejectedWith(unknown, BaseMsg.ShareData.Validation.SqlIncrementalGroupNotFound);
         Assert.Equal(["a", "b"], groups);
-        Assert.Equal("2026-11-05 08:00:00.000_a", groupA.LastKey);
+        Assert.Equal("20261105080000000_a", groupA.LastKey);
         Assert.Empty(cursorsAfterReset);
     }
 
@@ -3156,25 +3157,25 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
                 SELECT TOP (@pageSize)                  -- số dòng mỗi trang, khai ở bảng tham số
                        zs.ZoneId    AS zoneId,
                        zs.Condition AS trafficCondition,
-                       CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID AS __lastKey   -- thời gian + khóa duy nhất
+                       CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), ':', '') + '_' + zs.ID AS __lastKey   -- thời gian + khóa duy nhất
                 FROM   TmsZoneStatus zs
-                WHERE  CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID > @lastKey
+                WHERE  CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), ':', '') + '_' + zs.ID > @lastKey
                 ORDER BY __lastKey ASC
                 """, new List<PacketSqlVariableItemInput> { pageSize, BuiltinVar("lastKey", "", "lastKey") }),
             "cotMocGop" => ("""
                 SELECT TOP (@pageSize)
                        t.Code AS code,
-                       CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime), 121) + '_' + t.ID AS __lastKey
+                       CONVERT(varchar(8), COALESCE(t.UpdateTime, t.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(t.UpdateTime, t.CreateTime), 114), ':', '') + '_' + t.ID AS __lastKey
                 FROM   TmsZone t
-                WHERE  CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime), 121) + '_' + t.ID > @lastKey
+                WHERE  CONVERT(varchar(8), COALESCE(t.UpdateTime, t.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(t.UpdateTime, t.CreateTime), 114), ':', '') + '_' + t.ID > @lastKey
                 ORDER BY __lastKey ASC
                 """, [pageSize, BuiltinVar("lastKey", "", "lastKey")]),
             "bayNgay" => ("""
                 SELECT TOP (@pageSize)
                        t.Code AS code,
-                       CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime), 121) + '_' + t.ID AS __lastKey
+                       CONVERT(varchar(8), COALESCE(t.UpdateTime, t.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(t.UpdateTime, t.CreateTime), 114), ':', '') + '_' + t.ID AS __lastKey
                 FROM   TmsZone t
-                WHERE  CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime), 121) + '_' + t.ID > @lastKey
+                WHERE  CONVERT(varchar(8), COALESCE(t.UpdateTime, t.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(t.UpdateTime, t.CreateTime), 114), ':', '') + '_' + t.ID > @lastKey
                   AND COALESCE(t.UpdateTime, t.CreateTime) >= DATEADD(DAY, -7, GETDATE())
                 ORDER BY __lastKey ASC
                 """, [pageSize, BuiltinVar("lastKey", "", "lastKey")]),
@@ -3185,8 +3186,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
                     u.laneId, u.averageSpeed, u.trafficCondition, u.dataTime, u.speedLimit, u.vehicleCount
                 FROM (
                     SELECT
-                        CONVERT(varchar(23), zs.UpdateTime, 121) + '_' + zs.ID AS sortKey,
-                        CONVERT(varchar(23), zs.UpdateTime, 121) + '_' + zs.ID AS __lastKey_upd,
+                        CONVERT(varchar(8), zs.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), zs.UpdateTime, 114), ':', '') + '_' + zs.ID AS sortKey,
+                        CONVERT(varchar(8), zs.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), zs.UpdateTime, 114), ':', '') + '_' + zs.ID AS __lastKey_upd,
                         CAST(NULL AS NVARCHAR(100)) AS __lastKey_new,
                         zs.ID AS zoneStatusId, zs.ZoneId AS zoneId, z.Name AS zoneName,
                         z.FromKmNumber AS fromLocationKm, z.FromMetNumber AS fromLocationMet,
@@ -3196,17 +3197,17 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
                     FROM dbo.TmsZoneStatus zs
                     LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
                     LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
-                    WHERE CONVERT(varchar(23), zs.UpdateTime, 121) + '_' + zs.ID > @lastKey_upd
+                    WHERE CONVERT(varchar(8), zs.UpdateTime, 112) + REPLACE(CONVERT(varchar(12), zs.UpdateTime, 114), ':', '') + '_' + zs.ID > @lastKey_upd
                     UNION ALL
                     SELECT
-                        CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID, NULL, CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID,
+                        CONVERT(varchar(8), zs.CreateTime, 112) + REPLACE(CONVERT(varchar(12), zs.CreateTime, 114), ':', '') + '_' + zs.ID, NULL, CONVERT(varchar(8), zs.CreateTime, 112) + REPLACE(CONVERT(varchar(12), zs.CreateTime, 114), ':', '') + '_' + zs.ID,
                         zs.ID, zs.ZoneId, z.Name, z.FromKmNumber, z.FromMetNumber, z.ToKmNumber, z.ToMetNumber,
                         z.LaneId, CAST(zs.AverageSpeed AS DECIMAL(18, 2)), zs.Condition, zs.CreateTime, z.MaxSpeed, ts.TotalVehicleNumber
                     FROM dbo.TmsZoneStatus zs
                     LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
                     LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
                     WHERE zs.UpdateTime IS NULL
-                      AND CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID > @lastKey_new
+                      AND CONVERT(varchar(8), zs.CreateTime, 112) + REPLACE(CONVERT(varchar(12), zs.CreateTime, 114), ':', '') + '_' + zs.ID > @lastKey_new
                 ) u
                 ORDER BY u.sortKey ASC
                 """, [pageSize, BuiltinVar("lastKey_upd", "", "lastKey"), BuiltinVar("lastKey_new", "", "lastKey")]),
@@ -3214,18 +3215,18 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
                 SELECT TOP (@pageSize) u.rowCode, u.__lastKey_inc, u.__lastKey_wea
                 FROM (
                     SELECT i.Code AS rowCode,
-                           CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime), 121) + '_' + i.ID AS sortKey,
-                           CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime), 121) + '_' + i.ID AS __lastKey_inc,
+                           CONVERT(varchar(8), COALESCE(i.UpdateTime, i.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(i.UpdateTime, i.CreateTime), 114), ':', '') + '_' + i.ID AS sortKey,
+                           CONVERT(varchar(8), COALESCE(i.UpdateTime, i.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(i.UpdateTime, i.CreateTime), 114), ':', '') + '_' + i.ID AS __lastKey_inc,
                            CAST(NULL AS nvarchar(100)) AS __lastKey_wea
                     FROM TmsIncident i
-                    WHERE CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime), 121) + '_' + i.ID > @lastKey_inc
+                    WHERE CONVERT(varchar(8), COALESCE(i.UpdateTime, i.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(i.UpdateTime, i.CreateTime), 114), ':', '') + '_' + i.ID > @lastKey_inc
                     UNION ALL
                     SELECT w.RefId,
-                           CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID,
+                           CONVERT(varchar(8), COALESCE(w.UpdateTime, w.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(w.UpdateTime, w.CreateTime), 114), ':', '') + '_' + w.ID,
                            NULL,
-                           CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID
+                           CONVERT(varchar(8), COALESCE(w.UpdateTime, w.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(w.UpdateTime, w.CreateTime), 114), ':', '') + '_' + w.ID
                     FROM TmsWeather w
-                    WHERE CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID > @lastKey_wea
+                    WHERE CONVERT(varchar(8), COALESCE(w.UpdateTime, w.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(w.UpdateTime, w.CreateTime), 114), ':', '') + '_' + w.ID > @lastKey_wea
                 ) u
                 ORDER BY u.sortKey ASC
                 """, [pageSize, BuiltinVar("lastKey_inc", "", "lastKey"), BuiltinVar("lastKey_wea", "", "lastKey")])
@@ -3248,23 +3249,23 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>Câu nối đuôi một chuỗi ghép COALESCE(UpdateTime, CreateTime) + ID trên TmsZone với điều kiện WHERE tùy ca.</summary>
-    private static string CursorFilterSql(string where) => "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
+    private static string CursorFilterSql(string where) => "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone "
         + $"WHERE {where} ORDER BY __lastKey ASC";
 
     /// <summary>Điều kiện lọc đúng của CursorFilterSql.</summary>
-    private const string CursorFilterWhere = "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey";
+    private const string CursorFilterWhere = "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID > @lastKey";
 
     /// <summary>Câu gộp hai nguồn trên TmsZone (mã bắt đầu A và B), mỗi nguồn một nhóm mốc a, b; withKeyB = false bỏ cột __lastKey_b ở SELECT ngoài; orderBy là cột sắp ngoài cùng.</summary>
     private static string CursorGroupSql(bool withKeyB, string whereB, string orderBy = "u.sortKey") =>
         "SELECT TOP 10 u.zoneId, u.__lastKey_a" + (withKeyB ? ", u.__lastKey_b" : string.Empty) + " FROM ("
-        + "SELECT z.ID AS zoneId, CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID AS sortKey, "
-        + "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID AS __lastKey_a, CAST(NULL AS nvarchar(100)) AS __lastKey_b FROM TmsZone z "
-        + "WHERE z.Code LIKE 'A%' AND CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID > @lastKey_a "
-        + "UNION ALL SELECT y.ID, CONVERT(varchar(23), COALESCE(y.UpdateTime, y.CreateTime), 121) + '_' + y.ID, NULL, CONVERT(varchar(23), COALESCE(y.UpdateTime, y.CreateTime), 121) + '_' + y.ID "
+        + "SELECT z.ID AS zoneId, CONVERT(varchar(8), COALESCE(z.UpdateTime, z.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(z.UpdateTime, z.CreateTime), 114), ':', '') + '_' + z.ID AS sortKey, "
+        + "CONVERT(varchar(8), COALESCE(z.UpdateTime, z.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(z.UpdateTime, z.CreateTime), 114), ':', '') + '_' + z.ID AS __lastKey_a, CAST(NULL AS nvarchar(100)) AS __lastKey_b FROM TmsZone z "
+        + "WHERE z.Code LIKE 'A%' AND CONVERT(varchar(8), COALESCE(z.UpdateTime, z.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(z.UpdateTime, z.CreateTime), 114), ':', '') + '_' + z.ID > @lastKey_a "
+        + "UNION ALL SELECT y.ID, CONVERT(varchar(8), COALESCE(y.UpdateTime, y.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(y.UpdateTime, y.CreateTime), 114), ':', '') + '_' + y.ID, NULL, CONVERT(varchar(8), COALESCE(y.UpdateTime, y.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(y.UpdateTime, y.CreateTime), 114), ':', '') + '_' + y.ID "
         + "FROM TmsZone y WHERE y.Code LIKE 'B%' AND " + whereB
         + ") u ORDER BY " + orderBy + " ASC";
 
-    private const string CursorGroupWhereB = "CONVERT(varchar(23), COALESCE(y.UpdateTime, y.CreateTime), 121) + '_' + y.ID > @lastKey_b";
+    private const string CursorGroupWhereB = "CONVERT(varchar(8), COALESCE(y.UpdateTime, y.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(y.UpdateTime, y.CreateTime), 114), ':', '') + '_' + y.ID > @lastKey_b";
 
     /// <summary>
     /// Author: DatHQ
@@ -3284,13 +3285,13 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// </summary>
     [Theory]
     [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, ID AS __lastKey FROM TmsZone WHERE @lastKey IS NOT NULL AND ID > 'a' ORDER BY ID ASC", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInvalid)]
-    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone WHERE ID > @lastKey ORDER BY __lastKey ASC", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInvalid)]
-    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(23), CreateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInvalid)]
-    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY ID ASC", BaseMsg.ShareData.Validation.SqlIncrementalOrderByKeyMismatch)]
-    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey DESC", BaseMsg.ShareData.Validation.SqlIncrementalOrderByDescNotAllowed)]
-    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastK FROM TmsZone WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastK ASC", BaseMsg.ShareData.Validation.SqlIncrementalMissingLastKey)]
-    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey", BaseMsg.ShareData.Validation.SqlIncrementalMissingOrderBy)]
-    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone WHERE __lastKey > @lastKey ORDER BY __lastKey ASC", BaseMsg.ShareData.Validation.SqlDatabaseExecutionError)]
+    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone WHERE ID > @lastKey ORDER BY __lastKey ASC", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInvalid)]
+    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey ASC", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInvalid)]
+    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY ID ASC", BaseMsg.ShareData.Validation.SqlIncrementalOrderByKeyMismatch)]
+    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey DESC", BaseMsg.ShareData.Validation.SqlIncrementalOrderByDescNotAllowed)]
+    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastK FROM TmsZone WHERE CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastK ASC", BaseMsg.ShareData.Validation.SqlIncrementalMissingLastKey)]
+    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID > @lastKey", BaseMsg.ShareData.Validation.SqlIncrementalMissingOrderBy)]
+    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone WHERE __lastKey > @lastKey ORDER BY __lastKey ASC", BaseMsg.ShareData.Validation.SqlDatabaseExecutionError)]
     public async Task UpdateExtractSql_WhenCursorFilterLosesRowsAcrossPages_RejectsSql_Test(string cursorVariables, string sql, string errorKey)
     {
         // Arrange
@@ -3320,9 +3321,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     ///              cột mốc chỉ có ngày giờ (UpdateTime AS __lastKey) sót các dòng trùng giờ; chuỗi mốc ghép từ UpdateTime trơn bỏ sót
     ///              dòng mới thêm vì UpdateTime trống khi thêm mới. Bọc COALESCE(UpdateTime, CreateTime) thì lưu được.
     ///              So đúng biểu thức cột mốc bằng >= cũng bị từ chối vì dòng cuối bị gửi lặp mỗi lượt.
-    ///              Ghép ngày giờ không sắp đúng thứ tự thời gian bị từ chối.
+    ///              Ghép ngày giờ không sắp đúng thứ tự thời gian bị từ chối, kể cả CONVERT kiểu 114 (chỉ có giờ) không đi cặp sau kiểu 112 cùng cột thời gian.
     /// Created date: 04/11/2026
-    /// Modified date: 05/11/2026
+    /// Modified date: 16/11/2026
     /// </summary>
     [Theory]
     [InlineData(false, "SELECT TOP 10 ID AS zoneId, UpdateTime AS __lastKey FROM TmsZone WHERE UpdateTime > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyTimeOnly)]
@@ -3335,6 +3336,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData(true, "SELECT TOP 10 ID AS zoneId, FORMAT(CreateTime, 'dd/MM/yyyy') + '_' + ID AS __lastKey FROM TmsZone WHERE FORMAT(CreateTime, 'dd/MM/yyyy') + '_' + ID > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
     [InlineData(false, "SELECT TOP 10 ID AS zoneId, FORMAT(CreateTime, 'yyyy-MMM-dd') + '_' + ID AS __lastKey FROM TmsZone WHERE FORMAT(CreateTime, 'yyyy-MMM-dd') + '_' + ID > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
     [InlineData(false, "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(10), CreateTime, 103) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(10), CreateTime, 103) + '_' + ID > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
+    [InlineData(false, "SELECT TOP 10 ID AS zoneId, REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone WHERE REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
+    [InlineData(true, "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
     public async Task SaveExtractSql_WhenCursorTimeMissesRows_RejectsSql_Test(bool partnerScope, string sql, string? errorKey)
     {
         // Arrange
@@ -3380,9 +3383,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// </summary>
     [Theory]
     [InlineData(CursorKeyOnlySql)]
-    [InlineData("SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
-        + "WHERE COALESCE(UpdateTime, CreateTime) >= ISNULL(TRY_CONVERT(datetime, LEFT(@lastKey, 23), 121), '17530101') "
-        + "AND CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey ORDER BY __lastKey")]
+    [InlineData("SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone "
+        + "WHERE COALESCE(UpdateTime, CreateTime) >= ISNULL(TRY_CONVERT(date, LEFT(@lastKey, 8), 112), '17530101') "
+        + "AND CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey")]
     public async Task UpdateExtractSql_WhenCursorFollowsFormula_SavesNormally_Test(string sql)
     {
         // Arrange
@@ -3412,8 +3415,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// </summary>
     [Theory]
     [InlineData(false, "SELECT ID AS zoneId FROM TmsZone WHERE UpdateTime >= DATEADD(day, -7, GETDATE())")]
-    [InlineData(true, "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
-        + "WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey AND UpdateTime >= DATEADD(day, -7, GETDATE()) ORDER BY __lastKey ASC")]
+    [InlineData(true, "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone "
+        + "WHERE CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID > @lastKey AND UpdateTime >= DATEADD(day, -7, GETDATE()) ORDER BY __lastKey ASC")]
     public async Task UpdateExtractSql_WhenSqlFiltersByGetDate_SavesNormally_Test(bool withCursor, string sql)
     {
         // Arrange
@@ -3463,13 +3466,13 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         });
         var sql = caseName == "haiNhom"
             ? "SELECT TOP 10 u.zoneId, u.__lastKey_upd, u.__lastKey_new FROM ("
-                + "SELECT ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS sortKey, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey_upd, CAST(NULL AS nvarchar(100)) AS __lastKey_new FROM TmsZone "
-                + "WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey_upd "
-                + "UNION ALL SELECT ID, CONVERT(varchar(23), CreateTime, 121) + '_' + ID, NULL, CONVERT(varchar(23), CreateTime, 121) + '_' + ID FROM TmsZone "
-                + "WHERE UpdateTime IS NULL AND CONVERT(varchar(23), CreateTime, 121) + '_' + ID > @lastKey_new"
+                + "SELECT ID AS zoneId, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS sortKey, CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey_upd, CAST(NULL AS nvarchar(100)) AS __lastKey_new FROM TmsZone "
+                + "WHERE CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey_upd "
+                + "UNION ALL SELECT ID, CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID, NULL, CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID FROM TmsZone "
+                + "WHERE UpdateTime IS NULL AND CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID > @lastKey_new"
                 + ") u ORDER BY u.sortKey ASC"
-            : "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), ISNULL(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
-                + "WHERE CONVERT(varchar(23), ISNULL(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
+            : "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(8), ISNULL(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), ISNULL(UpdateTime, CreateTime), 114), ':', '') + '_' + ID AS __lastKey FROM TmsZone "
+                + "WHERE CONVERT(varchar(8), ISNULL(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), ISNULL(UpdateTime, CreateTime), 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey ASC";
 
         // Act
         await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql });
@@ -3490,7 +3493,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData(true, CursorGroupWhereB, "u.sortKey", null)]
     [InlineData(false, CursorGroupWhereB, "u.sortKey", BaseMsg.ShareData.Validation.SqlIncrementalGroupColumnMissing)]
     [InlineData(true, "y.ID > @lastKey_b", "u.sortKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInvalid)]
-    [InlineData(true, "CONVERT(varchar(23), COALESCE(y.UpdateTime, y.CreateTime), 121) + '_' + y.ID >= @lastKey_b", "u.sortKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInclusive)]
+    [InlineData(true, "CONVERT(varchar(8), COALESCE(y.UpdateTime, y.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(y.UpdateTime, y.CreateTime), 114), ':', '') + '_' + y.ID >= @lastKey_b", "u.sortKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInclusive)]
     [InlineData(true, CursorGroupWhereB, "u.zoneId", BaseMsg.ShareData.Validation.SqlIncrementalGroupOrderInvalid)]
     [InlineData(true, CursorGroupWhereB, "u.__lastKey_a", BaseMsg.ShareData.Validation.SqlIncrementalGroupOrderInvalid)]
     public async Task UpdateExtractSql_WhenSqlMergesSourcesWithCursorGroups_ValidatesEachGroup_Test(bool withKeyB, string whereB, string orderBy, string? errorKey)
@@ -3532,7 +3535,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [Theory]
     [InlineData("CONVERT(varchar(10), COALESCE(y.UpdateTime, y.CreateTime), 103) + '_' + y.ID", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
     [InlineData("y.ID", BaseMsg.ShareData.Validation.SqlIncrementalKeyFormulaInvalid)]
-    [InlineData("CONVERT(varchar(23), y.IsDelete, 121) + '_' + y.ID", BaseMsg.ShareData.Validation.SqlIncrementalKeyFormulaInvalid)]
+    [InlineData("CONVERT(varchar(8), y.IsDelete, 112) + REPLACE(CONVERT(varchar(12), y.IsDelete, 114), ':', '') + '_' + y.ID", BaseMsg.ShareData.Validation.SqlIncrementalKeyFormulaInvalid)]
     public async Task UpdateExtractSql_WhenCursorGroupBreaksFormula_RejectsSql_Test(string keyB, string errorKey)
     {
         // Arrange
@@ -3547,7 +3550,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Items = [BuiltinVar("lastKey_a", "", "lastKey"), BuiltinVar("lastKey_b", "", "lastKey")]
         });
         var groupSql = CursorGroupSql(true, CursorGroupWhereB);
-        var sql = groupSql.Replace("CONVERT(varchar(23), COALESCE(y.UpdateTime, y.CreateTime), 121) + '_' + y.ID", keyB);
+        var sql = groupSql.Replace("CONVERT(varchar(8), COALESCE(y.UpdateTime, y.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(y.UpdateTime, y.CreateTime), 114), ':', '') + '_' + y.ID", keyB);
 
         // Act
         var error = await Record.ExceptionAsync(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(
@@ -3590,11 +3593,12 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Cột mốc phải đúng công thức PA1 CONVERT(varchar(23), &lt;thời gian&gt;, 121) + '_' + ID, phần thời gian có CreateTime, ở cả mẫu chung lẫn SQL riêng:
-    ///              cột chuỗi trơn, ép số sang chuỗi, chỉ có cột thời gian khác, sai kiểu CONVERT, thiếu '_' hay thiếu khóa đều bị từ chối.
-    ///              Phần khóa bắt đầu bằng cột ID vì cột khác có thể trống, cả chuỗi mốc thành NULL và dòng không bao giờ được gửi;
-    ///              ghép thêm sau ID thì phần ghép phải là cột ID khác hoặc có giá trị thay thế (ISNULL, COALESCE).
+    /// Description: Cột mốc phải đúng công thức PA1 CONVERT(varchar(8), &lt;thời gian&gt;, 112) + REPLACE(CONVERT(varchar(12), &lt;thời gian&gt;, 114), ':', '') + '_' + &lt;đuôi&gt;,
+    ///              phần thời gian có CreateTime, ở cả mẫu chung lẫn SQL riêng: cột chuỗi trơn, ép số sang chuỗi, chỉ có cột thời gian khác, sai kiểu CONVERT (kể cả kiểu 121),
+    ///              FORMAT, thiếu '_' hay thiếu đuôi đều bị từ chối. Đuôi không được NULL: mỗi phần ghép là chuỗi hằng, cột ID, hoặc ISNULL / COALESCE có tham số cuối là chuỗi hằng;
+    ///              cột có thể NULL để trơn, ISNULL / COALESCE không có hằng cuối làm cả chuỗi mốc thành NULL và dòng không bao giờ được gửi.
     /// Created date: 05/11/2026
+    /// Modified date: 16/11/2026
     /// </summary>
     [Theory]
     [InlineData(false, "ID", true)]
@@ -3603,28 +3607,32 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData(false, "CAST(FromKmNumber AS varchar(10))", true)]
     [InlineData(false, "CAST(FromKmNumber AS varchar(10)) + '_' + ID", true)]
     [InlineData(false, "Code + '_' + ID", true)]
-    [InlineData(false, "CONVERT(varchar(23), IsDelete, 121) + '_' + ID", true)]
-    [InlineData(true, "CONVERT(varchar(23), IsDelete, 121) + '_' + ID", true)]
-    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, IsDelete), 121) + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(8), IsDelete, 112) + REPLACE(CONVERT(varchar(12), IsDelete, 114), ':', '') + '_' + ID", true)]
+    [InlineData(true, "CONVERT(varchar(8), IsDelete, 112) + REPLACE(CONVERT(varchar(12), IsDelete, 114), ':', '') + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(8), COALESCE(UpdateTime, IsDelete), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, IsDelete), 114), ':', '') + '_' + ID", true)]
     [InlineData(false, "FORMAT(CreateTime, 'yyyyMMddHHmmssfff') + '_' + ID", true)]
     [InlineData(false, "FORMAT(FromKmNumber, 'd10') + '_' + ID", true)]
     [InlineData(false, "CONVERT(varchar(10), CreateTime, 111) + '_' + ID", true)]
     [InlineData(false, "CONVERT(varchar(23), CreateTime, 120) + '_' + ID", true)]
-    [InlineData(false, "CONVERT(varchar(23), CreateTime, 121)", true)]
-    [InlineData(false, "CONVERT(varchar(23), CreateTime, 121) + ID", true)]
-    [InlineData(false, "CONVERT(varchar(23), CreateTime, 121) + '_' + 'a'", true)]
+    [InlineData(false, "CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '')", true)]
+    [InlineData(false, "CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + ID", true)]
+    [InlineData(false, "CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + 'a'", true)]
     [InlineData(false, "CONCAT(CONVERT(varchar(23), CreateTime, 121), '_', ID)", true)]
-    [InlineData(false, "CONVERT(varchar(23), CreateTime, 121) + '_' + ID", false)]
-    [InlineData(false, "CONVERT(varchar(23), COALESCE(IsDelete, CreateTime), 121) + '_' + ID", false)]
-    [InlineData(false, "CONVERT(nvarchar(23), ISNULL(UpdateTime, CreateTime), 121) + N'_' + ID", false)]
-    [InlineData(true, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + CAST(FromKmNumber AS varchar(10))", true)]
-    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + Code + '_' + ID", true)]
-    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + Name", true)]
-    [InlineData(true, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + Code", true)]
-    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ISNULL(Code, '')", true)]
-    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID + '_' + Code", true)]
-    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID + '_' + ISNULL(Code, '')", false)]
-    [InlineData(true, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + N'_' + [ID]", false)]
+    [InlineData(false, "CONVERT(varchar(8), CreateTime, 112) + REPLACE(CONVERT(varchar(12), CreateTime, 114), ':', '') + '_' + ID", false)]
+    [InlineData(false, "CONVERT(varchar(23), CreateTime, 121) + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(8), COALESCE(IsDelete, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(IsDelete, CreateTime), 114), ':', '') + '_' + ID", false)]
+    [InlineData(false, "CONVERT(nvarchar(8), ISNULL(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(nvarchar(12), ISNULL(UpdateTime, CreateTime), 114), N':', N'') + N'_' + ID", false)]
+    [InlineData(true, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + CAST(FromKmNumber AS varchar(10))", true)]
+    [InlineData(false, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + Code + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + Name", true)]
+    [InlineData(true, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + Code", true)]
+    [InlineData(false, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ISNULL(Code, '')", false)]
+    [InlineData(true, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ISNULL(Code, Name)", true)]
+    [InlineData(false, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + COALESCE(Code, Name)", true)]
+    [InlineData(true, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + COALESCE(Code, Name, '')", false)]
+    [InlineData(false, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID + '_' + Code", true)]
+    [InlineData(false, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID + '_' + ISNULL(Code, '')", false)]
+    [InlineData(true, "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + N'_' + [ID]", false)]
     public async Task SaveExtractSql_WhenCursorColumnVaries_OnlyFormulaIsSaved_Test(bool partnerScope, string keyExpr, bool rejected)
     {
         // Arrange
@@ -3648,9 +3656,10 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Cột ID ở phần khóa phải luôn có giá trị: ID của bảng phía tùy chọn trong LEFT, RIGHT, FULL JOIN có thể trống nên cả chuỗi mốc thành NULL và dòng không bao giờ được gửi.
-    ///              ID của bảng chính hoặc bảng INNER JOIN thì lưu được; xét cả khi cột mốc nằm trong bảng dẫn xuất. Bọc ISNULL ở phần ghép thêm sau ID thì lưu được.
+    /// Description: Cột ID ở đuôi phải luôn có giá trị: ID của bảng phía tùy chọn trong LEFT, RIGHT, FULL JOIN có thể trống nên cả chuỗi mốc thành NULL và dòng không bao giờ được gửi.
+    ///              ID của bảng chính hoặc bảng INNER JOIN thì lưu được; xét cả khi cột mốc nằm trong bảng dẫn xuất. Bọc ISNULL(..., '') thì lưu được, kể cả đuôi chỉ có cột của bảng phía tùy chọn.
     /// Created date: 05/11/2026
+    /// Modified date: 16/11/2026
     /// </summary>
     [Theory]
     [InlineData("TmsZoneStatus zs LEFT JOIN TmsZone z ON zs.ZoneId = z.ID", "z.ID", true)]
@@ -3661,10 +3670,11 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData("TmsZone z RIGHT JOIN TmsZoneStatus zs ON zs.ZoneId = z.ID", "zs.ID", false)]
     [InlineData("TmsZoneStatus zs INNER JOIN TmsZone z ON zs.ZoneId = z.ID", "z.ID", false)]
     [InlineData("TmsZoneStatus zs LEFT JOIN TmsZone z ON zs.ZoneId = z.ID", "zs.ID + '_' + ISNULL(z.ID, '')", false)]
+    [InlineData("TmsZoneStatus zs LEFT JOIN TmsZone z ON zs.ZoneId = z.ID", "ISNULL(z.Code, '')", false)]
     public async Task SaveExtractSql_WhenCursorIdComesFromOptionalJoin_RejectsSql_Test(string from, string key, bool rejected)
     {
         // Arrange
-        var keyExpr = $"CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + {key}";
+        var keyExpr = $"CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), ':', '') + '_' + {key}";
         var sql = $"SELECT TOP 10 zs.ZoneId AS zoneId, {keyExpr} AS __lastKey FROM {from} WHERE {keyExpr} > @lastKey ORDER BY __lastKey ASC";
         var derivedSql = $"SELECT TOP 10 x.zoneId, x.__lastKey FROM (SELECT zs.ZoneId AS zoneId, {keyExpr} AS __lastKey FROM {from}) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC";
 
@@ -3703,7 +3713,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     public async Task SaveExtractSql_WhenCursorSqlSkipsRowsByOffset_RejectsSql_Test(bool partnerScope, string template, bool rejected)
     {
         // Arrange
-        var sql = template.Replace("{K}", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID");
+        var sql = template.Replace("{K}", "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID");
 
         // Act
         var (error, row) = await SaveSqlWithLastKeyAsync(partnerScope, sql);
@@ -3738,12 +3748,15 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData(false, "SELECT * FROM (SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY {K}) T ORDER BY __lastKey ASC", false)]
     [InlineData(false, "SELECT TOP 10 z.ID AS zoneId, (SELECT TOP 1 s.Condition FROM TmsZoneStatus s WHERE s.ZoneId = z.ID ORDER BY s.CreateTime DESC) AS lastCondition, {Z} AS __lastKey FROM TmsZone z WHERE {Z} > @lastKey ORDER BY __lastKey ASC", false)]
     [InlineData(false, "SELECT TOP 10 z.ID AS zoneId, s.Condition AS lastCondition, {Z} AS __lastKey FROM TmsZone z OUTER APPLY (SELECT TOP 1 x.Condition FROM TmsZoneStatus x WHERE x.ZoneId = z.ID ORDER BY x.CreateTime DESC) s WHERE {Z} > @lastKey ORDER BY __lastKey ASC", false)]
+    [InlineData(false, "SELECT TOP 10 p.zoneId, p.__lastKey FROM (SELECT TOP 10 WITH TIES ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {T} >= CONVERT(varchar(17), LEFT(@lastKey, 17)) AND {K} > @lastKey ORDER BY {T} ASC) p ORDER BY p.__lastKey ASC", false)]
+    [InlineData(false, "SELECT TOP 10 p.zoneId, p.__lastKey FROM (SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY {T} ASC) p ORDER BY p.__lastKey ASC", true)]
     public async Task SaveExtractSql_WhenInnerTopSortsByOtherColumn_RejectsSql_Test(bool partnerScope, string template, bool rejected)
     {
         // Arrange
         var sql = template
-            .Replace("{K}", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID")
-            .Replace("{Z}", "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID");
+            .Replace("{K}", "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID")
+            .Replace("{T}", "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '')")
+            .Replace("{Z}", "CONVERT(varchar(8), COALESCE(z.UpdateTime, z.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(z.UpdateTime, z.CreateTime), 114), ':', '') + '_' + z.ID");
 
         // Act
         var (error, row) = await SaveSqlWithLastKeyAsync(partnerScope, sql);
@@ -3776,7 +3789,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     public async Task SaveExtractSql_WhenSourcesShareOneCursor_RejectsSql_Test(bool partnerScope, string template, bool rejected)
     {
         // Arrange
-        var sql = template.Replace("{K}", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID");
+        var sql = template.Replace("{K}", "CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID");
 
         // Act
         var (error, row) = await SaveSqlWithLastKeyAsync(partnerScope, sql);
@@ -3801,7 +3814,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// </summary>
     [Theory]
     [InlineData("ID", true)]
-    [InlineData("CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID", false)]
+    [InlineData("CONVERT(varchar(8), COALESCE(UpdateTime, CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(UpdateTime, CreateTime), 114), ':', '') + '_' + ID", false)]
     public async Task SaveExtractSql_WhenCursorColumnComesFromDerivedTable_ChecksInnerFormula_Test(string keyExpr, bool rejected)
     {
         // Arrange
@@ -3954,7 +3967,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetId = Guid.NewGuid().ToString("N");
-        const string keyExpr = "CONVERT(varchar(23), UpdateTime, 121) + '_' + ID";
+        const string keyExpr = "CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID";
         var sql = $"{selectTop} ID AS zoneId, {keyExpr} AS __lastKey{group} FROM TmsZone "
             + $"WHERE {keyExpr} > @lastKey{group} "
             + $"ORDER BY __lastKey{group} ASC";
@@ -4302,7 +4315,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         {
             PacketCode = packet.Code!,
             PartnerId = partner.ID,
-            LastKey = $"2026-11-05 08:00:00.123_{unique}"
+            LastKey = $"20261105080000123_{unique}"
         };
 
         // Act 1: Người dùng thường gọi API -> bị từ chối
@@ -4327,7 +4340,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code)
             .FirstAsync();
         Assert.NotNull(lastSend);
-        Assert.Equal($"2026-11-05 08:00:00.123_{unique}", lastSend.LastKey);
+        Assert.Equal($"20261105080000123_{unique}", lastSend.LastKey);
         Assert.NotNull(lastSend.CursorSignature);
 
         var auditLog = await db.Queryable<ShareDataActivityLog>()
@@ -4339,16 +4352,25 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Đặt mốc sai dạng công thức PA1 (ngày giờ kiểu 121 có thật, dấu _ rồi mã dòng) thì từ chối, giữ nguyên mốc đang có.
+    /// Description: Đặt mốc chỉ nhận mốc dạng công thức PA1: 8 đến 17 chữ số ngày giờ yyyyMMddHHmmssfff có thật (thiếu thì đệm 0 bên phải, 20260101 là đầu ngày),
+    ///              hoặc đủ 17 chữ số rồi dấu _ và đuôi (đuôi được trống), lưu sau khi bỏ khoảng trắng hai đầu. Dạng có '-', dấu cách, ':', thiếu chữ số
+    ///              hay ngày giờ không có thật thì từ chối, giữ nguyên mốc đang có.
     /// Created date: 16/11/2026
     /// </summary>
     [Theory]
-    [InlineData("k_set")]
-    [InlineData("2026-11-05 08:00:00_abc")]
-    [InlineData("2026-11-05 08:00:00.000")]
-    [InlineData("2026-13-05 08:00:00.000_abc")]
-    [InlineData("05/11/2026 08:00:00.000_abc")]
-    public async Task SetLastSend_WhenCursorNotTimeKeyFormat_RejectsAndKeepsCursor_Test(string lastKey)
+    [InlineData("20260101", true)]
+    [InlineData("2026110508", true)]
+    [InlineData("20261105080000123", true)]
+    [InlineData("20261105080000123_", true)]
+    [InlineData(" 20261105080000123_abc ", true)]
+    [InlineData("k_set", false)]
+    [InlineData("2026-11-05 08:00:00.000_abc", false)]
+    [InlineData("20261105 080000000_abc", false)]
+    [InlineData("2026110508000012_abc", false)]
+    [InlineData("2026110", false)]
+    [InlineData("20261305080000000_abc", false)]
+    [InlineData("20260230", false)]
+    public async Task SetLastSend_WhenCursorFormatVaries_SavesOnlyTimeKey_Test(string lastKey, bool saved)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
@@ -4358,21 +4380,30 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
         await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, CursorCreateTimeSql);
-        var validKey = $"2026-11-05 08:00:00.000_{unique}";
+        var validKey = $"20261105080000000_{unique}";
         var validInput = new SetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID, LastKey = validKey };
         await services.CallApiAsync(validInput);
-        var invalidInput = new SetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID, LastKey = lastKey };
+        var input = new SetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID, LastKey = lastKey };
 
         // Act
-        var error = await Record.ExceptionAsync(() => services.CallApiAsync(invalidInput));
+        var error = await Record.ExceptionAsync(() => services.CallApiAsync(input));
 
         // Assert
         var cursors = await db.Queryable<ShareDataLastSend>()
             .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code)
             .ToListAsync();
         var cursor = Assert.Single(cursors);
-        AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlVariableValueInvalid);
-        Assert.Equal(validKey, cursor.LastKey);
+        var savedKey = lastKey.Trim();
+        if (saved)
+        {
+            Assert.Null(error);
+            Assert.Equal(savedKey, cursor.LastKey);
+        }
+        else
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlVariableValueInvalid);
+            Assert.Equal(validKey, cursor.LastKey);
+        }
     }
 
     /// <summary>
@@ -4418,7 +4449,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             PartnerCode = partner.Code,
             PacketCode = packet.Code,
-            LastKey = "2026-11-01 08:00:00.000_old"
+            LastKey = "20261101080000000_old"
         }).ExecuteCommandAsync();
 
         SetUserContext(isSuperAdmin: true, account: $"super_{unique}");
@@ -4426,7 +4457,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         {
             PacketCode = packet.Code!,
             PartnerId = partner.ID,
-            LastKey = "2026-11-05 08:00:00.000_new"
+            LastKey = "20261105080000000_new"
         };
 
         // Act
@@ -4443,7 +4474,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var cursor = await db.Queryable<ShareDataLastSend>()
             .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code)
             .FirstAsync();
-        Assert.Equal(ownActive ? "2026-11-01 08:00:00.000_old" : "2026-11-05 08:00:00.000_new", cursor.LastKey);
+        Assert.Equal(ownActive ? "20261101080000000_old" : "20261105080000000_new", cursor.LastKey);
     }
 
     /// <summary>

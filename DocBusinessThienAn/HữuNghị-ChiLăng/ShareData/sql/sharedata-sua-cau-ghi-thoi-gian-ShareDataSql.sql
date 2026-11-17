@@ -1,3 +1,6 @@
+USE [DEV_ITS015];
+GO
+
 -- =========================================================================================
 -- FILE: sharedata-sua-cau-ghi-thoi-gian-ShareDataSql.sql
 -- BẢNG GHI: [dbo].[ShareDataSql] — chỉ SỬA cột WriteSql (kèm UpdateTime) của dòng câu mẫu chung gói 104, 106; bảng khác chỉ đọc (Rule 19.103).

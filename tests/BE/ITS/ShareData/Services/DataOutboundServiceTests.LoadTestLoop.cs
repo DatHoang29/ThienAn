@@ -60,7 +60,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// </summary>
         private static string LoadTestZoneSql()
         {
-            var key = "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID";
+            var key = "CONVERT(varchar(8), COALESCE(z.UpdateTime, z.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(z.UpdateTime, z.CreateTime), 114), ':', '') + '_' + z.ID";
             return $"SELECT TOP (@pageSize) z.Code AS rowCode, z.Name AS rowName, z.UpdateTime AS rowTime, {key} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix AND {key} > @lastKey ORDER BY __lastKey ASC";
         }
 

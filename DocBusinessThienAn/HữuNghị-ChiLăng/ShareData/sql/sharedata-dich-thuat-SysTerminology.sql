@@ -1,3 +1,6 @@
+USE [DEV_ITS015];
+GO
+
 -- =========================================================================================
 -- FILE: sharedata-dich-thuat-SysTerminology.sql
 -- BẢNG GHI: [dbo].[SysTerminology] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
@@ -15,7 +18,7 @@
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 06/11/2026 (thêm khóa câu con có TOP sắp sai cột mốc; xóa khóa sharedata.packetSourceQueryNotSupported không còn dùng); 05/11/2026 (thêm khóa câu nối đuôi dùng OFFSET, câu gộp nhiều nguồn dùng chung mốc, đổi mã đối tác, so cột mốc bằng >=, ngày giờ sai định dạng, cột mốc không dùng biến mốc, cột mốc khác công thức, bộ mã đang dùng, câu ghi riêng để trống); 04/11/2026 (thêm khóa ORDER BY của nhóm mốc, cột mốc chỉ có ngày giờ, cột mốc dùng UpdateTime trơn); 03/11/2026 (bỏ khóa của mốc theo thời gian); 01/11/2026 (ESH-2306 thêm đặt mốc); 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
+-- CẬP NHẬT LẦN CUỐI: 16/11/2026; 06/11/2026 (thêm khóa câu con có TOP sắp sai cột mốc; xóa khóa sharedata.packetSourceQueryNotSupported không còn dùng); 05/11/2026 (thêm khóa câu nối đuôi dùng OFFSET, câu gộp nhiều nguồn dùng chung mốc, đổi mã đối tác, so cột mốc bằng >=, ngày giờ sai định dạng, cột mốc không dùng biến mốc, cột mốc khác công thức, bộ mã đang dùng, câu ghi riêng để trống); 04/11/2026 (thêm khóa ORDER BY của nhóm mốc, cột mốc chỉ có ngày giờ, cột mốc dùng UpdateTime trơn); 03/11/2026 (bỏ khóa của mốc theo thời gian); 01/11/2026 (ESH-2306 thêm đặt mốc); 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -723,8 +726,8 @@ VALUES
      N'The outer ORDER BY sorts by a column that differs from a group''s cursor formula, so rows come out of cursor order. Sort by a column with the [__lastKey_<group>] formula in every branch.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalKeyTimeOnly',
-     N'Cột mốc chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm khóa: CONVERT(varchar(23), <cột thời gian>, 121) + ''_'' + ID.',
-     N'The cursor column holds only a date/time, so rows sharing the same time are skipped. Append a key: CONVERT(varchar(23), <time column>, 121) + ''_'' + ID.'),
+     N'Cột mốc chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm đuôi phân biệt dòng: CONVERT(varchar(8), <cột thời gian>, 112) + REPLACE(CONVERT(varchar(12), <cột thời gian>, 114), '':'', '''') + ''_'' + ID.',
+     N'The cursor column holds only a date/time, so rows sharing the same time are skipped. Append a row key: CONVERT(varchar(8), <time column>, 112) + REPLACE(CONVERT(varchar(12), <time column>, 114), '':'', '''') + ''_'' + ID.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalUpdateTimeEmpty',
      N'Cột mốc dùng UpdateTime trơn nên dòng mới thêm (chưa có UpdateTime) không được gửi. Dùng COALESCE(UpdateTime, CreateTime) ở cả cột mốc và WHERE.',
@@ -735,16 +738,16 @@ VALUES
      N'Compare the cursor with the cursor variable using >; with >= the last row is resent on every run.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalKeyDateUnsortable',
-     N'Cột mốc ghép ngày giờ sai định dạng nên sắp sai thứ tự, có thể bỏ sót dòng. Dùng CONVERT(varchar(23), <cột thời gian>, 121).',
-     N'The cursor column formats its date/time in an unsortable way, so rows can be skipped. Use CONVERT(varchar(23), <time column>, 121).'),
+     N'Cột mốc ghép ngày giờ sai định dạng nên sắp sai thứ tự, có thể bỏ sót dòng. Dùng CONVERT(varchar(8), <cột thời gian>, 112) + REPLACE(CONVERT(varchar(12), <cột thời gian>, 114), '':'', '''').',
+     N'The cursor column formats its date/time in an unsortable way, so rows can be skipped. Use CONVERT(varchar(8), <time column>, 112) + REPLACE(CONVERT(varchar(12), <time column>, 114), '':'', '''').'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalCursorVariableMissing',
      N'Câu có cột mốc nhưng không dùng biến mốc (nguồn Theo Mốc đang chạy) nên lượt nào cũng gửi lại cùng dữ liệu. So cột mốc với biến lastKey trong WHERE, hoặc bỏ cột mốc nếu muốn gửi toàn bộ.',
      N'The query has a cursor column but uses no cursor variable (source: From the running cursor), so every run resends the same data. Compare the cursor column with the lastKey variable in WHERE, or remove the cursor column to send everything.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalKeyFormulaInvalid',
-     N'Cột mốc phải viết đúng công thức CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + ''_'' + ID, phần thời gian phải có CreateTime; viết khác thì có thể bỏ sót dòng.',
-     N'The cursor column must follow CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + ''_'' + ID, and its time part must include CreateTime; otherwise rows can be skipped.'),
+     N'Cột mốc phải viết đúng công thức CONVERT(varchar(8), <thời gian>, 112) + REPLACE(CONVERT(varchar(12), <thời gian>, 114), '':'', '''') + ''_'' + <đuôi>; phần thời gian phải có CreateTime, đuôi không được NULL (cột có thể NULL thì bọc ISNULL(<cột>, '''')).',
+     N'The cursor column must follow CONVERT(varchar(8), <time>, 112) + REPLACE(CONVERT(varchar(12), <time>, 114), '':'', '''') + ''_'' + <tail>; the time part must include CreateTime and the tail must never be NULL (wrap nullable columns in ISNULL(<column>, '''')).'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalOffsetNotAllowed',
      N'Câu nối đuôi không được dùng OFFSET: các dòng bị bỏ qua sẽ không bao giờ được gửi. Giới hạn số dòng bằng TOP.',
@@ -814,10 +817,10 @@ WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupOrderInv
 UPDATE dbo.SysTerminology SET Value = N'The outer ORDER BY sorts by a column that differs from a group''s cursor formula, so rows come out of cursor order. Sort by a column with the [__lastKey_<group>] formula in every branch.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupOrderInvalid' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
 
-UPDATE dbo.SysTerminology SET Value = N'Cột mốc chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm khóa: CONVERT(varchar(23), <cột thời gian>, 121) + ''_'' + ID.', UpdateTime = GETDATE()
+UPDATE dbo.SysTerminology SET Value = N'Cột mốc chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm đuôi phân biệt dòng: CONVERT(varchar(8), <cột thời gian>, 112) + REPLACE(CONVERT(varchar(12), <cột thời gian>, 114), '':'', '''') + ''_'' + ID.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyTimeOnly' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';
 
-UPDATE dbo.SysTerminology SET Value = N'The cursor column holds only a date/time, so rows sharing the same time are skipped. Append a key: CONVERT(varchar(23), <time column>, 121) + ''_'' + ID.', UpdateTime = GETDATE()
+UPDATE dbo.SysTerminology SET Value = N'The cursor column holds only a date/time, so rows sharing the same time are skipped. Append a row key: CONVERT(varchar(8), <time column>, 112) + REPLACE(CONVERT(varchar(12), <time column>, 114), '':'', '''') + ''_'' + ID.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyTimeOnly' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
 
 UPDATE dbo.SysTerminology SET Value = N'Cột mốc dùng UpdateTime trơn nên dòng mới thêm (chưa có UpdateTime) không được gửi. Dùng COALESCE(UpdateTime, CreateTime) ở cả cột mốc và WHERE.', UpdateTime = GETDATE()
@@ -825,6 +828,24 @@ WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalUpdateTimeEmp
 
 UPDATE dbo.SysTerminology SET Value = N'The cursor column uses a bare UpdateTime, so newly inserted rows (no UpdateTime yet) are never sent. Use COALESCE(UpdateTime, CreateTime) in both the cursor column and WHERE.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalUpdateTimeEmpty' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Cột mốc chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm đuôi phân biệt dòng: CONVERT(varchar(8), <cột thời gian>, 112) + REPLACE(CONVERT(varchar(12), <cột thời gian>, 114), '':'', '''') + ''_'' + ID.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyTimeOnly' AND Lang = N'vi-VN' AND Value = N'Cột mốc chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm khóa: CONVERT(varchar(23), <cột thời gian>, 121) + ''_'' + ID.';
+
+UPDATE dbo.SysTerminology SET Value = N'The cursor column holds only a date/time, so rows sharing the same time are skipped. Append a row key: CONVERT(varchar(8), <time column>, 112) + REPLACE(CONVERT(varchar(12), <time column>, 114), '':'', '''') + ''_'' + ID.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyTimeOnly' AND Lang = N'en-US' AND Value = N'The cursor column holds only a date/time, so rows sharing the same time are skipped. Append a key: CONVERT(varchar(23), <time column>, 121) + ''_'' + ID.';
+
+UPDATE dbo.SysTerminology SET Value = N'Cột mốc ghép ngày giờ sai định dạng nên sắp sai thứ tự, có thể bỏ sót dòng. Dùng CONVERT(varchar(8), <cột thời gian>, 112) + REPLACE(CONVERT(varchar(12), <cột thời gian>, 114), '':'', '''').', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyDateUnsortable' AND Lang = N'vi-VN' AND Value = N'Cột mốc ghép ngày giờ sai định dạng nên sắp sai thứ tự, có thể bỏ sót dòng. Dùng CONVERT(varchar(23), <cột thời gian>, 121).';
+
+UPDATE dbo.SysTerminology SET Value = N'The cursor column formats its date/time in an unsortable way, so rows can be skipped. Use CONVERT(varchar(8), <time column>, 112) + REPLACE(CONVERT(varchar(12), <time column>, 114), '':'', '''').', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyDateUnsortable' AND Lang = N'en-US' AND Value = N'The cursor column formats its date/time in an unsortable way, so rows can be skipped. Use CONVERT(varchar(23), <time column>, 121).';
+
+UPDATE dbo.SysTerminology SET Value = N'Cột mốc phải viết đúng công thức CONVERT(varchar(8), <thời gian>, 112) + REPLACE(CONVERT(varchar(12), <thời gian>, 114), '':'', '''') + ''_'' + <đuôi>; phần thời gian phải có CreateTime, đuôi không được NULL (cột có thể NULL thì bọc ISNULL(<cột>, '''')).', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyFormulaInvalid' AND Lang = N'vi-VN' AND Value = N'Cột mốc phải viết đúng công thức CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + ''_'' + ID, phần thời gian phải có CreateTime; viết khác thì có thể bỏ sót dòng.';
+
+UPDATE dbo.SysTerminology SET Value = N'The cursor column must follow CONVERT(varchar(8), <time>, 112) + REPLACE(CONVERT(varchar(12), <time>, 114), '':'', '''') + ''_'' + <tail>; the time part must include CreateTime and the tail must never be NULL (wrap nullable columns in ISNULL(<column>, '''')).', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyFormulaInvalid' AND Lang = N'en-US' AND Value = N'The cursor column must follow CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + ''_'' + ID, and its time part must include CreateTime; otherwise rows can be skipped.';
 
 UPDATE dbo.SysTerminology SET Value = N'Khoá trường không có trong danh sách trường của câu SQL.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlFieldKeyNotFound' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';

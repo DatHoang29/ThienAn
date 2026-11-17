@@ -1,3 +1,6 @@
+USE [DEV_ITS015];
+GO
+
 -- =========================================================================================
 -- FILE: sharedata-seed-goi-tin-ShareDataSql.sql
 -- BẢNG GHI: [dbo].[ShareDataSql] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
@@ -17,7 +20,7 @@
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 13/11/2026 (câu ghi gói 104, 106 đổi thời gian về datetime trước khi so khóa: cột đích datetime so với datetime2 đọc từ JSON không khớp mili-giây lẻ nên mỗi lần gửi lại chèn thêm dòng); 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
+-- CẬP NHẬT LẦN CUỐI: 16/11/2026; 13/11/2026 (câu ghi gói 104, 106 đổi thời gian về datetime trước khi so khóa: cột đích datetime so với datetime2 đọc từ JSON không khớp mili-giây lẻ nên mỗi lần gửi lại chèn thêm dòng); 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -185,7 +188,7 @@ PRINT N'-> 1. Bắt đầu nạp câu mẫu chung vào bảng ShareDataSql (101 
 
 -- Gói 101: TrafficFlow (Incremental)
 DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
-    CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + ''_'' + zs.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), '':'', '''') + ''_'' + zs.ID AS __lastKey,
     zs.ID AS zoneStatusId,
     zs.ZoneId AS zoneId,
     z.Name AS zoneName,
@@ -202,7 +205,7 @@ DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
 FROM dbo.TmsZoneStatus zs
 LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
-WHERE CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + ''_'' + zs.ID > @lastKey
+WHERE CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), '':'', '''') + ''_'' + zs.ID > @lastKey
 ORDER BY __lastKey ASC';
 
 DECLARE @Vars101 NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":2}]';
@@ -280,13 +283,13 @@ DECLARE @Sql103 NVARCHAR(MAX) = N'SELECT TOP 100
     td.EquipmentId AS equipmentId,
     e.KmNumber AS locationKm,
     e.MetNumber AS locationMet,
-    CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + ''_'' + td.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 114), '':'', '''') + ''_'' + td.ID AS __lastKey,
     td.UpdateTime AS __auditUpdate,
     td.CreateTime AS __auditCreate
 FROM TmsTrafficData td
 LEFT JOIN TmsEquipment e ON td.EquipmentId = e.ID
 WHERE td.IsDelete IS NULL
-  AND CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + ''_'' + td.ID > @lastKey
+  AND CONVERT(varchar(8), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 114), '':'', '''') + ''_'' + td.ID > @lastKey
 ORDER BY __lastKey ASC';
 
 UPDATE s
@@ -326,12 +329,12 @@ DECLARE @Sql104 NVARCHAR(MAX) = N'SELECT TOP 100
     w.Description AS weatherDescription,
     w.ShortDescription AS weatherCode,
     w.TimeDetect AS detectTime,
-    CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect), 121) + ''_'' + w.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect), 112) + REPLACE(CONVERT(varchar(12), COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect), 114), '':'', '''') + ''_'' + w.ID AS __lastKey,
     w.UpdateTime AS __auditUpdate,
     w.CreateTime AS __auditCreate
 FROM TmsWeather w
 WHERE w.IsDelete IS NULL
-  AND CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect), 121) + ''_'' + w.ID > @lastKey
+  AND CONVERT(varchar(8), COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect), 112) + REPLACE(CONVERT(varchar(12), COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect), 114), '':'', '''') + ''_'' + w.ID > @lastKey
 ORDER BY __lastKey ASC';
 
 UPDATE s
@@ -408,12 +411,12 @@ DECLARE @Sql106 NVARCHAR(MAX) = N'SELECT TOP 100
     td.Height AS height,
     td.Width AS width,
     td.Length AS length,
-    CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + ''_'' + td.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 114), '':'', '''') + ''_'' + td.ID AS __lastKey,
     td.UpdateTime AS __auditUpdate,
     td.CreateTime AS __auditCreate
 FROM TmsTrafficData td
 WHERE td.IsDelete IS NULL
-  AND CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + ''_'' + td.ID > @lastKey
+  AND CONVERT(varchar(8), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 114), '':'', '''') + ''_'' + td.ID > @lastKey
 ORDER BY __lastKey ASC';
 
 UPDATE s
@@ -455,13 +458,13 @@ DECLARE @Sql107 NVARCHAR(MAX) = N'SELECT TOP 100
     i.State AS incidentState,
     i.Description AS description,
     i.Source AS source,
-    CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime, i.StartDate), 121) + ''_'' + i.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(i.UpdateTime, i.CreateTime, i.StartDate), 112) + REPLACE(CONVERT(varchar(12), COALESCE(i.UpdateTime, i.CreateTime, i.StartDate), 114), '':'', '''') + ''_'' + i.ID AS __lastKey,
     i.UpdateTime AS __auditUpdate,
     i.CreateTime AS __auditCreate
 FROM TmsIncident i
 LEFT JOIN TmsEventType et ON i.EventTypeId = et.ID
 WHERE i.IsDelete IS NULL
-  AND CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime, i.StartDate), 121) + ''_'' + i.ID > @lastKey
+  AND CONVERT(varchar(8), COALESCE(i.UpdateTime, i.CreateTime, i.StartDate), 112) + REPLACE(CONVERT(varchar(12), COALESCE(i.UpdateTime, i.CreateTime, i.StartDate), 114), '':'', '''') + ''_'' + i.ID > @lastKey
 ORDER BY __lastKey ASC';
 
 UPDATE s
@@ -540,14 +543,14 @@ DECLARE @Sql109 NVARCHAR(MAX) = N'SELECT TOP 100
     s.Name AS stationName,
     CAST(NULL AS DECIMAL(18, 2)) AS tollPrice,
     t.SyncTime AS syncTime,
-    CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 121) + ''_'' + t.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 114), '':'', '''') + ''_'' + t.ID AS __lastKey,
     t.UpdateTime AS __auditUpdate,
     t.CreateTime AS __auditCreate
 FROM TollTransactionOut t
 LEFT JOIN TollLane l ON t.LaneId = l.LaneId
 LEFT JOIN TollStation s ON t.StationId = s.StationId
 WHERE t.IsDelete IS NULL
-  AND CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 121) + ''_'' + t.ID > @lastKey
+  AND CONVERT(varchar(8), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 114), '':'', '''') + ''_'' + t.ID > @lastKey
 ORDER BY __lastKey ASC';
 
 UPDATE s
@@ -644,12 +647,12 @@ DECLARE @Sql111 NVARCHAR(MAX) = N'SELECT TOP 100
     CAST(NULL AS INT) AS retryCount,
     CAST(NULL AS NVARCHAR(512)) AS error,
     CAST(NULL AS NVARCHAR(64)) AS partnerId,
-    CONVERT(varchar(23), COALESCE(sl.UpdateTime, sl.CreateTime), 121) + ''_'' + sl.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(sl.UpdateTime, sl.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(sl.UpdateTime, sl.CreateTime), 114), '':'', '''') + ''_'' + sl.ID AS __lastKey,
     sl.UpdateTime AS __auditUpdate,
     sl.CreateTime AS __auditCreate
 FROM TmsSignalLog sl
 WHERE sl.IsDelete IS NULL
-  AND CONVERT(varchar(23), COALESCE(sl.UpdateTime, sl.CreateTime), 121) + ''_'' + sl.ID > @lastKey
+  AND CONVERT(varchar(8), COALESCE(sl.UpdateTime, sl.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(sl.UpdateTime, sl.CreateTime), 114), '':'', '''') + ''_'' + sl.ID > @lastKey
 ORDER BY __lastKey ASC';
 
 UPDATE s

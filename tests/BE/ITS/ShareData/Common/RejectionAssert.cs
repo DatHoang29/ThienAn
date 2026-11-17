@@ -12,9 +12,10 @@ internal static class RejectionAssert
 {
     /// <summary>
     /// Author: DatHQ
-    /// Description: Lỗi mang đúng mã, mã có câu dịch ở tệp seed và câu dịch qua được string.Format.
+    /// Description: Lỗi mang đúng mã, mã có câu dịch ở tệp seed, câu dịch qua được string.Format và vừa cột Value 256 ký tự của SysTerminology.
     ///              Lỗi nối đuôi không được có {0}: màn hình tự dịch không có giá trị thì hiện trống như "[] > @".
     /// Created date: 05/11/2026
+    /// Modified date: 16/11/2026
     /// </summary>
     public static void Rejected(Exception? ex, string errorKey)
     {
@@ -25,6 +26,12 @@ internal static class RejectionAssert
         var (vi, en) = SeedScriptReader.ReadTerminology(errorKey);
         _ = string.Format(vi, "a", "b", "c");
         _ = string.Format(en, "a", "b", "c");
+
+        // Câu dài quá cột Value làm lệnh MERGE của tệp seed dịch thuật lỗi cắt chuỗi, không nạp được câu dịch nào
+        var viText = vi.Replace("''", "'");
+        var enText = en.Replace("''", "'");
+        Assert.True(viText.Length <= 256, $"Câu dịch tiếng Việt của mã {errorKey} dài {viText.Length} ký tự, quá 256.");
+        Assert.True(enText.Length <= 256, $"Câu dịch tiếng Anh của mã {errorKey} dài {enText.Length} ký tự, quá 256.");
 
         if (errorKey.Contains("sqlIncremental", StringComparison.Ordinal))
         {

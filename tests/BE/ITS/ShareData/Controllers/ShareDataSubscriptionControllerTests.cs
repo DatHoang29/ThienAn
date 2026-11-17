@@ -1,6 +1,8 @@
 using FluentValidation;
 using Furion.FriendlyException;
+using Microsoft.Data.SqlClient;
 using Module.ShareData.Core.Constants;
+using Module.ShareData.Core.Dto.Partner;
 using Module.ShareData.Core.Dto.Subscription;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
@@ -266,6 +268,89 @@ public class ShareDataSubscriptionControllerTests(Host host)
         {
             Assert.Null(saved.NextTimeRun);
         }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Chạy một câu SQL trên kết nối giả làm Worker, tham số @id là mã đăng ký, @lease là khóa xử lý Worker ghi.
+    /// Created date: 17/11/2026
+    /// </summary>
+    private static async Task<object?> ExecuteAsWorkerAsync(SqlConnection connection, SqlTransaction transaction, string sql, string subscriptionId, DateTime? lease = null)
+    {
+        await using var command = new SqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("@id", subscriptionId);
+        command.Parameters.AddWithValue("@lease", (object?)lease ?? DBNull.Value);
+        return await command.ExecuteScalarAsync();
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Chờ tới khi có phiên bị phiên spid chặn (API đã đọc dòng và đang chờ ghi); hết 15 giây thì trả false.
+    /// Created date: 17/11/2026
+    /// </summary>
+    private static async Task<bool> WaitUntilBlockedByAsync(string connectionString, short spid)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new SqlCommand("SELECT COUNT(*) FROM sys.dm_exec_requests WHERE blocking_session_id = @spid", connection);
+        command.Parameters.AddWithValue("@spid", spid);
+        for (var waited = 0; waited < 15_000; waited += 50)
+        {
+            var blocked = await command.ExecuteScalarAsync();
+            if (Convert.ToInt32(blocked) > 0) return true;
+            await Task.Delay(50);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Tạm dừng, hủy đăng ký hoặc ngắt kết nối đối tác (tự tạm dừng) đọc dòng đăng ký trước lúc Worker ghi số thứ tự và khóa xử lý,
+    ///              ghi sau lúc đó: chỉ đổi trạng thái, giữ số thứ tự và khóa xử lý Worker vừa ghi (KT005/101: số lùi 11732 → 11731).
+    ///              Giả lập ghi chen: một kết nối riêng giữ UPDLOCK trên dòng nên API đọc được bản cũ nhưng phải chờ khi ghi;
+    ///              trong lúc API chờ, kết nối đó ghi số thứ tự mới như Worker rồi nhả khóa.
+    /// Created date: 17/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("pause", BaseEnums.SubSubscriptionState.Paused)]
+    [InlineData("cancel", BaseEnums.SubSubscriptionState.Cancelled)]
+    [InlineData("disconnect", BaseEnums.SubSubscriptionState.Paused)]
+    public async Task ChangeSubscriptionState_WhenWorkerWritesBetweenReadAndSave_KeepsWorkerColumns_Test(string action, BaseEnums.SubSubscriptionState expected)
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var (partner, datatypeId) = await SeedLifecycleAsync(db);
+        var subscription = await SeedSubscriptionAsync(db, partner, datatypeId, BaseEnums.SubSubscriptionState.Active);
+        await db.Updateable<ShareDataSubscription>().SetColumns(s => s.SerialNbr == 11731).Where(s => s.ID == subscription.ID).ExecuteCommandAsync();
+        var workerLease = new DateTime(2026, 11, 17, 10, 24, 41);
+        var connectionString = db.CurrentConnectionConfig.ConnectionString;
+        await using var worker = new SqlConnection(connectionString);
+        await worker.OpenAsync();
+        await using var transaction = (SqlTransaction)await worker.BeginTransactionAsync();
+        var spidValue = await ExecuteAsWorkerAsync(worker, transaction, "SELECT @@SPID", subscription.ID);
+        var spid = Convert.ToInt16(spidValue);
+        await ExecuteAsWorkerAsync(worker, transaction, "SELECT ID FROM ShareDataSubscription WITH (UPDLOCK, ROWLOCK) WHERE ID = @id", subscription.ID);
+        Task Act() => action switch
+        {
+            "pause" => sp.CallApiAsync(new ShareDataPauseSubscriptionInput { ID = subscription.ID }),
+            "cancel" => sp.CallApiAsync(new ShareDataCancelSubscriptionInput { ID = subscription.ID }),
+            _ => sp.CallApiAsync(new ShareDataDisconnectPartnerInput { ID = partner.ID })
+        };
+
+        // Act
+        var apiCall = Task.Run(Act);
+        var apiWaiting = await WaitUntilBlockedByAsync(connectionString, spid);
+        await ExecuteAsWorkerAsync(worker, transaction, "UPDATE ShareDataSubscription SET SerialNbr = 11732, ProcessingUntil = @lease WHERE ID = @id", subscription.ID, workerLease);
+        await transaction.CommitAsync();
+        await apiCall;
+
+        // Assert
+        var saved = await ReadAsync(db, subscription.ID);
+        Assert.True(apiWaiting, "API không chờ ghi dòng đăng ký đang bị khóa.");
+        Assert.Equal(expected, saved.State);
+        Assert.Equal(11732, saved.SerialNbr);
+        Assert.Equal(workerLease, saved.ProcessingUntil);
     }
 
     /// <summary>

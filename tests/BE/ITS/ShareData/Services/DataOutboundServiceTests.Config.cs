@@ -30,7 +30,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         private static string ZoneCursorSql(string alias = "z", string? timeExpr = null)
         {
             var time = timeExpr ?? $"COALESCE({alias}.UpdateTime, {alias}.CreateTime)";
-            var key = $"CONVERT(varchar(23), {time}, 121) + '_' + {alias}.ID";
+            var key = $"CONVERT(varchar(8), {time}, 112) + REPLACE(CONVERT(varchar(12), {time}, 114), ':', '') + '_' + {alias}.ID";
             return $"SELECT TOP (@pageSize) {alias}.Code AS rowCode, {key} AS __lastKey FROM TmsZone {alias} WHERE {alias}.Code LIKE @prefix AND {key} > @lastKey ORDER BY __lastKey ASC";
         }
 
@@ -165,7 +165,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             }
 
             await db.Insertable(new ShareDataPacket { ID = packetId, Code = packetCode, Name = $"Packet {packetCode}", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
-            var startVariables = ZoneVariables(50, rowPrefix, "2026-10-27 09:30:00.000_");
+            var startVariables = ZoneVariables(50, rowPrefix, "20261027093000000_");
             var commonSql = ZoneCursorSql();
             await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, startVariables);
             await SaveCommonSqlAsync(services, db, packetCode, commonSql);
@@ -196,7 +196,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // Act: tắt đăng ký, sửa bảng tham số và đổi bí danh bảng ở mẫu chung, thêm dòng mới rồi bật lại cả ba
             await SetSubscriptionStateAsync(db, BaseEnums.SubSubscriptionState.Paused, subA.ID);
-            var changedVariables = ZoneVariableInputs(1, rowPrefix, "2026-10-27 11:30:00.000_");
+            var changedVariables = ZoneVariableInputs(1, rowPrefix, "20261027113000000_");
             var aliasedSql = ZoneCursorSql("k");
             var newRowTime = baseTime.AddHours(4);
             await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packetCode, Items = changedVariables });
@@ -334,13 +334,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// <summary>
         /// Author: DatHQ
         /// Description: Đặt mốc bằng ô chọn ngày giờ (chuỗi kết thúc bằng dấu gạch dưới): lượt tới gửi cả dòng đúng thời điểm đó, không gửi dòng trước đó, kể cả chỉ sớm hơn vài mili giây.
-        ///              Mốc lần đầu chọn bằng ô ngày giờ cho kết quả như vậy.
+        ///              Mốc lần đầu chọn bằng ô ngày giờ cho kết quả như vậy. Mốc gõ tay chỉ tới giờ, không đuôi (2026103108) cũng vậy vì so chuỗi vẫn đúng thứ tự.
         /// Created date: 05/11/2026
+        /// Modified date: 16/11/2026
         /// </summary>
         [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task ProcessSubscriptions_WhenStartPickedByTime_IncludesRowAtExactlyThatTime_Test(bool setViaCursorApi)
+        [InlineData(true, "20261031080000000_")]
+        [InlineData(false, "20261031080000000_")]
+        [InlineData(true, "2026103108")]
+        public async Task ProcessSubscriptions_WhenStartPickedByTime_IncludesRowAtExactlyThatTime_Test(bool setViaCursorApi, string pickedKey)
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -354,7 +356,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var picked = new DateTime(2026, 10, 31, 8, 0, 0);
             var beforePicked = picked.AddMilliseconds(-3);
             var afterPicked = picked.AddMinutes(1);
-            const string pickedKey = "2026-10-31 08:00:00.000_";
             await SeedZoneRowAsync(db, rowPrefix, unique, "TRUOC", beforePicked);
             await SeedZoneRowAsync(db, rowPrefix, unique, "DUNG", picked);
             await SeedZoneRowAsync(db, rowPrefix, unique, "SAU", afterPicked);
@@ -605,7 +606,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 new() { ID = emptyId, ZoneId = $"{rowPrefix}R2" }
             }).ExecuteCommandAsync();
 
-            var key = $"CONVERT(varchar(23), {timeExpr}, 121) + '_' + s.ID";
+            var key = $"CONVERT(varchar(8), {timeExpr}, 112) + REPLACE(CONVERT(varchar(12), {timeExpr}, 114), ':', '') + '_' + s.ID";
             await db.Insertable(new ShareDataPacket { ID = packetId, Code = packetCode, Name = $"Packet {packetCode}", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
             var variables = ZoneVariables(10, rowPrefix, null);
             await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, variables);

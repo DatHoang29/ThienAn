@@ -8,8 +8,8 @@ GO
 --             [dbo].[TmsSignalLog], [dbo].[TmsZoneStatus], [dbo].[TmsWeather]
 --           Ngoại lệ Rule 19.103 (một tệp nhiều bảng) và Rule 19.85, cùng lý do với tệp thêm.
 -- DESCRIPTION: Gỡ những gì sharedata-chi-muc-them-BangNguonNoiDuoi.sql đã thêm: chỉ mục
---              [IX_<TênBảng>_CursorKey] rồi cột tính toán [CursorKey]; gỡ luôn tên của bản đầu
---              ([IX_<TênBảng>_ShareDataCursorKey], [ShareDataCursorKey]) nếu còn.
+--              [IX_<TênBảng>_CursorTime] rồi cột tính toán [CursorTime]; gỡ luôn các tên cũ
+--              ([IX_<TênBảng>_CursorKey]/[CursorKey], [IX_<TênBảng>_ShareDataCursorKey]/[ShareDataCursorKey]) nếu còn.
 --              Gỡ xong câu nối đuôi vẫn chạy đúng, chỉ quay lại quét và sắp xếp cả bảng như trước.
 --              Dùng khi: dịch vụ ghi vào bảng báo lỗi 1934 sau khi đánh chỉ mục, CodeFirst báo lỗi vì cột ngoài entity,
 --              hoặc cần đổi biểu thức mốc (gỡ rồi chạy lại tệp thêm).
@@ -17,9 +17,9 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi CSDL đã chạy tệp thêm.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): không có chỉ mục / cột thì bỏ qua.
---           Chỉ gỡ cột [CursorKey] khi đó là cột tính toán; cột thường trùng tên thì giữ nguyên và cảnh báo.
+--           Chỉ gỡ cột [CursorTime]/[CursorKey]/[ShareDataCursorKey] khi đó là cột tính toán; cột thường trùng tên thì giữ nguyên và cảnh báo.
 --           Mỗi lệnh chờ khóa tối đa @ChoKhoaMs rồi báo lỗi 1222; khi đó chạy lại tệp.
--- CẬP NHẬT LẦN CUỐI: 12112026 (đổi tên cột mốc ShareDataCursorKey -> CursorKey, gỡ cả tên cũ)
+-- CẬP NHẬT LẦN CUỐI: 16/11/2026 (thêm gỡ CursorTime và IX_<TênBảng>_CursorTime cùng các tên cũ)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -47,7 +47,7 @@ INSERT INTO @Bang ([Stt], [TenBang]) VALUES
     (6, N'TmsWeather');
 
 DECLARE @TenCot TABLE ([Thu] INT PRIMARY KEY, [CotMoc] SYSNAME);
-INSERT INTO @TenCot ([Thu], [CotMoc]) VALUES (1, N'CursorKey'), (2, N'ShareDataCursorKey');   -- tên hiện tại, tên của bản đầu
+INSERT INTO @TenCot ([Thu], [CotMoc]) VALUES (1, N'CursorTime'), (2, N'CursorKey'), (3, N'ShareDataCursorKey');   -- tên hiện tại và các tên cũ
 
 DECLARE @Stt INT = 0, @Thu INT, @CotMoc SYSNAME, @TenBang SYSNAME, @TenChiMuc SYSNAME, @DoiTuong NVARCHAR(300), @Sql NVARCHAR(MAX);
 

@@ -393,7 +393,7 @@ namespace Tests.ShareData.Services
             var packetCode = $"PKT_BIZ_ERR_{unique}";
             var initialLastTime = new DateTime(2026, 10, 20, 8, 0, 0);
             var rowTime = initialLastTime.AddMinutes(5);
-            var initialKey = $"{initialLastTime:yyyy-MM-dd HH:mm:ss.fff}_";
+            var initialKey = $"{initialLastTime:yyyyMMddHHmmssfff}_";
             var packetId = $"pkt-id-{unique}";
 
             var partner = new ShareDataPartner
@@ -422,8 +422,8 @@ namespace Tests.ShareData.Services
                 UpdateTime = rowTime
             };
             await db.Insertable(packet).ExecuteCommandAsync();
-            await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT TOP 100 CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
-                + $"WHERE ID = '{packetId}' AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC");
+            await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT TOP 100 CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE ID = '{packetId}' AND CONVERT(varchar(8), UpdateTime, 112) + REPLACE(CONVERT(varchar(12), UpdateTime, 114), ':', '') + '_' + ID > @lastKey ORDER BY __lastKey ASC");
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.UpdateTime == rowTime)
                 .Where(p => p.ID == packetId)

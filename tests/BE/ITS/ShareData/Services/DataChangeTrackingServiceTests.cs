@@ -911,7 +911,7 @@ IF @sql <> N'' EXEC sys.sp_executesql @sql;");
                     .FirstAsync();
 
                 Assert.NotNull(checkpoint1);
-                Assert.Equal($"{timeB:yyyy-MM-dd HH:mm:ss.fff}_{carB.ID}", checkpoint1.LastKey);
+                Assert.Equal($"{timeB:yyyyMMddHHmmssfff}_{carB.ID}", checkpoint1.LastKey);
 
                 // Activity log đợt 1 ghi nhận đúng 2 bản ghi (Xe A và Xe B)
                 var logsRun1 = await db.Queryable<ShareDataActivityLog>()
@@ -959,7 +959,7 @@ IF @sql <> N'' EXEC sys.sp_executesql @sql;");
                     .FirstAsync();
 
                 Assert.NotNull(checkpoint2);
-                Assert.Equal($"{timeC:yyyy-MM-dd HH:mm:ss.fff}_{carC.ID}", checkpoint2.LastKey);
+                Assert.Equal($"{timeC:yyyyMMddHHmmssfff}_{carC.ID}", checkpoint2.LastKey);
 
                 // Activity log có thêm lượt chạy thứ 2, và lượt 2 CHỈ gửi đúng 1 bản ghi (Xe C), không gửi lại Xe A, B
                 var logsAll = await db.Queryable<ShareDataActivityLog>()

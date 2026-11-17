@@ -1,3 +1,6 @@
+USE [DEV_ITS015];
+GO
+
 -- =========================================================================================
 -- FILE: sharedata-seed-cau-hinh-SysOpConfig.sql
 -- BẢNG GHI: [dbo].[SysOpConfig] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).

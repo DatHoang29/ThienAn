@@ -55,6 +55,8 @@ description: Single Source of Truth for ThienAn project — P0 safeguards; domai
 | **77** | **Không lồng lời gọi trên một dòng** (19.116) | C#: lời gọi nằm trong tham số của lời gọi khác thì tách mỗi bước thành biến `var`; chuỗi LINQ/SqlSugar xuống dòng không tính. backend §4.31 |
 | **78** | **Spinner loading chuẩn** (20.33) | Mọi `vxe-grid` / `el-table` dùng spinner 8-dots SVG 50px màu primary, chữ "Đang tải..."; bắt buộc test E2E. frontend §12 |
 | **79** | **Báo việc cần làm ghi tên tệp** (19.117) | Cần người dùng chạy, mở tệp nào thì ghi tên tệp kèm link, mã README chỉ đi kèm: `K7 (sharedata-kiem-tai-go-ket-ShareDataSubscription.sql)`; ⛔ báo mã trơn `K1`, `K2`, `D10`. documentation §2 |
+| **80** | **Lỗi phải giả lập được trước khi sửa** (19.118) | Lỗi đã thấy phải dựng lại bằng test theo luồng thật, đỏ trên mã cũ, xanh trên mã mới; ghi chen giả lập bằng khóa dòng CSDL (`UPDLOCK`), ⛔ mock; ⛔ không giả lập được thì không sửa mã. testing §2.9 |
+| **81** | **Cấm tự xử lý conflict Git** (19.119) | Gặp conflict khi `merge`, `rebase`, `cherry-pick`, `checkout`, `pull`, `stash pop/apply` (kể cả tệp binary `.dll`): ⛔ tự chọn `--ours`/`--theirs`, sửa đè, `reset`, `checkout --`, `add` hay `stash drop`; dừng ngay, liệt kê tệp conflict và chờ người dùng cho phép. git §4.9 |
 
 ## Luật cốt lõi theo miền (áp cho mọi mã mới; mã lân cận sai thì không chép theo)
 
