@@ -307,3 +307,11 @@ Khi bạn đổi tài khoản Claude (ví dụ Account 1 chạm giới hạn 5 g
 - Cú pháp: `ddMMyyyy-DatHQ: <Đã sửa gì ở màn hình/chức năng nào, kết quả hành vi mới ngắn gọn, dễ hiểu>`.
 - Ví dụ chuẩn người dùng đưa: `16112026-DatHQ: Đã sửa khung soạn SQL ở màn Cấu hình gói tin. Phóng to trang khung không còn bị ép, thanh kéo kéo được, chỉ chặn chiều cao tối thiểu.`
 - Ghi cụ thể lỗi gì, ở màn hình/chỗ nào, kết quả sau sửa ra sao; tránh nói chung chung hay liệt kê tên file/class kỹ thuật.
+
+## Gortex mất kết nối & nâng cấp (18/11/2026)
+> Phiên mở đúng lúc daemon chưa sẵn sàng thì `gortex mcp` thoát ("daemon is unavailable"), Claude Code báo `CONNECTION_CLOSED` và không tự thử lại
+
+- Xử lý: kiểm `gortex daemon status` (đang chạy, `ready`), rồi người dùng gõ `/mcp` → `gortex` → Reconnect (AI không tự nối lại được). Nhật ký từng phiên nằm ở thư mục cache `claude-cli-nodejs/<dự án>/mcp-logs-gortex/`.
+- Nâng cấp (đã nâng 0.64.7 → 0.64.11 ngày 18/11): lệnh `gortex` ở thư mục bin của Homebrew là script bọc tự viết, ghi cứng đường dẫn phiên bản trong Caskroom. Trình tự: `gortex daemon stop` → dời script ra → `brew upgrade --cask gortex` → trả script, đổi số phiên bản → `gortex daemon start --detach` (lần đầu tự nâng cấu trúc kho chỉ mục, mất vài phút).
+- Muốn tránh lỗi tranh nhau lúc mở phiên thì có `gortex daemon install-service` (launchd giữ daemon chạy sẵn); chưa cài, chờ người dùng chọn.
+- Gortex hỏng thì báo người dùng, không tự đọc mã bằng shell (`gortex-tool-map.md` §2).

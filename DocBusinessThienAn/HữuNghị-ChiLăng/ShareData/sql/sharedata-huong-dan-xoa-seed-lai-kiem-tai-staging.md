@@ -2,7 +2,7 @@
 
 > Áp dụng cho CSDL staging `DEV_ITS015` (CSDL chính) và `DEV_ITS015_Inbound` (CSDL nhận). ⛔ Không chạy trên production.
 > Bảng thứ tự và mô tả từng tệp nằm ở [README.md](README.md) (mục 3D, 3E, 3F); tệp này là danh sách bước để đánh dấu khi làm.
-> Cập nhật: 17/11/2026.
+> Cập nhật: 18/11/2026.
 
 **Kết quả sau khi làm xong:** dữ liệu và cấu hình ShareData được nạp lại từ đầu; 10 đối tác (`PC08`, `TTDHT`, `KT001`–`KT008`) gửi và nhận 8 gói (101–104, 106–109) qua chính WebAPI staging; 6 bảng nguồn đã gỡ chỉ mục mốc cũ `CursorKey`, không dựng `CursorTime` (câu mẫu một tầng không dùng).
 
@@ -16,8 +16,8 @@
 
 - [ ] Có bản build mới, cả ba phần cùng mã ShareData (nhánh `fix/20261117-sharedata-chuan-hoa-moc-noi-duoi`):
   - Worker: zip `ShareDataWorker-clone-<ngày>.zip` mới nhất trong `TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/` (6 thư mục dịch vụ, cách cài ở `DOC-TRUOC-KHI-CHAY.md` trong zip).
-  - WebAPI và FE: publish từ cùng nhánh, có bản sửa ô mốc chiều 17/11 (commit trước khi publish). Ô Đặt mốc và Mốc bắt đầu nhận ngày giờ viết liền 8–17 chữ số (ví dụ `20260101`), hoặc đủ 17 chữ số kèm `_<đuôi>`, đuôi được để trống. Phần sửa này không đụng Worker.
-  - Zip Worker sửa lại lúc 14:44 ngày 17/11 vì máy chủ staging đổi địa chỉ (chuỗi CSDL, NATS trong 6 tệp `appsettings.json` và `DOC-TRUOC-KHI-CHAY.md`). Đã chép zip lên máy chủ trước giờ đó thì chép lại.
+  - WebAPI và FE: publish từ cùng nhánh, có bản sửa ô mốc chiều 17/11 (đầu nhánh WebAPI `74812dc9`, FE `16cd792f`, đã merge vào `dev` sáng 18/11 qua PR #20, #28; publish từ `dev` thì kèm thêm 1 commit WP, 1 commit TMS bản đồ không đụng ShareData; dựng từ bản lấy sạch từ git, không publish từ thư mục làm việc còn DLL core cũ và tệp cấu hình local). Ô Đặt mốc và Mốc bắt đầu nhận ngày giờ viết liền 8–17 chữ số (ví dụ `20260101`), hoặc đủ 17 chữ số kèm `_<đuôi>`, đuôi được để trống. Phần sửa này không đụng Worker.
+  - Zip Worker sửa lại lúc 14:44 ngày 17/11 vì máy chủ staging đổi địa chỉ (chuỗi CSDL, NATS trong 6 tệp `appsettings.json` và `DOC-TRUOC-KHI-CHAY.md`), rồi dựng lại lần cuối lúc 18:09 cùng ngày (commit `74812dc9`, giảm truy vấn lặp ở luồng gửi): lần này chỉ đổi `ShareDataWorker.dll`, `ShareDataWorker.Core.dll` ở 6 thư mục dịch vụ, giữ nguyên `appsettings.json`. Đã chép zip lên máy chủ trước 18:09 ngày 17/11 thì chép lại.
   - **Bắt buộc lên cùng lúc.** Worker và WebAPI cùng tính chữ ký công thức mốc; lệch phiên bản thì Worker coi mốc là không hợp lệ (cảnh báo ESH-1308) và gửi lại từ đầu. Câu mẫu mới dùng mốc dạng `yyyyMMddHHmmssfff_<đuôi>`; WebAPI, FE bản cũ không nhận dạng này ở ô Đặt mốc.
   - WebAPI publish từ HEAD sẽ mang core 16/11; hỏi anh Sơn tệp khóa `TAKeyData.key` trên máy chủ còn dùng được với core mới không. Worker không dùng tệp khóa.
 - [ ] (Nên làm) Backup `DEV_ITS015` và `DEV_ITS015_Inbound`.
@@ -110,7 +110,8 @@ Chạy trên `DEV_ITS015`, giữ tham số mặc định.
 
 - [ ] Kiểm số lượng (chỉ đọc):
   ```sql
-  SELECT COUNT(*) AS SoDoiTac FROM dbo.ShareDataPartner WHERE IsDelete IS NULL;            -- 10
+  SELECT SessionState, COUNT(*) AS SoDoiTac FROM dbo.ShareDataPartner WHERE IsDelete IS NULL
+  GROUP BY SessionState;                                                                   -- SessionState 1: 10
   SELECT Direction, State, COUNT(*) AS SoDangKy
   FROM dbo.ShareDataSubscription WHERE IsDelete IS NULL
   GROUP BY Direction, State;                                                               -- Direction 0, State 1: 80; Direction 1, State 1: 80
@@ -119,6 +120,7 @@ Chạy trên `DEV_ITS015`, giữ tham số mặc định.
 
 ## Bước 7. Bật dịch vụ
 
+- [ ] Sau K1–K4 mà đã ngắt đối tác (K5 hoặc nút Ngắt kết nối trên màn hình) thì chạy K6 [sharedata-kiem-tai-ket-noi-lai.sql](kiem-tai/sharedata-kiem-tai-ket-noi-lai.sql) trên `DEV_ITS015`, giữ mặc định (`@TienToMa = NULL` là toàn bộ đối tác), rồi chạy lại khối kiểm số lượng ở bước 6. Chạy lúc WebAPI còn tắt vì K6 không xóa bộ nhớ đệm WebAPI. Bỏ qua bước này thì Worker không gửi gì: chiều gửi chỉ quét đối tác đã kết nối (`SessionState = 1`) và đăng ký đang chạy (`State = 1`). Nút Kết nối trên màn hình không tự bật lại đăng ký, K6 thì bật. K6 mặc định kết nối mọi đối tác đang bật, kể cả đối tác thử thêm trên màn hình (staging 18/11 có `Test_01` với 2 đăng ký gửi): không muốn gửi cho đối tác đó thì Tắt hoặc xóa nó trên màn hình trước, xem trước danh sách bằng `@ChiXem = 1`.
 - [ ] Bật WebAPI trước.
 - [ ] Bật 6 Worker:
   ```powershell
@@ -151,4 +153,5 @@ Chạy trên `DEV_ITS015`, giữ tham số mặc định.
 | Tệp X, K, I báo lỗi 1222 | Bảng đang bị câu khác giữ khóa; dừng dịch vụ liên quan rồi chạy lại tệp |
 | Worker không lên | Event Viewer → Windows Logs → Application |
 | Cảnh báo ESH-1308 ngay sau khi bật | Worker và WebAPI lệch phiên bản; kiểm lại bước 2 |
+| Bật dịch vụ mà không có gói nào gửi đi, Lịch sử chia sẻ trống | Đối tác đang ngắt kết nối, đăng ký đang tạm dừng (sau K5): chạy K6 [sharedata-kiem-tai-ket-noi-lai.sql](kiem-tai/sharedata-kiem-tai-ket-noi-lai.sql), rồi khởi động lại WebAPI để màn hình thấy trạng thái mới |
 | Màn hình không thấy đối tác mới | Khởi động lại WebAPI (danh sách đối tác đọc qua cache) |
