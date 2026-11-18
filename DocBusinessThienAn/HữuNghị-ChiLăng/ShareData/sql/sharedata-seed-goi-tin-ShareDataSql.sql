@@ -10,17 +10,18 @@ GO
 --              1. Câu mẫu chung (@SqlNNN viết ngay trong tệp này, nguồn duy nhất) khi đang trống, @GhiDeMauGoiTin = 1 (mọi gói)
 --                 hoặc @GhiDeMaGoi = mã gói (riêng một gói, vd N'101' để nạp lại câu mẫu gói 101).
 --              1b. Điền bộ biến (@lastKey, kèm @pageSize nếu câu dùng) cho câu mẫu chung nối đuôi một chuỗi ghép còn trống VariablesJson.
+--              1c. Dò cột kết quả (sys.dm_exec_describe_first_result_set) và điền danh sách trường (FieldsJson, DescribedTime) cho dòng ShareDataSql còn trống.
 --              5. Chuyển câu SQL riêng cũ ở ShareDataMapping.ExtractSql sang ShareDataSql; đổi __rowid -> __lastKey.
 --              0.4 Bộ biến của câu SQL ở cột VariablesJson: chuyển từ bảng cũ ShareDataSqlVariable (bỏ bảng 27/10/2026).
 --              0.5 Khôi phục dòng mẫu chung đã xóa mềm của gói 101 - 111 còn sống mà không còn dòng mẫu chung nào (chỉ mục duy nhất
 --                  PacketId, PartnerId chặn thêm dòng mới), xóa trắng nội dung cũ để bước 1, 1b, 6 nạp lại câu chuẩn.
 --              6. Khối câu ghi chiều nhận (WriteSql, AffectedTables) ở dòng mẫu chung: chuyển từ bảng cũ ShareDataPacketSql,
---                 rồi nạp khối chuẩn Catalog (101 - 109) cho gói chưa có câu ghi. Gộp tệp ShareDataPacketSql cũ (27/10/2026).
+--                 rồi nạp khối chuẩn Catalog (101 - 109) cho gói chưa có câu ghi (hoặc cập nhật nếu câu chưa chặn UPDATE trùng). Gộp tệp ShareDataPacketSql cũ (27/10/2026).
 -- THỨ TỰ CHẠY: 2 / 3 (sau sharedata-seed-goi-tin-ShareDataPacket.sql, vì cần bản ghi gói) (xem README.md cùng thư mục).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 16/11/2026; 13/11/2026 (câu ghi gói 104, 106 đổi thời gian về datetime trước khi so khóa: cột đích datetime so với datetime2 đọc từ JSON không khớp mili-giây lẻ nên mỗi lần gửi lại chèn thêm dòng); 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
+-- CẬP NHẬT LẦN CUỐI: 18/11/2026 (bổ sung WHEN MATCHED AND EXISTS (... EXCEPT ...) chặn UPDATE trùng trên cả 9 gói 101-109 và thêm INSERT TmsEquipment cho gói 108_vmsInfo; thêm bước 1c dò cột tự động sinh FieldsJson và DescribedTime cho câu SQL còn trống); 16/11/2026; 13/11/2026 (câu ghi gói 104, 106 đổi thời gian về datetime trước khi so khóa: cột đích datetime so với datetime2 đọc từ JSON không khớp mili-giây lẻ nên mỗi lần gửi lại chèn thêm dòng); 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -711,6 +712,92 @@ PRINT N'   -> Đã điền bộ biến cho ' + CAST(@FilledVars AS NVARCHAR(10))
 GO
 
 -- -----------------------------------------------------------------------------------------
+-- 1c. DÒ CỘT VÀ ĐIỀN DANH SÁCH TRƯỜNG DỮ LIỆU (FieldsJson) CHO CÂU SQL CÒN TRỐNG (IDEMPOTENT)
+-- -----------------------------------------------------------------------------------------
+-- Gọi sys.dm_exec_describe_first_result_set + MS_Description giống bộ dò cột WebAPI (SqlValidatorHelper + SqlFieldHelper)
+-- để sinh sẵn FieldsJson và DescribedTime cho mọi dòng ShareDataSql còn trống (mẫu chung lẫn câu riêng).
+-- Không chạy dữ liệu nguồn; dòng đã có FieldsJson được giữ nguyên phần nhãn/bắt buộc/bỏ qua đã cấu hình.
+PRINT N'-> 1c. Dò cột và điền danh sách trường dữ liệu (FieldsJson) cho câu SQL còn trống...';
+
+DECLARE @FilledFields INT = 0;
+
+UPDATE s
+SET s.[FieldsJson] = f.[FieldsJson],
+    s.[DescribedTime] = GETDATE(),
+    s.[UpdateTime] = GETDATE()
+FROM [dbo].[ShareDataSql] s
+CROSS APPLY (
+    SELECT CASE
+        WHEN ISJSON(s.[VariablesJson]) = 1 THEN (
+            SELECT STRING_AGG(
+                CAST(
+                    N'@' + v.[Code] + CASE LOWER(ISNULL(v.[DataType], N''))
+                        WHEN N'datetime' THEN N' datetime'
+                        WHEN N'int' THEN N' int'
+                        WHEN N'decimal' THEN N' decimal(38,10)'
+                        ELSE N' nvarchar(max)'
+                    END
+                AS NVARCHAR(MAX)),
+                N', '
+            )
+            FROM OPENJSON(s.[VariablesJson]) WITH (
+                [Code] nvarchar(128) '$.Code',
+                [DataType] nvarchar(64) '$.DataType'
+            ) v
+            WHERE v.[Code] IS NOT NULL
+              AND v.[Code] <> N''
+              AND v.[Code] NOT LIKE N'%[^A-Za-z0-9_]%'
+        )
+        ELSE NULL
+    END AS [Params]
+) prm
+CROSS APPLY (
+    SELECT (
+        SELECT
+            d.[name] AS [key],
+            CASE
+                WHEN LOWER(CASE WHEN CHARINDEX(N'(', d.[system_type_name]) > 0 THEN LEFT(d.[system_type_name], CHARINDEX(N'(', d.[system_type_name]) - 1) ELSE d.[system_type_name] END)
+                     IN (N'int', N'bigint', N'smallint', N'tinyint', N'decimal', N'numeric', N'float', N'real', N'money', N'smallmoney') THEN N'number'
+                WHEN LOWER(CASE WHEN CHARINDEX(N'(', d.[system_type_name]) > 0 THEN LEFT(d.[system_type_name], CHARINDEX(N'(', d.[system_type_name]) - 1) ELSE d.[system_type_name] END)
+                     IN (N'date', N'datetime', N'datetime2', N'smalldatetime', N'datetimeoffset', N'time') THEN N'datetime'
+                WHEN LOWER(d.[system_type_name]) = N'bit' THEN N'bool'
+                ELSE N'string'
+            END AS [type],
+            d.[system_type_name] AS [dbType],
+            CAST(d.[is_nullable] AS bit) AS [nullable],
+            CASE WHEN d.[source_table] IS NOT NULL AND d.[source_column] IS NOT NULL THEN d.[source_table] + N'.' + d.[source_column] ELSE NULL END AS [source],
+            CAST(0 AS bit) AS [lost],
+            LEFT(NULLIF(LTRIM(RTRIM(CAST(ep.[value] AS nvarchar(512)))), N''), 128) AS [label],
+            CAST(0 AS bit) AS [required],
+            CAST(0 AS bit) AS [skip],
+            CAST(NULL AS nvarchar(128)) AS [group],
+            CAST(NULL AS nvarchar(256)) AS [remark],
+            CAST(NULL AS nvarchar(32)) AS [typeOverride]
+        FROM sys.dm_exec_describe_first_result_set(s.[ExtractSql], ISNULL(prm.[Params], N'@pageSize int, @lastKey nvarchar(max)'), 1) d
+        LEFT JOIN sys.extended_properties ep
+               ON ep.[class] = 1
+              AND ep.[name] = N'MS_Description'
+              AND ep.[major_id] = OBJECT_ID(QUOTENAME(ISNULL(d.[source_schema], N'dbo')) + N'.' + QUOTENAME(d.[source_table]))
+              AND ep.[minor_id] = COLUMNPROPERTY(ep.[major_id], d.[source_column], 'ColumnId')
+        WHERE ISNULL(d.[is_hidden], 0) = 0
+          AND d.[error_number] IS NULL
+          AND d.[name] IS NOT NULL
+          AND LEFT(d.[name], 2) <> N'__'
+        ORDER BY d.[column_ordinal]
+        FOR JSON PATH, INCLUDE_NULL_VALUES
+    ) AS [FieldsJson]
+) f
+WHERE s.[IsDelete] IS NULL
+  AND s.[ExtractSql] IS NOT NULL
+  AND LTRIM(RTRIM(s.[ExtractSql])) <> N''
+  AND (s.[FieldsJson] IS NULL OR LTRIM(RTRIM(s.[FieldsJson])) = N'')
+  AND f.[FieldsJson] IS NOT NULL;
+
+SET @FilledFields = @@ROWCOUNT;
+PRINT N'   -> Đã dò cột và điền danh sách trường cho ' + CAST(@FilledFields AS NVARCHAR(10)) + N' câu SQL.';
+GO
+
+-- -----------------------------------------------------------------------------------------
 -- 5. CHUYỂN SQL RIÊNG CŨ VÀ ĐỔI KHÓA CON TRỎ __rowid -> __lastKey (IDEMPOTENT)
 -- -----------------------------------------------------------------------------------------
 PRINT N'-> 5. Chuyển SQL riêng cũ và đổi cột con trỏ __rowid -> __lastKey trong ShareDataSql...';
@@ -825,7 +912,7 @@ END;
 PRINT N'   -> Đã chuyển câu ghi từ bảng cũ ShareDataPacketSql: ' + CAST(@MovedWrite AS NVARCHAR(10)) + N' gói.';
 GO
 
--- 6.3 Nạp khối câu ghi chuẩn Catalog cho gói chưa có câu ghi (hoặc ghi đè khi @GhiDeMauGoiTin = 1).
+-- 6.3 Nạp khối câu ghi chuẩn Catalog cho gói chưa có câu ghi (hoặc chưa chặn UPDATE trùng; ghi đè mọi câu khi @GhiDeMauGoiTin = 1).
 DECLARE @GhiDeMauGoiTin BIT = 0;
 DECLARE @TenantIdWrite NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
 IF @TenantIdWrite IS NULL
@@ -862,7 +949,17 @@ USING (
     GROUP BY zoneId
 ) AS s
    ON t.ID = s.zoneId
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.zoneName, t.Name),
+           COALESCE(s.fromLocationKm, t.FromKmNumber),
+           COALESCE(s.fromLocationMet, t.FromMetNumber),
+           COALESCE(s.toLocationKm, t.ToKmNumber),
+           COALESCE(s.toLocationMet, t.ToMetNumber),
+           COALESCE(s.laneId, t.LaneId),
+           COALESCE(s.speedLimit, t.MaxSpeed)
+    EXCEPT
+    SELECT t.Name, t.FromKmNumber, t.FromMetNumber, t.ToKmNumber, t.ToMetNumber, t.LaneId, t.MaxSpeed
+) THEN
     UPDATE SET t.Name          = ISNULL(s.zoneName, t.Name),
                t.FromKmNumber  = ISNULL(s.fromLocationKm, t.FromKmNumber),
                t.FromMetNumber = ISNULL(s.fromLocationMet, t.FromMetNumber),
@@ -890,7 +987,11 @@ USING (
     GROUP BY zoneId
 ) AS s
    ON t.ZoneId = s.zoneId
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT s.vehicleCount
+    EXCEPT
+    SELECT t.TotalVehicleNumber
+) THEN
     UPDATE SET t.TotalVehicleNumber = s.vehicleCount,
                t.UpdateTime         = @now,
                t.UpdateUId          = @operator
@@ -916,16 +1017,23 @@ USING (
     GROUP BY zoneStatusId
 ) AS s
    ON t.ID = s.zoneStatusId
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.zoneId, t.ZoneId),
+           COALESCE(CONVERT(nvarchar(16), s.averageSpeed), t.AverageSpeed),
+           COALESCE(s.trafficCondition, t.Condition),
+           COALESCE(CONVERT(datetime, s.dataTime), t.UpdateTime)
+    EXCEPT
+    SELECT t.ZoneId, t.AverageSpeed, t.Condition, t.UpdateTime
+) THEN
     UPDATE SET t.ZoneId       = ISNULL(s.zoneId, t.ZoneId),
                t.AverageSpeed = ISNULL(CONVERT(nvarchar(16), s.averageSpeed), t.AverageSpeed),
                t.Condition    = ISNULL(s.trafficCondition, t.Condition),
-               t.UpdateTime   = ISNULL(s.dataTime, @now),
+               t.UpdateTime   = ISNULL(CONVERT(datetime, s.dataTime), @now),
                t.UpdateUId    = @operator
 WHEN NOT MATCHED THEN
     INSERT (ID, ZoneId, AverageSpeed, Condition, UpdateTime, TenantId, CreateTime, CreateUId)
     VALUES (s.zoneStatusId, s.zoneId, CONVERT(nvarchar(16), s.averageSpeed), s.trafficCondition,
-            ISNULL(s.dataTime, @now), @tenantId, @now, @operator)
+            ISNULL(CONVERT(datetime, s.dataTime), @now), @tenantId, @now, @operator)
 OUTPUT $action;');
 
 -- Gói 102: CCTV (2 bảng)
@@ -941,7 +1049,13 @@ USING (
     GROUP BY cameraCode
 ) AS s
    ON t.Code = s.cameraCode
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.locationKm, t.KmNumber),
+           COALESCE(s.locationMet, t.MetNumber),
+           COALESCE(s.direction, t.DirectionId)
+    EXCEPT
+    SELECT t.KmNumber, t.MetNumber, t.DirectionId
+) THEN
     UPDATE SET t.KmNumber    = ISNULL(s.locationKm, t.KmNumber),
                t.MetNumber   = ISNULL(s.locationMet, t.MetNumber),
                t.DirectionId = ISNULL(s.direction, t.DirectionId),
@@ -964,15 +1078,21 @@ USING (
     GROUP BY cameraCode
 ) AS s
    ON t.Code = s.cameraCode
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.cameraName, t.Name),
+           COALESCE(CONVERT(datetime, s.snapshotTime), t.SnapshotTime),
+           COALESCE(s.deviceState, t.DeviceState)
+    EXCEPT
+    SELECT t.Name, t.SnapshotTime, t.DeviceState
+) THEN
     UPDATE SET t.Name         = ISNULL(s.cameraName, t.Name),
-               t.SnapshotTime = ISNULL(s.snapshotTime, t.SnapshotTime),
+               t.SnapshotTime = ISNULL(CONVERT(datetime, s.snapshotTime), t.SnapshotTime),
                t.DeviceState  = ISNULL(s.deviceState, t.DeviceState),
                t.UpdateTime   = @now,
                t.UpdateUId    = @operator
 WHEN NOT MATCHED THEN
     INSERT (ID, Code, DeviceId, Name, SnapshotTime, DeviceState, TenantId, CreateTime, CreateUId)
-    VALUES (CONVERT(nvarchar(64), NEWID()), s.cameraCode, s.cameraCode, s.cameraName, s.snapshotTime,
+    VALUES (CONVERT(nvarchar(64), NEWID()), s.cameraCode, s.cameraCode, s.cameraName, CONVERT(datetime, s.snapshotTime),
             s.deviceState, @tenantId, @now, @operator)
 OUTPUT $action;');
 
@@ -986,7 +1106,12 @@ USING (
     GROUP BY equipmentId
 ) AS s
    ON t.ID = s.equipmentId
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.locationKm, t.KmNumber),
+           COALESCE(s.locationMet, t.MetNumber)
+    EXCEPT
+    SELECT t.KmNumber, t.MetNumber
+) THEN
     UPDATE SET t.KmNumber   = ISNULL(s.locationKm, t.KmNumber),
                t.MetNumber  = ISNULL(s.locationMet, t.MetNumber),
                t.UpdateTime = @now,
@@ -1006,8 +1131,19 @@ USING (
     GROUP BY detectionId
 ) AS s
    ON t.ID = s.detectionId
-WHEN MATCHED THEN
-    UPDATE SET t.DetectTime   = ISNULL(s.detectTime, t.DetectTime),
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(CONVERT(datetime, s.detectTime), t.DetectTime),
+           COALESCE(s.vehicleType, t.Type),
+           COALESCE(s.licensePlate, t.LicensePlate),
+           COALESCE(s.speed, t.Speed),
+           COALESCE(s.lane, t.Lane),
+           COALESCE(s.direction, t.Direction),
+           COALESCE(s.locationRoute, t.Location),
+           COALESCE(s.equipmentId, t.EquipmentId)
+    EXCEPT
+    SELECT t.DetectTime, t.Type, t.LicensePlate, t.Speed, t.Lane, t.Direction, t.Location, t.EquipmentId
+) THEN
+    UPDATE SET t.DetectTime   = ISNULL(CONVERT(datetime, s.detectTime), t.DetectTime),
                t.Type         = ISNULL(s.vehicleType, t.Type),
                t.LicensePlate = ISNULL(s.licensePlate, t.LicensePlate),
                t.Speed        = ISNULL(s.speed, t.Speed),
@@ -1020,7 +1156,7 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
     INSERT (ID, DetectTime, Type, LicensePlate, Speed, Lane, Direction, Location, EquipmentId,
             VendorEventId, TenantId, CreateTime, CreateUId)
-    VALUES (s.detectionId, s.detectTime, s.vehicleType, s.licensePlate, s.speed, s.lane, s.direction,
+    VALUES (s.detectionId, CONVERT(datetime, s.detectTime), s.vehicleType, s.licensePlate, s.speed, s.lane, s.direction,
             s.locationRoute, s.equipmentId, 0, @tenantId, @now, @operator)
 OUTPUT $action;');
 
@@ -1042,7 +1178,21 @@ USING (
     GROUP BY weatherStationId, CONVERT(datetime, detectTime)
 ) AS s
    ON t.RefId = s.weatherStationId AND t.TimeDetect = s.detectTime
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.locationDetail, t.LocationDetail),
+           COALESCE(s.temperature, t.Temperature),
+           COALESCE(s.humidity, t.Hudmidity),
+           COALESCE(s.windSpeed, t.WindSpeed),
+           COALESCE(s.windDirection, t.WindDirection),
+           COALESCE(s.rainfall, t.Rain),
+           COALESCE(s.rainfallHour, t.RainHour),
+           COALESCE(s.visibility, t.Foresight),
+           COALESCE(s.weatherDescription, t.Description),
+           COALESCE(s.weatherCode, t.ShortDescription)
+    EXCEPT
+    SELECT t.LocationDetail, t.Temperature, t.Hudmidity, t.WindSpeed, t.WindDirection,
+           t.Rain, t.RainHour, t.Foresight, t.Description, t.ShortDescription
+) THEN
     UPDATE SET t.LocationDetail   = ISNULL(s.locationDetail, t.LocationDetail),
                t.Temperature      = ISNULL(s.temperature, t.Temperature),
                t.Hudmidity        = ISNULL(s.humidity, t.Hudmidity),
@@ -1073,7 +1223,12 @@ USING (
     GROUP BY licensePlate
 ) AS s
    ON t.LicensePlate = s.licensePlate
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.vehicleBrand, t.Brand),
+           COALESCE(s.vehicleOwner, t.Owner)
+    EXCEPT
+    SELECT t.Brand, t.Owner
+) THEN
     UPDATE SET t.Brand      = ISNULL(s.vehicleBrand, t.Brand),
                t.Owner      = ISNULL(s.vehicleOwner, t.Owner),
                t.UpdateTime = @now,
@@ -1093,13 +1248,25 @@ USING (
     GROUP BY transactionId
 ) AS s
    ON t.TransactionId = s.transactionId
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.tagId, t.TagId),
+           COALESCE(s.licensePlate, t.Plate),
+           COALESCE(s.licensePlate, t.PlateEdit),
+           COALESCE(s.vehicleTypeId, t.VehicleTypeId),
+           COALESCE(CONVERT(datetime, s.entryTime), t.TransactionDateTimeIn),
+           COALESCE(CONVERT(datetime, s.exitTime), t.TransactionDateTime),
+           COALESCE(s.laneId, t.LaneId),
+           COALESCE(s.stationId, t.StationId)
+    EXCEPT
+    SELECT t.TagId, t.Plate, t.PlateEdit, t.VehicleTypeId, t.TransactionDateTimeIn,
+           t.TransactionDateTime, t.LaneId, t.StationId
+) THEN
     UPDATE SET t.TagId                 = ISNULL(s.tagId, t.TagId),
                t.Plate                 = ISNULL(s.licensePlate, t.Plate),
                t.PlateEdit             = ISNULL(s.licensePlate, t.PlateEdit),
                t.VehicleTypeId         = ISNULL(s.vehicleTypeId, t.VehicleTypeId),
-               t.TransactionDateTimeIn = ISNULL(s.entryTime, t.TransactionDateTimeIn),
-               t.TransactionDateTime   = ISNULL(s.exitTime, t.TransactionDateTime),
+               t.TransactionDateTimeIn = ISNULL(CONVERT(datetime, s.entryTime), t.TransactionDateTimeIn),
+               t.TransactionDateTime   = ISNULL(CONVERT(datetime, s.exitTime), t.TransactionDateTime),
                t.LaneId                = ISNULL(s.laneId, t.LaneId),
                t.StationId             = ISNULL(s.stationId, t.StationId),
                t.UpdateTime            = @now,
@@ -1108,7 +1275,7 @@ WHEN NOT MATCHED THEN
     INSERT (ID, TransactionId, TagId, Plate, PlateEdit, VehicleTypeId, TransactionDateTimeIn,
             TransactionDateTime, LaneId, StationId, TenantId, CreateTime, CreateUId)
     VALUES (CONVERT(nvarchar(64), NEWID()), s.transactionId, s.tagId, s.licensePlate, s.licensePlate,
-            s.vehicleTypeId, s.entryTime, s.exitTime, s.laneId, s.stationId, @tenantId, @now, @operator)
+            s.vehicleTypeId, CONVERT(datetime, s.entryTime), CONVERT(datetime, s.exitTime), s.laneId, s.stationId, @tenantId, @now, @operator)
 OUTPUT $action;');
 
 -- Gói 106: WimData (1 bảng)
@@ -1126,7 +1293,14 @@ USING (
    ON t.DetectTime = s.detectTime
   AND ISNULL(t.Lane, N'''') = ISNULL(s.lane, N'''')
   AND ISNULL(t.Location, N'''') = ISNULL(s.locationCode, N'''')
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.speed, t.Speed),
+           COALESCE(s.height, t.Height),
+           COALESCE(s.width, t.Width),
+           COALESCE(s.length, t.Length)
+    EXCEPT
+    SELECT t.Speed, t.Height, t.Width, t.Length
+) THEN
     UPDATE SET t.Speed      = ISNULL(s.speed, t.Speed),
                t.Height     = ISNULL(s.height, t.Height),
                t.Width      = ISNULL(s.width, t.Width),
@@ -1150,7 +1324,11 @@ USING (
     GROUP BY eventTypeId
 ) AS s
    ON t.ID = s.eventTypeId
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT s.eventTypeName
+    EXCEPT
+    SELECT t.Name
+) THEN
     UPDATE SET t.Name       = s.eventTypeName,
                t.UpdateTime = @now,
                t.UpdateUId  = @operator
@@ -1172,10 +1350,26 @@ USING (
     GROUP BY incidentCode
 ) AS s
    ON t.Code = s.incidentCode
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.incidentName, t.Name),
+           COALESCE(s.eventTypeId, t.EventTypeId),
+           COALESCE(CONVERT(datetime, s.occurredTime), t.StartDate),
+           COALESCE(s.locationKm, t.KmNumber),
+           COALESCE(s.locationMet, t.MetNumber),
+           COALESCE(s.locationRoute, t.Location),
+           COALESCE(s.direction, t.InfluenceScope),
+           COALESCE(s.injuredCount, t.InjuredNumber),
+           COALESCE(s.vehicleCount, t.VehicleNumber),
+           COALESCE(s.incidentState, t.State),
+           COALESCE(s.description, t.Description),
+           COALESCE(s.source, t.Source)
+    EXCEPT
+    SELECT t.Name, t.EventTypeId, t.StartDate, t.KmNumber, t.MetNumber, t.Location,
+           t.InfluenceScope, t.InjuredNumber, t.VehicleNumber, t.State, t.Description, t.Source
+) THEN
     UPDATE SET t.Name           = ISNULL(s.incidentName, t.Name),
                t.EventTypeId    = ISNULL(s.eventTypeId, t.EventTypeId),
-               t.StartDate      = ISNULL(s.occurredTime, t.StartDate),
+               t.StartDate      = ISNULL(CONVERT(datetime, s.occurredTime), t.StartDate),
                t.KmNumber       = ISNULL(s.locationKm, t.KmNumber),
                t.MetNumber      = ISNULL(s.locationMet, t.MetNumber),
                t.Location       = ISNULL(s.locationRoute, t.Location),
@@ -1190,7 +1384,7 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
     INSERT (ID, Code, Name, EventTypeId, StartDate, KmNumber, MetNumber, Location, InfluenceScope,
             InjuredNumber, VehicleNumber, State, Description, Source, ProcessMode, TenantId, CreateTime, CreateUId)
-    VALUES (CONVERT(nvarchar(64), NEWID()), s.incidentCode, s.incidentName, s.eventTypeId, s.occurredTime,
+    VALUES (CONVERT(nvarchar(64), NEWID()), s.incidentCode, s.incidentName, s.eventTypeId, CONVERT(datetime, s.occurredTime),
             s.locationKm, s.locationMet, s.locationRoute, s.direction, s.injuredCount, s.vehicleCount,
             s.incidentState, s.description, s.source, N''manual'', @tenantId, @now, @operator)
 OUTPUT $action;');
@@ -1199,36 +1393,57 @@ OUTPUT $action;');
 INSERT INTO @SeedWrites ([PacketCode], [AffectedTables], [WriteSql])
 VALUES ('108_vmsInfo', N'dbo.TmsEquipment, dbo.VmsCurrent', N'MERGE dbo.TmsEquipment WITH (HOLDLOCK) AS t
 USING (
-    SELECT equipmentCode, MAX(locationKm) AS locationKm, MAX(locationMet) AS locationMet,
+    SELECT ISNULL(equipmentCode, vmsName) AS equipmentCode,
+            MAX(vmsName) AS vmsName, MAX(locationKm) AS locationKm, MAX(locationMet) AS locationMet,
             MAX(direction) AS direction, MAX(laneId) AS laneId
     FROM OPENJSON(@records) WITH (
-        equipmentCode nvarchar(64), locationKm int, locationMet int, direction int, laneId nvarchar(32))
-    WHERE equipmentCode IS NOT NULL
-    GROUP BY equipmentCode
+        equipmentCode nvarchar(64), vmsName nvarchar(64), locationKm int, locationMet int, direction int, laneId nvarchar(32))
+    WHERE ISNULL(equipmentCode, vmsName) IS NOT NULL
+    GROUP BY ISNULL(equipmentCode, vmsName)
 ) AS s
    ON t.Code = s.equipmentCode
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.locationKm, t.KmNumber),
+           COALESCE(s.locationMet, t.MetNumber),
+           COALESCE(s.direction, t.DirectionId),
+           COALESCE(s.laneId, t.LaneId)
+    EXCEPT
+    SELECT t.KmNumber, t.MetNumber, t.DirectionId, t.LaneId
+) THEN
     UPDATE SET t.KmNumber    = ISNULL(s.locationKm, t.KmNumber),
                t.MetNumber   = ISNULL(s.locationMet, t.MetNumber),
                t.DirectionId = ISNULL(s.direction, t.DirectionId),
                t.LaneId      = ISNULL(s.laneId, t.LaneId),
                t.UpdateTime  = @now,
                t.UpdateUId   = @operator
+WHEN NOT MATCHED THEN
+    INSERT (ID, Code, Name, KmNumber, MetNumber, DirectionId, LaneId, TenantId, CreateTime, CreateUId)
+    VALUES (CONVERT(nvarchar(64), NEWID()), s.equipmentCode, ISNULL(s.vmsName, s.equipmentCode),
+            s.locationKm, s.locationMet, s.direction, s.laneId, @tenantId, @now, @operator)
 OUTPUT $action;
 
 MERGE dbo.VmsCurrent WITH (HOLDLOCK) AS t
 USING (
     SELECT e.ID AS equipmentId, MAX(r.vmsName) AS vmsName, MAX(r.displayContent) AS displayContent,
             MAX(r.displayImageUrl) AS displayImageUrl, MAX(r.displaySize) AS displaySize,
-            MAX(r.priority) AS priority, MAX(r.executedTime) AS executedTime
+            MAX(r.priority) AS priority, MAX(CONVERT(datetime, r.executedTime)) AS executedTime
     FROM OPENJSON(@records) WITH (
         equipmentCode nvarchar(64), vmsName nvarchar(64), displayContent nvarchar(1024),
         displayImageUrl nvarchar(512), displaySize nvarchar(32), priority int, executedTime datetime2) AS r
-    INNER JOIN dbo.TmsEquipment e ON e.Code = r.equipmentCode
+    INNER JOIN dbo.TmsEquipment e ON e.Code = ISNULL(r.equipmentCode, r.vmsName)
     GROUP BY e.ID
 ) AS s
    ON t.EquipmentId = s.equipmentId
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(s.vmsName, t.Name),
+           s.displayContent,
+           s.displayImageUrl,
+           COALESCE(s.displaySize, t.Size),
+           COALESCE(s.priority, t.Priority),
+           COALESCE(s.executedTime, t.ExecutedDate)
+    EXCEPT
+    SELECT t.Name, t.RowData, t.Url, t.Size, t.Priority, t.ExecutedDate
+) THEN
     UPDATE SET t.Name         = ISNULL(s.vmsName, t.Name),
                t.RowData      = s.displayContent,
                t.Url          = s.displayImageUrl,
@@ -1253,7 +1468,11 @@ USING (
     GROUP BY stationId
 ) AS s
    ON t.StationId = s.stationId
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT s.stationName
+    EXCEPT
+    SELECT t.Name
+) THEN
     UPDATE SET t.Name = s.stationName, t.UpdateTime = @now, t.UpdateUId = @operator
 OUTPUT $action;
 
@@ -1265,7 +1484,11 @@ USING (
     GROUP BY laneId
 ) AS s
    ON t.LaneId = s.laneId
-WHEN MATCHED THEN
+WHEN MATCHED AND EXISTS (
+    SELECT s.laneName
+    EXCEPT
+    SELECT t.Name
+) THEN
     UPDATE SET t.Name = s.laneName, t.UpdateTime = @now, t.UpdateUId = @operator
 OUTPUT $action;
 
@@ -1283,9 +1506,23 @@ USING (
     GROUP BY transactionId
 ) AS s
    ON t.TransactionId = s.transactionId
-WHEN MATCHED THEN
-    UPDATE SET t.TransactionDateTimeIn = ISNULL(s.entryTime, t.TransactionDateTimeIn),
-               t.TransactionDateTime   = ISNULL(s.exitTime, t.TransactionDateTime),
+WHEN MATCHED AND EXISTS (
+    SELECT COALESCE(CONVERT(datetime, s.entryTime), t.TransactionDateTimeIn),
+           COALESCE(CONVERT(datetime, s.exitTime), t.TransactionDateTime),
+           COALESCE(s.vehicleTypeId, t.VehicleTypeId),
+           COALESCE(s.licensePlate, t.Plate),
+           COALESCE(s.licensePlate, t.PlateEdit),
+           COALESCE(s.tagId, t.TagId),
+           COALESCE(s.laneId, t.LaneId),
+           COALESCE(s.stationId, t.StationId),
+           COALESCE(s.tollPrice, t.Price),
+           COALESCE(CONVERT(datetime, s.syncTime), t.SyncTime)
+    EXCEPT
+    SELECT t.TransactionDateTimeIn, t.TransactionDateTime, t.VehicleTypeId, t.Plate, t.PlateEdit,
+           t.TagId, t.LaneId, t.StationId, t.Price, t.SyncTime
+) THEN
+    UPDATE SET t.TransactionDateTimeIn = ISNULL(CONVERT(datetime, s.entryTime), t.TransactionDateTimeIn),
+               t.TransactionDateTime   = ISNULL(CONVERT(datetime, s.exitTime), t.TransactionDateTime),
                t.VehicleTypeId         = ISNULL(s.vehicleTypeId, t.VehicleTypeId),
                t.Plate                 = ISNULL(s.licensePlate, t.Plate),
                t.PlateEdit             = ISNULL(s.licensePlate, t.PlateEdit),
@@ -1293,14 +1530,14 @@ WHEN MATCHED THEN
                t.LaneId                = ISNULL(s.laneId, t.LaneId),
                t.StationId             = ISNULL(s.stationId, t.StationId),
                t.Price                 = ISNULL(s.tollPrice, t.Price),
-               t.SyncTime              = ISNULL(s.syncTime, t.SyncTime),
+               t.SyncTime              = ISNULL(CONVERT(datetime, s.syncTime), t.SyncTime),
                t.UpdateTime            = @now,
                t.UpdateUId             = @operator
 WHEN NOT MATCHED THEN
     INSERT (ID, TransactionId, TransactionDateTimeIn, TransactionDateTime, VehicleTypeId, Plate, PlateEdit,
             TagId, LaneId, StationId, Price, SyncTime, TenantId, CreateTime, CreateUId)
-    VALUES (CONVERT(nvarchar(64), NEWID()), s.transactionId, s.entryTime, s.exitTime, s.vehicleTypeId,
-            s.licensePlate, s.licensePlate, s.tagId, s.laneId, s.stationId, s.tollPrice, s.syncTime,
+    VALUES (CONVERT(nvarchar(64), NEWID()), s.transactionId, CONVERT(datetime, s.entryTime), CONVERT(datetime, s.exitTime), s.vehicleTypeId,
+            s.licensePlate, s.licensePlate, s.tagId, s.laneId, s.stationId, s.tollPrice, CONVERT(datetime, s.syncTime),
             @tenantId, @now, @operator)
 OUTPUT $action;');
 
@@ -1313,7 +1550,8 @@ JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId] AND p.[IsDelete] IS NULL
 JOIN @SeedWrites src ON src.[PacketCode] = p.[Code]
 WHERE s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[WriteSql] IS NULL OR LTRIM(RTRIM(s.[WriteSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR s.[WriteSql] IS NULL OR LTRIM(RTRIM(s.[WriteSql])) = ''
+       OR CHARINDEX(N'WHEN MATCHED AND EXISTS', s.[WriteSql]) = 0);
 DECLARE @WriteUpdated INT = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [WriteSql], [AffectedTables], [TenantId], [CreateTime], [CreateUId])

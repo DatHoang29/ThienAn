@@ -438,23 +438,27 @@ namespace Tests.ShareData.Performance
 
         /// <summary>
         /// Author: DatHQ
-        /// Description: Đo tải đọc của cấu hình kiểm tải staging trên bảng nguồn lớn nhất: chạy đúng câu mẫu gói 103, 106 đọc từ tệp seed ShareDataSql
-        ///              (một tầng, công thức PA1 112 + 114) trên bảng tạm cùng cấu trúc TmsTrafficData, số dòng như staging 17/11/2026, ở 3 vị trí mốc
-        ///              (chưa có mốc, đã gửi một nửa, không có dòng mới). Mỗi lượt trả đúng trang 100 dòng sau mốc nhưng phải duyệt cả bảng vì lọc trên biểu thức.
-        ///              Ghi ra số trang đọc, dòng duyệt, tràn tempdb mỗi lượt và nhân theo số đăng ký × chu kỳ ra tải đọc mỗi phút của
-        ///              cấu hình 10 đối tác (chu kỳ 30–120 giây) so với 52 đối tác (15–60 giây). Đo trên CSDL local nên không phản ánh % đĩa máy chủ.
+        /// Description: Đo tải đọc Trước vs Sau (Mức 1: 1 tầng có chặn dưới và Mức 2: 2 tầng WITH TIES) trên bảng tạm cùng cấu trúc TmsTrafficData
+        ///              (342.036 dòng như staging 17/11/2026, có LEFT JOIN TmsEquipment), kiểm tra cả đuôi chuẩn (td.ID) và đuôi động (ISNULL(td.Lane, '') + '_' + td.ID)
+        ///              tại 4 vị trí mốc (0%, 50%, 99,97% còn 100 dòng, 100% không có dòng mới).
         /// Created date: 17/11/2026
+        /// Modified date: 18/11/2026
         /// </summary>
         [Fact(Skip = "Đo tải trên bảng tạm 342 nghìn dòng, chạy khoảng 1 phút — bỏ Skip khi cần đo lại; đổi số dòng bằng biến môi trường SHAREDATA_PERF_ROWS.")]
         [Trait("Feature", "Performance")]
         public async Task LoadProfile_WhenTrafficDataTemplatesRunOneTier_ScanWholeTableEveryRun_Test()
         {
-            // Arrange: bảng tạm cùng cột TmsTrafficData, TmsEquipment; câu mẫu 103, 106 lấy nguyên văn từ tệp seed, chỉ đổi tên bảng sang bảng tạm
+            // Arrange: bảng tạm cùng cột TmsTrafficData, TmsEquipment; đối chiếu câu mẫu 103 từ tệp seed
             var configuredRows = Environment.GetEnvironmentVariable(RowCountVariable);
             var rowCount = int.TryParse(configuredRows, NumberStyles.Integer, CultureInfo.InvariantCulture, out var configured) && configured >= 10_000
                 ? configured
                 : StagingTrafficDataRows;
-            var connectionString = _host.Services.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
+            var seed103 = SeedScriptReader.GetExtractSql("103");
+            var tempSeed103 = ToTempTables(seed103);
+            Assert.Contains("FROM #TmsTrafficData td", tempSeed103, StringComparison.Ordinal);
+
+            var configuration = _host.Services.GetRequiredService<IConfiguration>();
+            var connectionString = configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Thiếu ConnectionStrings:DefaultConnection trong appsettings.Test.json.");
             await using var conn = new SqlConnection(connectionString);
             var messages = new List<string>();
@@ -470,61 +474,143 @@ namespace Tests.ShareData.Performance
             };
             await conn.OpenAsync();
             await SeedTrafficDataAsync(conn, rowCount);
-            var templates = new List<(string Code, string Sql)>();
-            foreach (var code in new[] { "103", "106" })
-            {
-                var seedSql = SeedScriptReader.GetExtractSql(code);
-                templates.Add((code, ToTempTables(seedSql)));
-            }
-            var middleKey = await ReadTrafficKeyAsync(conn, rowCount / 2);
-            var lastKey = await ReadTrafficKeyAsync(conn, rowCount);
-            var positions = new[] { (Name: "chưa có mốc", Key: string.Empty, Expected: PageSize), (Name: "đã gửi một nửa", Key: middleKey, Expected: PageSize), (Name: "không có dòng mới", Key: lastKey, Expected: 0) };
-            await ExecuteAsync(conn, "SET STATISTICS IO ON; SET STATISTICS XML ON;");
-            var results = new List<(string Code, string Position, int Rows, long Reads, long RowsRead, bool Spill, string Plan, int Expected, string Cursor, string? NextKey)>();
 
-            // Act
-            foreach (var (code, sql) in templates)
+            var tails = new (string Name, string Expr)[]
             {
-                foreach (var position in positions)
+                ("Đuôi chuẩn (ID)", "td.ID"),
+                ("Đuôi động (Lane + ID)", "ISNULL(td.Lane, '') + '_' + td.ID")
+            };
+            var cursorPositionsByTail = new Dictionary<string, (string Name, string Key, int Expected)[]>(StringComparer.Ordinal);
+            foreach (var (tailName, tailExpr) in tails)
+            {
+                var middleKey = await ReadTrafficKeyAsync(conn, rowCount / 2, tailExpr);
+                var endKey = await ReadTrafficKeyAsync(conn, rowCount - PageSize, tailExpr);
+                var lastKey = await ReadTrafficKeyAsync(conn, rowCount, tailExpr);
+                cursorPositionsByTail[tailName] =
+                [
+                    ("0% · Chưa có mốc", string.Empty, PageSize),
+                    ("50% · Đã gửi một nửa", middleKey, PageSize),
+                    ("99,97% · Chạy định kỳ (còn 100 dòng)", endKey, PageSize),
+                    ("100% · Không có dòng mới", lastKey, 0)
+                ];
+            }
+
+            const string beforeMode = "Trước (1 tầng gốc)";
+            const string level1Mode = "Sau · Mức 1 (1 tầng + chặn dưới)";
+            const string level2Mode = "Sau · Mức 2 (2 tầng WITH TIES)";
+            var results = new List<TrafficBenchmarkResult>();
+
+            // Act 1: Trước — câu 1 tầng gốc, chưa có cột CursorTime và chưa có chỉ mục IX_TmsTrafficData_CursorTime
+            foreach (var (tailName, tailExpr) in tails)
+            {
+                var beforeSql = BuildTraffic103Sql(tailExpr, "baseline");
+                var positions = cursorPositionsByTail[tailName];
+                foreach (var pos in positions)
                 {
-                    lock (messages)
-                    {
-                        messages.Clear();
-                    }
-                    var parameters = new[] { new SqlParameter("@lastKey", SqlDbType.NVarChar, 4000) { Value = position.Key } };
-                    var run = await QueryAsync(conn, $"/* {code} {position.Name} */ {sql}", parameters);
-                    var planXml = new[] { run.PlanXml };
-                    var (rowsRead, plan) = SummarizePlans(planXml);
-                    var spill = run.PlanXml != null && run.PlanXml.Contains("SpillToTempDb", StringComparison.Ordinal);
-                    long reads;
-                    lock (messages)
-                    {
-                        reads = messages
-                            .SelectMany(m => IoStatistics.Matches(m))
-                            .Sum(m => long.Parse(m.Groups["reads"].Value, CultureInfo.InvariantCulture));
-                    }
-                    var nextKey = run.Rows.LastOrDefault()?.LastKey;
-                    results.Add((code, position.Name, run.Rows.Count, reads, rowsRead, spill, plan, position.Expected, position.Key, nextKey));
+                    var measured = await MeasureTrafficScenarioAsync(
+                        conn, messages, beforeMode, tailName, pos.Name, pos.Expected, pos.Key, beforeSql);
+                    results.Add(measured);
                 }
             }
 
-            // Assert
+            // Bổ sung cột tính toán chỉ chứa phần thời gian 17 ký tự và chỉ mục (đuôi vẫn động 100%)
+            var columnTimePart = TimePart("varchar", string.Empty);
+            var indexSql = $"""
+                ALTER TABLE #TmsTrafficData ADD CursorTime AS ({columnTimePart});
+                CREATE NONCLUSTERED INDEX IX_TmsTrafficData_CursorTime ON #TmsTrafficData (CursorTime) INCLUDE (IsDelete);
+                """;
+            await ExecuteAsync(conn, indexSql, 600);
+
+            // Act 2 & 3: Sau Mức 1 (1 tầng + chặn dưới) và Sau Mức 2 (2 tầng WITH TIES)
+            foreach (var (tailName, tailExpr) in tails)
+            {
+                var level1Sql = BuildTraffic103Sql(tailExpr, "lower-bound");
+                var level2Sql = BuildTraffic103Sql(tailExpr, "two-tier");
+                var positions = cursorPositionsByTail[tailName];
+                foreach (var pos in positions)
+                {
+                    var m1 = await MeasureTrafficScenarioAsync(
+                        conn, messages, level1Mode, tailName, pos.Name, pos.Expected, pos.Key, level1Sql);
+                    var m2 = await MeasureTrafficScenarioAsync(
+                        conn, messages, level2Mode, tailName, pos.Name, pos.Expected, pos.Key, level2Sql);
+                    results.Add(m1);
+                    results.Add(m2);
+                }
+            }
+
+            // Báo cáo bảng Markdown tổng hợp Trước vs Sau (Mức 1 & Mức 2)
+            var report = new StringBuilder();
+            report.AppendLine(CultureInfo.InvariantCulture, $"Bảng nguồn #TmsTrafficData: {rowCount:N0} dòng, cỡ trang {PageSize} dòng, nối #TmsEquipment.");
+            report.AppendLine("| Đuôi khóa | Phương án | Vị trí mốc | Dòng trả | Trang đọc (8 KB) | Dòng duyệt | Tràn tempdb | Trung vị (ms) | Kế hoạch thực thi |");
+            report.AppendLine("|---|---|---|---:|---:|---:|:---:|---:|---|");
             foreach (var r in results)
             {
-                _output.WriteLine($"Gói {r.Code} | {r.Position}: trả {r.Rows} dòng, đọc {r.Reads:N0} trang, duyệt {r.RowsRead:N0} dòng, tràn tempdb {(r.Spill ? "có" : "không")}; {r.Plan}");
+                var spillText = r.Spill ? "Có" : "Không";
+                report.AppendLine(CultureInfo.InvariantCulture, $"| {r.TailName} | {r.Mode} | {r.PositionName} | {r.RowKeys.Count} | {r.LogicalReads:N0} | {r.RowsRead:N0} | {spillText} | {r.MedianMs:F2} | {r.Plan} |");
             }
-            var averageReads = results.Average(r => r.Reads);
+
             var newRunsPerMinute = TrafficRunsPerMinute(rootPartners: 2, loadPartners: 8, LoadTestCyclesNow);
             var oldRunsPerMinute = TrafficRunsPerMinute(rootPartners: 2, loadPartners: 50, LoadTestCyclesBefore);
-            _output.WriteLine($"{rowCount:N0} dòng, trung bình {averageReads:N0} trang (8 KB) mỗi lượt gói 103/106.");
-            _output.WriteLine($"10 đối tác, chu kỳ {string.Join("/", LoadTestCyclesNow)} giây: {newRunsPerMinute:N1} lượt/phút, {newRunsPerMinute * averageReads:N0} trang/phút (~{newRunsPerMinute * averageReads * 8 / 1024:N0} MB/phút nếu đọc từ đĩa).");
-            _output.WriteLine($"52 đối tác, chu kỳ {string.Join("/", LoadTestCyclesBefore)} giây: {oldRunsPerMinute:N1} lượt/phút, {oldRunsPerMinute * averageReads:N0} trang/phút (~{oldRunsPerMinute * averageReads * 8 / 1024:N0} MB/phút nếu đọc từ đĩa).");
-            Assert.All(templates, t => Assert.DoesNotContain(" TmsTrafficData ", t.Sql, StringComparison.Ordinal));
-            Assert.All(results, r => Assert.Equal(r.Expected, r.Rows));
-            var stalled = results.Where(r => r.Rows > 0 && string.CompareOrdinal(r.NextKey, r.Cursor) <= 0).ToList();
-            Assert.Empty(stalled);
-            Assert.All(results, r => Assert.True(r.RowsRead >= rowCount, $"Gói {r.Code} | {r.Position}: chỉ duyệt {r.RowsRead:N0}/{rowCount:N0} dòng, câu một tầng đã dùng được chỉ mục."));
-            Assert.True(newRunsPerMinute * 4 < oldRunsPerMinute, $"Cấu hình 10 đối tác chạy {newRunsPerMinute:N1} lượt/phút, 52 đối tác {oldRunsPerMinute:N1}.");
+            report.AppendLine();
+            foreach (var mode in new[] { beforeMode, level1Mode, level2Mode })
+            {
+                var steadyRows = results
+                    .Where(r => r.Mode == mode && (r.PositionName.StartsWith("99,97%", StringComparison.Ordinal) || r.PositionName.StartsWith("100%", StringComparison.Ordinal)))
+                    .ToList();
+                var steadyReads = steadyRows.Average(r => r.LogicalReads);
+                var newPagesPerMin = newRunsPerMinute * steadyReads;
+                var newMbPerMin = newPagesPerMin * 8 / 1024;
+                var oldPagesPerMin = oldRunsPerMinute * steadyReads;
+                var oldMbPerMin = oldPagesPerMin * 8 / 1024;
+                report.AppendLine(CultureInfo.InvariantCulture, $"- {mode} (chạy định kỳ/rỗi, TB {steadyReads:N1} trang/lượt): 10 ĐT ({newRunsPerMinute:F1} lượt/phút) = {newPagesPerMin:N0} trang/phút (~{newMbPerMin:N1} MB/phút); 52 ĐT ({oldRunsPerMinute:F1} lượt/phút) = {oldPagesPerMin:N0} trang/phút (~{oldMbPerMin:N1} MB/phút).");
+            }
+            var reportText = report.ToString();
+            _output.WriteLine(reportText);
+
+            // Assert: đúng dữ liệu & NextKey ở cả 3 cách; Mức 1 Seek khi định kỳ/rỗi; Mức 2 Seek/đọc <= 1.000 dòng ở cả 4 vị trí
+            foreach (var r in results)
+            {
+                Assert.Equal(r.ExpectedCount, r.RowKeys.Count);
+                if (r.RowKeys.Count > 0)
+                {
+                    var keyComparison = string.CompareOrdinal(r.NextKey, r.Cursor);
+                    Assert.True(keyComparison > 0, $"[{r.Mode} | {r.TailName} | {r.PositionName}] NextKey không tiến qua mốc.");
+                }
+            }
+
+            foreach (var (tailName, _) in tails)
+            {
+                var positions = cursorPositionsByTail[tailName];
+                foreach (var pos in positions)
+                {
+                    var atSlot = results.Where(r => r.TailName == tailName && r.PositionName == pos.Name).ToList();
+                    var baseline = atSlot.Single(r => r.Mode == beforeMode);
+                    var level1 = atSlot.Single(r => r.Mode == level1Mode);
+                    var level2 = atSlot.Single(r => r.Mode == level2Mode);
+
+                    var level1SameRows = baseline.RowKeys.SequenceEqual(level1.RowKeys);
+                    var level2SameRows = baseline.RowKeys.SequenceEqual(level2.RowKeys);
+                    Assert.True(level1SameRows, $"Mức 1 khác danh sách dòng tại {tailName} | {pos.Name}.");
+                    Assert.True(level2SameRows, $"Mức 2 khác danh sách dòng tại {tailName} | {pos.Name}.");
+                    Assert.Equal(baseline.NextKey, level1.NextKey);
+                    Assert.Equal(baseline.NextKey, level2.NextKey);
+
+                    Assert.True(baseline.RowsRead >= rowCount, $"Trước phải duyệt cả bảng tại {tailName} | {pos.Name}, thực tế {baseline.RowsRead:N0}.");
+
+                    var isSteady = pos.Name.StartsWith("99,97%", StringComparison.Ordinal);
+                    var isIdle = pos.Name.StartsWith("100%", StringComparison.Ordinal);
+                    if (isSteady || isIdle)
+                    {
+                        Assert.Contains("Index Seek (IX_TmsTrafficData_CursorTime)", level1.Plan, StringComparison.Ordinal);
+                        Assert.True(level1.RowsRead <= 1_000, $"Mức 1 duyệt {level1.RowsRead:N0} dòng tại {tailName} | {pos.Name}.");
+                    }
+
+                    var isStart = pos.Name.StartsWith("0%", StringComparison.Ordinal);
+                    var expectedL2Op = isStart ? "IX_TmsTrafficData_CursorTime" : "Index Seek (IX_TmsTrafficData_CursorTime)";
+                    Assert.Contains(expectedL2Op, level2.Plan, StringComparison.Ordinal);
+                    Assert.True(level2.RowsRead <= 1_000, $"Mức 2 duyệt {level2.RowsRead:N0} dòng tại {tailName} | {pos.Name}.");
+                }
+            }
         }
 
         /// <summary>Số dòng TmsTrafficData trên staging ngày 17/11/2026.</summary>
@@ -579,14 +665,15 @@ namespace Tests.ShareData.Performance
             await ExecuteAsync(conn, sql, 1800);
         }
 
-        /// <summary>Mốc PA1 của dòng thứ rowNumber theo thứ tự mốc (cùng công thức câu mẫu 103, 106).</summary>
-        private static async Task<string> ReadTrafficKeyAsync(SqlConnection conn, int rowNumber)
+        /// <summary>Mốc PA1 của dòng thứ rowNumber theo thứ tự mốc ứng với biểu thức đuôi truyền vào.</summary>
+        private static async Task<string> ReadTrafficKeyAsync(SqlConnection conn, int rowNumber, string tail = "td.ID")
         {
             var timePart = TimePart("varchar", "td.");
+            var cursorKey = $"{timePart} + '_' + {tail}";
             var sql = $"""
                 SELECT x.__lastKey
                 FROM (
-                    SELECT {timePart} + '_' + td.ID AS __lastKey, ROW_NUMBER() OVER (ORDER BY {timePart} + '_' + td.ID) AS rn
+                    SELECT {cursorKey} AS __lastKey, ROW_NUMBER() OVER (ORDER BY {cursorKey}) AS rn
                     FROM #TmsTrafficData td
                     WHERE td.IsDelete IS NULL
                 ) x
@@ -597,6 +684,161 @@ namespace Tests.ShareData.Performance
             cmd.Parameters.Add(rowParameter);
             var key = await cmd.ExecuteScalarAsync();
             return Assert.IsType<string>(key);
+        }
+
+        private sealed record TrafficBenchmarkResult(
+            string Mode,
+            string TailName,
+            string PositionName,
+            int ExpectedCount,
+            string Cursor,
+            IReadOnlyList<string> RowKeys,
+            string? NextKey,
+            long LogicalReads,
+            long RowsRead,
+            bool Spill,
+            double MedianMs,
+            string Plan);
+
+        /// <summary>Tạo biến thể câu gói 103 trên #TmsTrafficData: baseline (1 tầng gốc), lower-bound (Mức 1), two-tier (Mức 2).</summary>
+        private static string BuildTraffic103Sql(string tail, string tierMode)
+        {
+            var timePart = TimePart("varchar", "td.");
+            var cursorKey = $"{timePart} + '_' + {tail}";
+            const string columns = """
+                    td.ID AS detectionId,
+                    td.DetectTime AS detectTime,
+                    td.Type AS vehicleType,
+                    td.LicensePlate AS licensePlate,
+                    td.Speed AS speed,
+                    td.Lane AS lane,
+                    td.Direction AS direction,
+                    td.Location AS locationRoute,
+                    td.EquipmentId AS equipmentId,
+                    e.KmNumber AS locationKm,
+                    e.MetNumber AS locationMet,
+                """;
+            const string auditColumns = """
+                    td.UpdateTime AS __auditUpdate,
+                    td.CreateTime AS __auditCreate
+                """;
+            if (tierMode == "two-tier")
+            {
+                return $"""
+                    SELECT TOP (@pageSize)
+                        p.detectionId,
+                        p.detectTime,
+                        p.vehicleType,
+                        p.licensePlate,
+                        p.speed,
+                        p.lane,
+                        p.direction,
+                        p.locationRoute,
+                        p.equipmentId,
+                        p.locationKm,
+                        p.locationMet,
+                        p.__lastKey,
+                        p.__auditUpdate,
+                        p.__auditCreate
+                    FROM (
+                        SELECT TOP (@pageSize) WITH TIES
+                    {columns}
+                            {cursorKey} AS __lastKey,
+                    {auditColumns}
+                        FROM #TmsTrafficData td
+                        LEFT JOIN #TmsEquipment e ON td.EquipmentId = e.ID
+                        WHERE td.IsDelete IS NULL
+                          AND {timePart} >= CONVERT(varchar(17), LEFT(@lastKey, 17))
+                          AND {cursorKey} > @lastKey
+                        ORDER BY {timePart} ASC
+                    ) p
+                    ORDER BY p.__lastKey ASC
+                    """;
+            }
+
+            var lowerBound = tierMode == "lower-bound"
+                ? $"\n  AND {timePart} >= CONVERT(varchar(17), LEFT(@lastKey, 17))"
+                : string.Empty;
+            var recompile = tierMode == "lower-bound" ? "\nOPTION (RECOMPILE)" : string.Empty;
+            return $"""
+                SELECT TOP (@pageSize)
+                {columns}
+                    {cursorKey} AS __lastKey,
+                {auditColumns}
+                FROM #TmsTrafficData td
+                LEFT JOIN #TmsEquipment e ON td.EquipmentId = e.ID
+                WHERE td.IsDelete IS NULL{lowerBound}
+                  AND {cursorKey} > @lastKey
+                ORDER BY __lastKey ASC{recompile}
+                """;
+        }
+
+        /// <summary>Đo 1 lượt STATISTICS IO + XML (warmup) và TimingRuns lần đo thời gian thuần cho một kịch bản kiểm tải.</summary>
+        private static async Task<TrafficBenchmarkResult> MeasureTrafficScenarioAsync(
+            SqlConnection conn,
+            List<string> messages,
+            string mode,
+            string tailName,
+            string positionName,
+            int expectedCount,
+            string lastKey,
+            string sql)
+        {
+            var taggedSql = $"/* traffic {mode} | {tailName} | {positionName} */ {sql}";
+            await ExecuteAsync(conn, "SET STATISTICS IO ON; SET STATISTICS XML ON;");
+            lock (messages)
+            {
+                messages.Clear();
+            }
+
+            var statsParams = BuildCursorKeyParameters(lastKey);
+            var statsRun = await QueryAsync(conn, taggedSql, statsParams);
+            await ExecuteAsync(conn, "SET STATISTICS XML OFF; SET STATISTICS IO OFF;");
+
+            long logicalReads = 0;
+            lock (messages)
+            {
+                foreach (var message in messages)
+                {
+                    var matches = IoStatistics.Matches(message);
+                    foreach (Match match in matches)
+                    {
+                        logicalReads += long.Parse(match.Groups["reads"].Value, CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+
+            var planXmlList = new[] { statsRun.PlanXml };
+            var (rowsRead, plan) = SummarizePlans(planXmlList);
+            var spill = statsRun.PlanXml != null && statsRun.PlanXml.Contains("SpillToTempDb", StringComparison.Ordinal);
+            var rowKeys = statsRun.Rows.Select(r => r.LastKey ?? string.Empty).ToList();
+            var nextKey = rowKeys.LastOrDefault();
+
+            var timings = new List<double>();
+            for (var i = 0; i < TimingRuns; i++)
+            {
+                var timedParams = BuildCursorKeyParameters(lastKey);
+                var watch = Stopwatch.StartNew();
+                await QueryAsync(conn, taggedSql, timedParams);
+                watch.Stop();
+                timings.Add(watch.Elapsed.TotalMilliseconds);
+            }
+            timings.Sort();
+            var medianMs = timings[timings.Count / 2];
+
+            return new TrafficBenchmarkResult(
+                mode,
+                tailName,
+                positionName,
+                expectedCount,
+                lastKey,
+                rowKeys,
+                nextKey,
+                logicalReads,
+                rowsRead,
+                spill,
+                medianMs,
+                plan);
         }
 
         private enum CursorShape

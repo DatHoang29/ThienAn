@@ -1422,9 +1422,11 @@ public class DataInboundServiceTests(Host host)
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Câu ghi mẫu gói 104 (TmsWeather), 106 (TmsTrafficData): cùng một bản ghi tới hai lần, thời gian có mili-giây lẻ
-    ///              (cột đích kiểu datetime chỉ lưu theo bước 1/300 giây) vẫn khớp dòng đã ghi: cập nhật dòng đó, không chèn dòng thứ hai.
+    /// Description: Câu ghi mẫu gói 104 (TmsWeather), 106 (TmsTrafficData): gửi 3 gói liên tiếp cho cùng bản ghi có mili-giây lẻ:
+    ///              gói 1 chèn mới (giá trị 20), gói 2 giống hệt không đổi dữ liệu nên bỏ qua UPDATE (thêm 0, sửa 0 và giữ UpdateTime),
+    ///              gói 3 đổi giá trị sang 25 nên cập nhật đúng dòng đó (thêm 0, sửa 1).
     /// Created date: 13/11/2026
+    /// Modified date: 18/11/2026
     /// </summary>
     [Theory]
     [InlineData("104_weatherData", "weatherStationId", "temperature", "TmsWeather", "RefId", "Temperature")]
@@ -1452,37 +1454,168 @@ public class DataInboundServiceTests(Host host)
             Status = BaseEnums.StatusEnum.Enable
         };
         await _db.Insertable(packet).ExecuteCommandAsync();
-        var seedWrite = SeedScriptReader.ReadWriteSqlStatements().Single(s => s.PacketCode == seedPacketCode);
+        var seedWrites = SeedScriptReader.ReadWriteSqlStatements();
+        var seedWrite = seedWrites.Single(s => s.PacketCode == seedPacketCode);
         await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, seedWrite.WriteSql, seedWrite.AffectedTables);
 
-        await _db.Insertable(new ShareDataSubscription
+        var subscription = new ShareDataSubscription
         {
             ID = Guid.NewGuid().ToString("N"),
             PartnerId = partner.ID,
             DatatypeId = packet.ID,
             Direction = BaseEnums.Direction.Inbound,
             State = BaseEnums.SubSubscriptionState.Active
-        }).ExecuteCommandAsync();
+        };
+        await _db.Insertable(subscription).ExecuteCommandAsync();
 
         var key = $"DUP_{unique}";
-        var firstContent = $"{{\"data\":[{{\"{keyField}\":\"{key}\",\"detectTime\":\"2026-10-21T08:15:07.613\",\"{valueField}\":20}}]}}";
-        var secondContent = $"{{\"data\":[{{\"{keyField}\":\"{key}\",\"detectTime\":\"2026-10-21T08:15:07.613\",\"{valueField}\":25}}]}}";
-        var firstPacket = await SeedPendingPacket(partnerCode, packet.Code!, 1, firstContent, DateTime.Now);
-        var secondReceivedAt = DateTime.Now.AddSeconds(1);
-        var secondPacket = await SeedPendingPacket(partnerCode, packet.Code!, 2, secondContent, secondReceivedAt);
+        var sameContent = $"{{\"data\":[{{\"{keyField}\":\"{key}\",\"detectTime\":\"2026-10-21T08:15:07.613\",\"{valueField}\":20}}]}}";
+        var updatedContent = $"{{\"data\":[{{\"{keyField}\":\"{key}\",\"detectTime\":\"2026-10-21T08:15:07.613\",\"{valueField}\":25}}]}}";
 
-        // Act
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
+        var provider = scope.ServiceProvider;
+        var service = provider.GetRequiredService<DataInboundService>();
+        var readUpdateTimeSql = $"SELECT UpdateTime FROM dbo.{table} WHERE {keyColumn} = @key";
+
+        // Act 1: Gói 1 (giá trị 20) -> INSERT mới
+        var firstPacket = await SeedPendingPacket(partnerCode, packet.Code!, 1, sameContent, DateTime.Now);
+        await service.ProcessPendingPackets(CancellationToken.None);
+        var firstTimeRows = await _inboundDb.Ado.SqlQueryAsync<DateTime?>(readUpdateTimeSql, new { key });
+        var firstUpdateTime = Assert.Single(firstTimeRows);
+
+        // Act 2: Gói 2 (giá trị vẫn 20, không đổi) -> bỏ qua UPDATE, giữ nguyên UpdateTime
+        var secondPacket = await SeedPendingPacket(partnerCode, packet.Code!, 2, sameContent, DateTime.Now);
+        await service.ProcessPendingPackets(CancellationToken.None);
+        var secondTimeRows = await _inboundDb.Ado.SqlQueryAsync<DateTime?>(readUpdateTimeSql, new { key });
+        var secondUpdateTime = Assert.Single(secondTimeRows);
+
+        // Act 3: Gói 3 (đổi giá trị sang 25) -> UPDATE đúng dòng đó
+        var thirdPacket = await SeedPendingPacket(partnerCode, packet.Code!, 3, updatedContent, DateTime.Now);
+        await service.ProcessPendingPackets(CancellationToken.None);
 
         // Assert
         var first = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(firstPacket.ID);
         var second = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(secondPacket.ID);
-        var savedValues = await _inboundDb.Ado.SqlQueryAsync<double>(
-            $"SELECT CONVERT(float, {valueColumn}) FROM dbo.{table} WHERE {keyColumn} = @key", new { key });
+        var third = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(thirdPacket.ID);
+        var readValueSql = $"SELECT CONVERT(float, {valueColumn}) FROM dbo.{table} WHERE {keyColumn} = @key";
+        var savedValues = await _inboundDb.Ado.SqlQueryAsync<double>(readValueSql, new { key });
+        var thirdTimeRows = await _inboundDb.Ado.SqlQueryAsync<DateTime?>(readUpdateTimeSql, new { key });
+        var thirdUpdateTime = Assert.Single(thirdTimeRows);
+
+        var logs = await _db.Queryable<ShareDataActivityLog>()
+            .Where(l => l.SubscriptionId == subscription.ID)
+            .OrderBy(l => l.SerialNbr)
+            .ToListAsync();
+        Assert.Equal(3, logs.Count);
+        var log1Desc = logs[0].Description ?? string.Empty;
+        var log2Desc = logs[1].Description ?? string.Empty;
+        var log3Desc = logs[2].Description ?? string.Empty;
+
         Assert.Equal(BaseEnums.InboundProcessState.Done, first.ProcessState);
         Assert.Equal(BaseEnums.InboundProcessState.Done, second.ProcessState);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, third.ProcessState);
+        Assert.Equal(firstUpdateTime, secondUpdateTime);
+        Assert.NotNull(thirdUpdateTime);
+        Assert.Contains("thêm 1, sửa 0", log1Desc);
+        Assert.Contains("thêm 0, sửa 0", log2Desc);
+        Assert.Contains("thêm 0, sửa 1", log3Desc);
+        Assert.Equal(0, logs[1].RecordCount);
         Assert.Equal(new[] { 25d }, savedValues);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Gói 108_vmsInfo khi bảng TmsEquipment trong CSDL nhận chưa có thiết bị nguồn (kể cả dòng có equipmentCode rỗng chỉ có vmsName):
+    ///              câu ghi mẫu tự động chèn TmsEquipment rồi chèn VmsCurrent; gói tiếp theo gửi lại y hệt thì bỏ qua UPDATE (thêm 0, sửa 0).
+    /// Created date: 18/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ProcessPendingPackets_WhenVmsInfoArrivesWithoutExistingEquipment_InsertsBothAndSkipsDuplicateUpdate_Test(bool hasEquipmentCode)
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var partnerCode = $"PARTNER_VMS_{unique}";
+        var partner = new ShareDataPartner
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = partnerCode,
+            Name = $"Đối tác VMS {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(partner).ExecuteCommandAsync();
+
+        var packet = new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"PKT_VMS_{unique}",
+            Name = $"Gói 108 {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(packet).ExecuteCommandAsync();
+        var seedWrites = SeedScriptReader.ReadWriteSqlStatements();
+        var seedWrite = seedWrites.Single(s => s.PacketCode == "108_vmsInfo");
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, seedWrite.WriteSql, seedWrite.AffectedTables);
+
+        var subscription = new ShareDataSubscription
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerId = partner.ID,
+            DatatypeId = packet.ID,
+            Direction = BaseEnums.Direction.Inbound,
+            State = BaseEnums.SubSubscriptionState.Active
+        };
+        await _db.Insertable(subscription).ExecuteCommandAsync();
+
+        var equipKey = $"VMS108_{unique}";
+        var codeJson = hasEquipmentCode ? $"\"{equipKey}\"" : "null";
+        var vmsName = hasEquipmentCode ? $"Biển VMS {unique}" : equipKey;
+        var payload = $$"""
+            {"data":[{"equipmentCode":{{codeJson}},"vmsName":"{{vmsName}}","locationKm":12,"locationMet":300,"direction":1,"laneId":"L1","displayContent":"CHU Y","displayImageUrl":"http://vms.local/a.png","displaySize":"384x64","priority":1,"executedTime":"2026-10-21T08:15:07.613"}]}
+            """;
+
+        using var scope = _host.Services.CreateScope();
+        var provider = scope.ServiceProvider;
+        var service = provider.GetRequiredService<DataInboundService>();
+
+        // Act
+        var packet1 = await SeedPendingPacket(partnerCode, packet.Code!, 1, payload, DateTime.Now);
+        await service.ProcessPendingPackets(CancellationToken.None);
+        var packet2 = await SeedPendingPacket(partnerCode, packet.Code!, 2, payload, DateTime.Now);
+        await service.ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var saved1 = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packet1.ID);
+        var saved2 = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packet2.ID);
+        var equipTable = await _inboundDb.Ado.GetDataTableAsync(
+            "SELECT ID, Code, Name, KmNumber, UpdateTime FROM dbo.TmsEquipment WHERE Code = @code",
+            new { code = equipKey });
+        Assert.Equal(BaseEnums.InboundProcessState.Done, saved1.ProcessState);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, saved2.ProcessState);
+        Assert.Equal(1, equipTable.Rows.Count);
+        var equipId = equipTable.Rows[0]["ID"]?.ToString();
+        Assert.Equal(DBNull.Value, equipTable.Rows[0]["UpdateTime"]);
+
+        var vmsTable = await _inboundDb.Ado.GetDataTableAsync(
+            "SELECT Name, RowData, UpdateTime FROM dbo.VmsCurrent WHERE EquipmentId = @equipId",
+            new { equipId });
+        Assert.Equal(1, vmsTable.Rows.Count);
+        Assert.Equal(vmsName, vmsTable.Rows[0]["Name"]?.ToString());
+        Assert.Equal("CHU Y", vmsTable.Rows[0]["RowData"]?.ToString());
+        Assert.Equal(DBNull.Value, vmsTable.Rows[0]["UpdateTime"]);
+
+        var logs = await _db.Queryable<ShareDataActivityLog>()
+            .Where(l => l.SubscriptionId == subscription.ID)
+            .OrderBy(l => l.SerialNbr)
+            .ToListAsync();
+        Assert.Equal(2, logs.Count);
+        var log1Desc = logs[0].Description ?? string.Empty;
+        var log2Desc = logs[1].Description ?? string.Empty;
+        Assert.Contains("thêm 2, sửa 0", log1Desc);
+        Assert.Contains("thêm 0, sửa 0", log2Desc);
+        Assert.Equal(2, logs[0].RecordCount);
+        Assert.Equal(0, logs[1].RecordCount);
     }
 
     /// <summary>

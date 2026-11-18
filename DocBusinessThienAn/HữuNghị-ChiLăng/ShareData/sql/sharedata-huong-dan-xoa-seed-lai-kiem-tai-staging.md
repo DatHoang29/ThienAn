@@ -106,7 +106,7 @@ Chạy trên `DEV_ITS015`, giữ tham số mặc định.
 | K1 | [sharedata-kiem-tai-ShareDataPartner.sql](kiem-tai/sharedata-kiem-tai-ShareDataPartner.sql) | `KT001`–`KT008` (`@SoDoiTac = 8`, cộng `PC08`, `TTDHT` là 10 đối tác), bật kết nối cho cả `PC08`, `TTDHT`; mọi đối tác gửi vào API nhận của chính WebAPI staging. `PC08` đã có từ tệp 14 nên K1 không tạo trùng |
 | K2 | [sharedata-kiem-tai-ShareDataMapping.sql](kiem-tai/sharedata-kiem-tai-ShareDataMapping.sql) | Hồ sơ ánh xạ gửi và nhận cho mọi gói đang bật |
 | K3 | [sharedata-kiem-tai-ShareDataSubscription.sql](kiem-tai/sharedata-kiem-tai-ShareDataSubscription.sql) | Đăng ký gửi và nhận. Chu kỳ gửi của đối tác kiểm tải chia theo `30,40,50,60,120` giây (giãn gấp đôi ngày 17/11 để bớt lượt quét `TmsTrafficData`), `PC08`, `TTDHT` và đăng ký nhận 30 giây; đối tác số chẵn (`KT002`, `KT004`...) bật "Gửi khi có dữ liệu mới"; gói 110 chưa có câu ghi chiều nhận nên tự bỏ |
-| K4 | [sharedata-kiem-tai-ShareDataSql.sql](kiem-tai/sharedata-kiem-tai-ShareDataSql.sql) | Câu SQL riêng cho `KT005`–`KT008` (`KT001`–`KT004` dùng câu mẫu chung), mỗi cặp đối tác × gói một biến thể (thêm cột phụ, đổi `TOP 100` thành 20/50/200/500) |
+| K4 | [sharedata-kiem-tai-ShareDataSql.sql](kiem-tai/sharedata-kiem-tai-ShareDataSql.sql) | Câu SQL riêng cho `KT005`–`KT008` (`KT001`–`KT004` dùng câu mẫu chung), mỗi cặp đối tác × gói một biến thể (thêm cột phụ, đổi `TOP 100` thành 20/50/200/500, đổi đuôi `__lastKey` sang cột nghiệp vụ như `ZoneId`/`RefId`/`LaneId+TransactionId`/`Code+ID`/`Lane+ID` trên `101/104/109/107` và `103/106` kiểu `1,3`; chạy lại tự cập nhật câu đổi ở bước 2a và dò `FieldsJson` ở bước 2b) |
 
 - [ ] Kiểm số lượng (chỉ đọc):
   ```sql
