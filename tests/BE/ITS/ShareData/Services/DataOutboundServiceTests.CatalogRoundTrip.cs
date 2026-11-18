@@ -179,7 +179,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     foreach (var (suffix, lane, condition, speed, vehicles, minute) in new[] { ("A", "2", "CONGES", "65.50", 150, 0), ("B", "0", "GOOD", "80.25", 20, 1) })
                     {
                         var zoneId = $"{p}{suffix}";
-                        await db.Insertable(new TmsZone { ID = zoneId, Name = $"Doan {zoneId}", FromKmNumber = 10, FromMetNumber = 500, ToKmNumber = 20, ToMetNumber = 0, LaneId = lane, MaxSpeed = 80 }).ExecuteCommandAsync();
+                        await db.Insertable(new TmsZone { ID = zoneId, Code = zoneId, Name = $"Doan {zoneId}", FromKmNumber = 10, FromMetNumber = 500, ToKmNumber = 20, ToMetNumber = 0, LaneId = lane, MaxSpeed = 80 }).ExecuteCommandAsync();
                         await db.Insertable(new TmsTrafficStatistic { ID = $"{zoneId}_T", ZoneId = zoneId, TotalVehicleNumber = vehicles }).ExecuteCommandAsync();
                         await db.Insertable(new TmsZoneStatus { ID = $"{zoneId}_S", ZoneId = zoneId, AverageSpeed = speed, Condition = condition }).ExecuteCommandAsync();
                         var statusTime = RoundTripTime.AddMinutes(minute);
@@ -422,11 +422,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// <summary>
         /// Author: DatHQ
         /// Description: Dòng mới của TmsTrafficData sau khi đã dọn trùng bên nhận: một dòng đo xe đủ trường gói 103 kèm số đo cân, một dòng chỉ có số đo cân
-        ///              (gói 106), thời gian phát hiện có mili-giây lẻ. Gói 103 gửi và ghi trước qua controller nhận thật, rồi tới gói 106; sau đó nguồn sửa
-        ///              cả hai dòng nên hai gói gửi lại dưới số thứ tự kế tiếp. Câu trích và câu ghi đúng tệp seed hiện hành.
-        ///              Gói 106 cùng thời điểm, làn, vị trí với dòng gói 103 đã ghi thì gộp số đo vào đúng dòng đó, mili-giây lẻ vẫn khớp, gửi lại không thêm dòng:
-        ///              đọc lại bên nhận bằng cùng câu SELECT ra đúng hai dòng như nguồn, mỗi gói nhận đều Done.
+        ///              (gói 106) thời gian phát hiện có mili-giây lẻ, cộng thêm một cặp hai xe gói 103 cùng (DetectTime, Lane, Location) nhưng khác tốc độ.
+        ///              Gói 103 gửi và ghi trước qua controller nhận thật, rồi tới gói 106; sau đó nguồn sửa dòng duy nhất và một xe trong cặp trùng khóa để
+        ///              hai gói gửi lại dưới số thứ tự kế tiếp. Câu trích và câu ghi đúng tệp seed hiện hành.
+        ///              Khóa duy nhất thì gói 106 gộp số đo vào đúng dòng đó, mili-giây lẻ vẫn khớp; khóa trùng nhiều xe thì gói 106 bỏ qua cả khi nhiều xe trong
+        ///              cùng gói lẫn khi bảng đích đã có > 1 dòng trùng khóa, không ghi đè số đo của gói 103: đọc lại bên nhận ra đúng bốn dòng như nguồn.
         /// Created date: 16/11/2026
+        /// Modified date: 18/11/2026
         /// </summary>
         [Fact]
         public async Task ProcessSubscriptions_WhenNewTrafficDataRowsRoundTripAfterCleanup_EachRecordKeepsOneInboundRow_Test()
@@ -450,14 +452,20 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var vdsId = $"{prefix}_V";
             var wimId = $"{prefix}_W";
+            var vdsSameIdA = $"{prefix}_S1";
+            var vdsSameIdB = $"{prefix}_S2";
             var vdsDetectTime = new DateTime(2099, 1, 2, 7, 15, 7, 613);
             var wimDetectTime = new DateTime(2099, 1, 2, 7, 15, 8, 457);
+            var sameKeyDetectTime = new DateTime(2099, 1, 2, 7, 15, 9, 123);
             var vdsRow = new TmsTrafficData { ID = vdsId, EquipmentId = $"{prefix}_EQ", DetectTime = vdsDetectTime, Type = "CAR", LicensePlate = $"{prefix}-1", Speed = 75.5f, Lane = "L1", Direction = "NORTH", Location = prefix, Height = 150, Width = 180, Length = 450 };
             var wimRow = new TmsTrafficData { ID = wimId, DetectTime = wimDetectTime, Lane = "L2", Location = prefix, Speed = 60.5f, Height = 140, Width = 170, Length = 900 };
-            await db.Insertable(vdsRow).ExecuteCommandAsync();
-            await db.Insertable(wimRow).ExecuteCommandAsync();
+            var vdsSameRowA = new TmsTrafficData { ID = vdsSameIdA, EquipmentId = $"{prefix}_EQ", DetectTime = sameKeyDetectTime, Type = "CAR", LicensePlate = $"{prefix}-2", Speed = 52.5f, Lane = "L3", Direction = "NORTH", Location = prefix };
+            var vdsSameRowB = new TmsTrafficData { ID = vdsSameIdB, EquipmentId = $"{prefix}_EQ", DetectTime = sameKeyDetectTime, Type = "TRUCK", LicensePlate = $"{prefix}-3", Speed = 88.0f, Lane = "L3", Direction = "NORTH", Location = prefix };
+            await db.Insertable(new[] { vdsRow, wimRow, vdsSameRowA, vdsSameRowB }).ExecuteCommandAsync();
             await SetRoundTripRowTimeAsync<TmsTrafficData>(db, vdsId, sentAt);
             await SetRoundTripRowTimeAsync<TmsTrafficData>(db, wimId, sentAt);
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, vdsSameIdA, sentAt);
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, vdsSameIdB, sentAt);
 
             var vdsPartnerCode = ClonePartnerCode(vdsPacket, "TDV");
             var vdsShape = RoundTripShapeJson("103", vdsPartnerCode, vdsPacket.PacketCode);
@@ -475,14 +483,20 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var receiver = CreateInboundService(scope);
             const string checkSql = "SELECT ID, DetectTime, Type, LicensePlate, Speed, Lane, Direction, Location, EquipmentId, Height, Width, Length FROM TmsTrafficData WHERE Location LIKE @prefix ORDER BY ID";
 
-            // Act: gói 103 gửi và ghi trước, rồi tới gói 106; nguồn sửa cả hai dòng thì hai gói gửi lại dưới số thứ tự kế tiếp
+            // Act: gói 103 gửi và ghi trước, rồi tới gói 106; lượt sau chỉ sửa một xe trong cặp trùng khóa để gói 106 nhận variantCount = 1 nhưng đích vẫn > 1 dòng
             await MakeSubscriptionDue(db, vdsPartner.Outbound.ID);
             await sender.ProcessSubscriptions(CancellationToken.None);
             await receiver.ProcessPendingPackets(CancellationToken.None);
             await MakeSubscriptionDue(db, wimPartner.Outbound.ID);
             await sender.ProcessSubscriptions(CancellationToken.None);
             await receiver.ProcessPendingPackets(CancellationToken.None);
+            var sourceAfterFirstSend = await ReadRoundTripRowsAsync(db, checkSql, prefix);
             var afterFirstSend = await ReadRoundTripRowsAsync(inboundDb, checkSql, prefix);
+            await db.Updateable<TmsTrafficData>()
+                .SetColumns(t => t.Speed == 61.0f)
+                .SetColumns(t => t.UpdateTime == resentAt)
+                .Where(t => t.ID == vdsSameIdA)
+                .ExecuteCommandAsync();
             await SetRoundTripRowTimeAsync<TmsTrafficData>(db, vdsId, resentAt);
             await SetRoundTripRowTimeAsync<TmsTrafficData>(db, wimId, resentAt);
             await MakeSubscriptionDue(db, vdsPartner.Outbound.ID);
@@ -496,8 +510,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var vdsReceived = await ReceivedPacketsAsync(inboundDb, vdsPacket, vdsPartner);
             var wimReceived = await ReceivedPacketsAsync(inboundDb, wimPacket, wimPartner);
             var received = vdsReceived.Concat(wimReceived).ToList();
-            Assert.Equal(2, sourceRows.Count);
-            Assert.Equal(sourceRows, afterFirstSend);
+            Assert.Equal(4, sourceRows.Count);
+            Assert.Equal(sourceAfterFirstSend, afterFirstSend);
             Assert.Equal(sourceRows, inboundRows);
             Assert.Equal(2, vdsReceived.Count);
             Assert.Equal(2, wimReceived.Count);

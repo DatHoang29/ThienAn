@@ -179,8 +179,10 @@ BEGIN
     CROSS APPLY (
         SELECT CASE k.[PacketCode]
             WHEN N'101_commonData' THEN
-                REPLACE(REPLACE(b5.[Cau], N'+ ''_'' + zs.ID', N'+ ''_'' + ISNULL(z.Code, '''')'),
-                        N'> @lastKey', N'> @lastKey AND z.ID IS NOT NULL AND z.IsDelete IS NULL')
+                -- Câu mẫu chung từ 18/11/2026 đã dùng đuôi z.Code và lọc vùng chưa xóa: giữ nguyên, không gắn lọc lần hai.
+                CASE WHEN CHARINDEX(N'+ ''_'' + zs.ID', b5.[Cau]) = 0 THEN b5.[Cau]
+                     ELSE REPLACE(REPLACE(b5.[Cau], N'+ ''_'' + zs.ID', N'+ ''_'' + ISNULL(z.Code, '''')'),
+                                  N'> @lastKey', N'> @lastKey AND z.ID IS NOT NULL AND z.IsDelete IS NULL') END
             WHEN N'104_weatherData' THEN
                 REPLACE(b5.[Cau], N'+ ''_'' + w.ID', N'+ ''_'' + ISNULL(w.RefId, '''')')
             WHEN N'109_etcData' THEN

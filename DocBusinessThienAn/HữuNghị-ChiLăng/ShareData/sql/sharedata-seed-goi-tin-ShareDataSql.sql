@@ -21,7 +21,10 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 18/11/2026 (bổ sung WHEN MATCHED AND EXISTS (... EXCEPT ...) chặn UPDATE trùng trên cả 9 gói 101-109 và thêm INSERT TmsEquipment cho gói 108_vmsInfo; thêm bước 1c dò cột tự động sinh FieldsJson và DescribedTime cho câu SQL còn trống); 16/11/2026; 13/11/2026 (câu ghi gói 104, 106 đổi thời gian về datetime trước khi so khóa: cột đích datetime so với datetime2 đọc từ JSON không khớp mili-giây lẻ nên mỗi lần gửi lại chèn thêm dòng); 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
+-- CẬP NHẬT LẦN CUỐI: 18/11/2026 (câu mẫu gói 101 đổi đuôi __lastKey sang ISNULL(z.Code, '') và chỉ lấy trạng thái chưa xóa của vùng chưa xóa, cùng tập dữ liệu với câu riêng K4/K8;
+--                    câu ghi gói 106 bỏ qua khóa (DetectTime, Lane, Location) mơ hồ: gói có nhiều bản ghi khác số đo cùng khóa hoặc CSDL nhận đã có từ 2 dòng
+--                    cùng khóa (nhiều xe cùng thời điểm, làn, vị trí) thì không gộp MAX ghi đè lên dòng của gói 103; khóa chỉ một dòng vẫn gộp số đo như cũ;
+--                    bổ sung WHEN MATCHED AND EXISTS (... EXCEPT ...) chặn UPDATE trùng trên cả 9 gói 101-109 và thêm INSERT TmsEquipment cho gói 108_vmsInfo; thêm bước 1c dò cột tự động sinh FieldsJson và DescribedTime cho câu SQL còn trống); 16/11/2026; 13/11/2026 (câu ghi gói 104, 106 đổi thời gian về datetime trước khi so khóa: cột đích datetime so với datetime2 đọc từ JSON không khớp mili-giây lẻ nên mỗi lần gửi lại chèn thêm dòng); 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -173,7 +176,7 @@ GO
 -- -----------------------------------------------------------------------------------------
 -- 1. NẠP CÂU MẪU CHUNG (ShareDataSql) CHO GÓI 101 - 111
 -- -----------------------------------------------------------------------------------------
--- @GhiDeMauGoiTin = 0 (Mặc định): Chỉ nạp câu mẫu chung nếu đang NULL hoặc rỗng.
+-- @GhiDeMauGoiTin = 0 (Mặc định): Chỉ nạp câu mẫu chung nếu đang NULL hoặc rỗng (riêng gói 101 tự cập nhật nếu câu mẫu vẫn còn đuôi cũ + '_' + zs.ID).
 -- @GhiDeMauGoiTin = 1: Buộc ghi đè câu mẫu chung về câu chuẩn @SqlNNN khai trong tệp này.
 -- @GhiDeMaGoi = N'101': Chỉ ghi đè câu mẫu chung của đúng gói đó (gói khác giữ câu đang có). Bộ biến đang có giữ nguyên.
 --     Câu mẫu mới đổi công thức cột mốc thì Worker tự đặt lại mốc của đối tác và ghi cảnh báo ESH-1308.
@@ -189,7 +192,7 @@ PRINT N'-> 1. Bắt đầu nạp câu mẫu chung vào bảng ShareDataSql (101 
 
 -- Gói 101: TrafficFlow (Incremental)
 DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
-    CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), '':'', '''') + ''_'' + zs.ID AS __lastKey,
+    CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), '':'', '''') + ''_'' + ISNULL(z.Code, '''') AS __lastKey,
     zs.ID AS zoneStatusId,
     zs.ZoneId AS zoneId,
     z.Name AS zoneName,
@@ -206,7 +209,8 @@ DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
 FROM dbo.TmsZoneStatus zs
 LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
-WHERE CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), '':'', '''') + ''_'' + zs.ID > @lastKey
+WHERE zs.IsDelete IS NULL AND z.ID IS NOT NULL AND z.IsDelete IS NULL
+  AND CONVERT(varchar(8), COALESCE(zs.UpdateTime, zs.CreateTime), 112) + REPLACE(CONVERT(varchar(12), COALESCE(zs.UpdateTime, zs.CreateTime), 114), '':'', '''') + ''_'' + ISNULL(z.Code, '''') > @lastKey
 ORDER BY __lastKey ASC';
 
 DECLARE @Vars101 NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":2}]';
@@ -222,7 +226,8 @@ WHERE (p.[Code] = '101' OR p.[Code] LIKE '101[_]%')
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
-       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = ''
+       OR CHARINDEX(N'+ ''_'' + zs.ID', s.[ExtractSql]) > 0);
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [VariablesJson], [TenantId], [CreateTime], [CreateUId])
@@ -912,7 +917,8 @@ END;
 PRINT N'   -> Đã chuyển câu ghi từ bảng cũ ShareDataPacketSql: ' + CAST(@MovedWrite AS NVARCHAR(10)) + N' gói.';
 GO
 
--- 6.3 Nạp khối câu ghi chuẩn Catalog cho gói chưa có câu ghi (hoặc chưa chặn UPDATE trùng; ghi đè mọi câu khi @GhiDeMauGoiTin = 1).
+-- 6.3 Nạp khối câu ghi chuẩn Catalog cho gói chưa có câu ghi (hoặc chưa chặn UPDATE trùng, hoặc câu 106 chưa bỏ qua khóa mơ hồ;
+--     ghi đè mọi câu khi @GhiDeMauGoiTin = 1).
 DECLARE @GhiDeMauGoiTin BIT = 0;
 DECLARE @TenantIdWrite NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
 IF @TenantIdWrite IS NULL
@@ -1282,13 +1288,22 @@ OUTPUT $action;');
 INSERT INTO @SeedWrites ([PacketCode], [AffectedTables], [WriteSql])
 VALUES ('106_wimData', N'dbo.TmsTrafficData', N'MERGE dbo.TmsTrafficData WITH (HOLDLOCK) AS t
 USING (
-    SELECT CONVERT(datetime, detectTime) AS detectTime, lane, locationCode,
-            MAX(speed) AS speed, MAX(height) AS height, MAX(width) AS width, MAX(length) AS length
-    FROM OPENJSON(@records) WITH (
-        detectTime datetime2, lane nvarchar(32), locationCode nvarchar(32),
-        speed float, height int, width int, length int)
-    WHERE detectTime IS NOT NULL
-    GROUP BY CONVERT(datetime, detectTime), lane, locationCode
+    SELECT g.detectTime, g.lane, g.locationCode, g.speed, g.height, g.width, g.length
+    FROM (
+        SELECT CONVERT(datetime, detectTime) AS detectTime, lane, locationCode,
+                MAX(speed) AS speed, MAX(height) AS height, MAX(width) AS width, MAX(length) AS length,
+                COUNT(DISTINCT CONCAT(speed, N''|'', height, N''|'', width, N''|'', length)) AS variantCount
+        FROM OPENJSON(@records) WITH (
+            detectTime datetime2, lane nvarchar(32), locationCode nvarchar(32),
+            speed float, height int, width int, length int)
+        WHERE detectTime IS NOT NULL
+        GROUP BY CONVERT(datetime, detectTime), lane, locationCode
+    ) AS g
+    WHERE g.variantCount = 1
+      AND (SELECT COUNT(*) FROM dbo.TmsTrafficData x
+           WHERE x.DetectTime = g.detectTime
+             AND ISNULL(x.Lane, N'''') = ISNULL(g.lane, N'''')
+             AND ISNULL(x.Location, N'''') = ISNULL(g.locationCode, N'''')) <= 1
 ) AS s
    ON t.DetectTime = s.detectTime
   AND ISNULL(t.Lane, N'''') = ISNULL(s.lane, N'''')
@@ -1551,7 +1566,8 @@ JOIN @SeedWrites src ON src.[PacketCode] = p.[Code]
 WHERE s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR s.[WriteSql] IS NULL OR LTRIM(RTRIM(s.[WriteSql])) = ''
-       OR CHARINDEX(N'WHEN MATCHED AND EXISTS', s.[WriteSql]) = 0);
+       OR CHARINDEX(N'WHEN MATCHED AND EXISTS', s.[WriteSql]) = 0
+       OR (src.[PacketCode] = '106_wimData' AND CHARINDEX(N'variantCount', s.[WriteSql]) = 0));
 DECLARE @WriteUpdated INT = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [WriteSql], [AffectedTables], [TenantId], [CreateTime], [CreateUId])

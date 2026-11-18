@@ -8154,7 +8154,8 @@ ORDER BY __lastKey ASC";
                 db.Ado.ExecuteCommandAsync("UPDATE TmsZoneStatus SET UpdateTime = @u, CreateTime = @c WHERE ID = @id", new { u = updateTime, c = createTime, id = RowId(name) });
             async Task InsertRow(string name, DateTime? updateTime, DateTime createTime)
             {
-                await db.Insertable(new TmsZoneStatus { ID = RowId(name), Condition = "NORMAL" }).ExecuteCommandAsync();
+                await db.Insertable(new TmsZone { ID = RowId(name), Code = RowId(name), Name = RowId(name) }).ExecuteCommandAsync();
+                await db.Insertable(new TmsZoneStatus { ID = RowId(name), ZoneId = RowId(name), Condition = "NORMAL" }).ExecuteCommandAsync();
                 await SetTimes(name, updateTime, createTime);
             }
 
@@ -8213,6 +8214,7 @@ ORDER BY __lastKey ASC";
             finally
             {
                 await db.Deleteable<TmsZoneStatus>().Where(z => rowIds.Contains(z.ID)).ExecuteCommandAsync();
+                await db.Deleteable<TmsZone>().Where(z => rowIds.Contains(z.ID)).ExecuteCommandAsync();
             }
         }
 

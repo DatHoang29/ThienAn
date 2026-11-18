@@ -13,7 +13,7 @@ GO
 --              đổi cả cột __lastKey lẫn điều kiện WHERE nên mốc và lọc > @lastKey vẫn khớp nhau.
 --              Không đổi FieldsJson vì chỉ cột ẩn __lastKey và WHERE thay đổi, danh sách trường gửi đi giữ nguyên.
 --              Câu đổi thì Worker tính lại chữ ký và gửi lại gói 101 của đối tác từ đầu (mốc trống).
--- THỨ TỰ CHẠY: K8, chạy sau K4 (cần câu SQL riêng của đối tác đã được K4 sinh). Đã chạy K4 bản 18/11/2026 thì không cần tệp này.
+-- THỨ TỰ CHẠY: K8, chạy sau K4 trên CSDL đã sinh câu riêng trước bản 18/11/2026 (câu mẫu chung `101_commonData` ở Tệp 2 bản 18/11/2026 đã dùng ISNULL(z.Code, '') và lọc z.ID IS NOT NULL AND z.IsDelete IS NULL nên DB mới chạy K4 không cần tệp này).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Staging (chạy theo yêu cầu kiểm tải). ⛔ Không chạy trên production.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent): câu đã đúng dạng mới thì bỏ qua.
