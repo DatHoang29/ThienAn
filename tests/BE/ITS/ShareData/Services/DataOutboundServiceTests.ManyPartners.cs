@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Entities;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
@@ -247,6 +250,155 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.NotEmpty(brokenAlerts);
             Assert.Empty(brokenRows);
             Assert.Null(brokenSub.ProcessingUntil);
+        }
+
+        /// <summary>Kiểm tra câu SQL có phải là truy vấn SELECT không.</summary>
+        private static bool IsSelectSql(string sql) =>
+            sql.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Đếm số câu SELECT tham chiếu bảng tableName trong danh sách câu SELECT đã ghi nhận.</summary>
+        private static int CountTableSelects(IReadOnlyCollection<string> selects, string tableName, string? excludedTable = null)
+        {
+            var tableToken = $"[{tableName}]";
+            var excludedToken = excludedTable == null ? null : $"[{excludedTable}]";
+            return selects.Count(sql =>
+                sql.Contains(tableToken, StringComparison.OrdinalIgnoreCase)
+                && (excludedToken == null || !sql.Contains(excludedToken, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        /// <summary>Đọc toàn bộ giá trị rowCode đã quy đổi từ danh sách JSON body gửi tới đối tác.</summary>
+        private static List<string> ReadMappedRowCodes(IEnumerable<string> bodies)
+        {
+            var result = new List<string>();
+            foreach (var body in bodies)
+            {
+                using var doc = JsonDocument.Parse(body);
+                foreach (var item in doc.RootElement.EnumerateArray())
+                {
+                    var prop = item.GetProperty("rowCode");
+                    var value = prop.GetString();
+                    if (value != null)
+                    {
+                        result.Add(value);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Nhiều đối tác cùng gói có bật quy đổi ShareDataCodeSet: kiểm tra cả luồng định kỳ lẫn tín hiệu SendOnNewData
+        ///              khi chạy lượt ổn định (đã có mốc từ lượt trước) phải nạp cấu hình tĩnh một lần cho cả vòng và không lặp truy vấn CodeSet/GETDATE;
+        ///              đồng thời đo tổng số câu SQL, câu SELECT từng bảng và thời gian chạy mỗi vòng.
+        /// Created date: 17/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData(10, false)]
+        [InlineData(10, true)]
+        [InlineData(50, false)]
+        [InlineData(50, true)]
+        public async Task ProcessSubscriptions_WhenManyPartnersUseCodeSet_LoadsConfigOnceAndAvoidsRepeatQueries_Test(int partnerCount, bool byEvent)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var packet = await SeedClonePacketAsync(db, rowCount: 6, pageSize: 2);
+            var codeSetCode = $"CS_MP_{packet.Unique}";
+            var codeSetId = Guid.NewGuid().ToString("N");
+            var codeSetEntries = packet.RowCodes
+                .Select(code => new
+                {
+                    sourceValue = code,
+                    partnerValue = $"MAPPED_{code}",
+                    displayName = code
+                })
+                .ToList();
+            var codeSetValuesJson = JsonSerializer.Serialize(codeSetEntries);
+            await db.Insertable(new ShareDataCodeSet
+            {
+                ID = codeSetId,
+                Code = codeSetCode,
+                Name = $"CodeSet {packet.Unique}",
+                Status = BaseEnums.StatusEnum.Enable,
+                ValuesJson = codeSetValuesJson
+            }).ExecuteCommandAsync();
+
+            var partners = await SeedManyPartnersAsync(db, packet, partnerCount, commonPageSize: 2);
+            var partnerIds = partners.Select(p => p.Subscription.PartnerId).ToList();
+            var mappedShape = new Dictionary<string, object?>
+            {
+                ["rowCode"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "rowCode",
+                    ["$extend"] = new Dictionary<string, string> { ["codeSet"] = codeSetCode }
+                }
+            };
+            var mappedShapeJson = JsonSerializer.Serialize(mappedShape);
+            await db.Updateable<ShareDataMapping>()
+                .SetColumns(m => m.TargetShapeJson == mappedShapeJson)
+                .Where(m => partnerIds.Contains(m.PartnerId) && m.DatatypeId == packet.PacketId)
+                .ExecuteCommandAsync();
+
+            var sender = CreateClone(scope, null);
+            await RunCloneAsync(sender, packet, byEvent);
+            foreach (var partner in partners)
+            {
+                await MakeSubscriptionDue(db, partner.Subscription.ID);
+            }
+
+            var executedSqls = new ConcurrentQueue<string>();
+            db.Aop.OnLogExecuting = (sql, _) => executedSqls.Enqueue(sql);
+
+            // Act
+            var watch = Stopwatch.StartNew();
+            await RunCloneAsync(sender, packet, byEvent);
+            watch.Stop();
+            db.Aop.OnLogExecuting = null;
+
+            // Assert
+            var sqlList = executedSqls.ToList();
+            var totalQueries = sqlList.Count;
+            var selects = sqlList.Where(IsSelectSql).ToList();
+            var selectQueries = selects.Count;
+            var codeSetSelects = CountTableSelects(selects, "ShareDataCodeSet");
+            var partnerSelects = CountTableSelects(selects, "ShareDataPartner", "ShareDataSubscription");
+            var mappingSelects = CountTableSelects(selects, "ShareDataMapping");
+            var sqlConfigSelects = CountTableSelects(selects, "ShareDataSql");
+            var lastSendSelects = CountTableSelects(selects, "ShareDataLastSend");
+            var packetSelects = CountTableSelects(selects, "ShareDataPacket");
+            var getDateSelects = selects.Count(s => string.Equals(s.Trim(), "SELECT GETDATE()", StringComparison.OrdinalIgnoreCase));
+
+            Console.WriteLine(
+                $"[BENCHMARK] partners={partnerCount} byEvent={byEvent} elapsedMs={watch.Elapsed.TotalMilliseconds:F1} "
+                + $"totalSql={totalQueries} selectSql={selectQueries} "
+                + $"codeSet={codeSetSelects} partner={partnerSelects} mapping={mappingSelects} "
+                + $"sqlConfig={sqlConfigSelects} packet={packetSelects} lastSend={lastSendSelects} getDate={getDateSelects}");
+
+            foreach (var partner in partners)
+            {
+                var clonePath = ClonePath(packet, partner.Name);
+                var bodies = PartnerBodies(clonePath);
+                var expectedCount = partner.PageSize * 2;
+                var expectedMapped = packet.RowCodes
+                    .Take(expectedCount)
+                    .Select(code => $"MAPPED_{code}")
+                    .ToList();
+                var actualMapped = ReadMappedRowCodes(bodies);
+
+                Assert.Equal(2, bodies.Count);
+                Assert.Equal(expectedMapped, actualMapped);
+            }
+
+            var expectedLastSendSelects = 2 * partnerCount;
+            Assert.Equal(1, codeSetSelects);
+            Assert.Equal(1, partnerSelects);
+            Assert.Equal(1, mappingSelects);
+            Assert.Equal(1, sqlConfigSelects);
+            Assert.Equal(1, packetSelects);
+            Assert.Equal(1, getDateSelects);
+            Assert.Equal(expectedLastSendSelects, lastSendSelects);
         }
     }
 }
