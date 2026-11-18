@@ -299,3 +299,11 @@ Khi bạn đổi tài khoản Claude (ví dụ Account 1 chạm giới hạn 5 g
 **How to apply:**
 - Trước khi kết thúc phiên hoặc chuyển sang việc khác: cập nhật tóm tắt vào tệp memory tương ứng trong `.agents/memory/` (và ghi nhận vào `_MasterPlan.md`).
 - Mục lục `MEMORY.md`: nếu thêm dòng mới, mỗi dòng phải ≤ 150 ký tự (theo harness test).
+
+## Xuất dòng ghi chú sau khi sửa lỗi
+
+> Mọi lần sửa lỗi xong phải kèm ở cuối câu trả lời 1 dòng ghi chú mẫu để dán vào sheet bug (chốt 18/11/2026)
+
+- Cú pháp: `ddMMyyyy-DatHQ: <Đã sửa gì ở màn hình/chức năng nào, kết quả hành vi mới ngắn gọn, dễ hiểu>`.
+- Ví dụ chuẩn người dùng đưa: `16112026-DatHQ: Đã sửa khung soạn SQL ở màn Cấu hình gói tin. Phóng to trang khung không còn bị ép, thanh kéo kéo được, chỉ chặn chiều cao tối thiểu.`
+- Ghi cụ thể lỗi gì, ở màn hình/chỗ nào, kết quả sau sửa ra sao; tránh nói chung chung hay liệt kê tên file/class kỹ thuật.

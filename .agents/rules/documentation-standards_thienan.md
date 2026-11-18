@@ -82,6 +82,9 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
    - BẮT BUỘC ghi rõ kỹ thuật: **bị gì, fix ở đâu, phương án xử lý cụ thể ra sao**.
 3. **CẤM Gộp Ghi Chú Issue (Rule 19.32)**:
    - Mỗi Issue kiểm thử phải ghi độc lập, riêng biệt. Không gom 3-4 issue vào chung 1 dòng phản hồi.
+4. **Luôn Xuất Dòng Ghi Chú Cuối Câu Trả Lời Sau Khi Fix Lỗi**:
+   - Mọi lần sửa lỗi (fix bug) hoàn tất, cuối câu trả lời cho người dùng BẮT BUỘC kèm sẵn 1 dòng ghi chú theo mẫu `ddMMyyyy-DatHQ: <Mô tả ngắn gọn, rõ ràng kết quả đã sửa dưới góc độ màn hình/chức năng>` để người dùng dán thẳng vào sheet kiểm thử.
+   - *Ví dụ chuẩn:* `16112026-DatHQ: Đã sửa khung soạn SQL ở màn Cấu hình gói tin. Phóng to trang khung không còn bị ép, thanh kéo kéo được, chỉ chặn chiều cao tối thiểu.`
 
 ---
 
