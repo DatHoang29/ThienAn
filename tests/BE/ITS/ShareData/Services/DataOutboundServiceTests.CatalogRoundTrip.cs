@@ -520,6 +520,158 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Author: DatHQ
+        /// Description: Đảo thứ tự khi gói 106 (WIM) gửi và ghi trước gói 103 (VDS): ban đầu bên nhận chỉ có dòng NEWID() của gói 106,
+        ///              sau đó gói 103 mới tới (cùng DetectTime, Lane, Location và Speed), tiếp tục thêm cặp đối tác thứ hai gửi lại y hệt
+        ///              và lượt sau nguồn sửa tốc độ của dòng 103.
+        ///              Câu ghi gói 103 phải nhận lại dòng 106 mồ côi 1-1 bằng đúng ID nguồn mà vẫn giữ nguyên chiều cao/rộng/dài của WIM,
+        ///              không tạo dòng nhân đôi, không đè nhầm cặp hai xe trùng (DetectTime, Lane, Location) và không phát sinh cảnh báo.
+        /// Created date: 19/11/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenWim106ArrivesBeforeVds103_MergesIntoSingleInboundRow_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var inboundDb = InboundDb(db);
+            var fullUnique = Guid.NewGuid().ToString("N");
+            var unique = fullUnique[..6];
+            var prefix = $"TD{unique}";
+            var elapsed = DateTime.Now - TrafficDataTimeEpoch;
+            var elapsedSeconds = Math.Floor(elapsed.TotalSeconds);
+            var wimBeforeVdsBase = new DateTime(2095, 1, 1);
+            var sentAt = wimBeforeVdsBase.AddSeconds(elapsedSeconds);
+            var resentAt = sentAt.AddMinutes(1);
+            var sentAtText = sentAt.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
+            var cursorStart = $"{sentAtText}_";
+
+            var vdsPacket = await SeedRoundTripPacketAsync(db, "103", unique, prefix);
+            var wimPacket = await SeedRoundTripPacketAsync(db, "106", unique, prefix);
+            var vdsSeedSql = SeedScriptReader.GetExtractSql("103");
+            var vdsScopedSql = vdsSeedSql.Replace("WHERE td.IsDelete IS NULL", $"WHERE td.IsDelete IS NULL AND td.Location = '{prefix}'");
+            var wimSeedSql = SeedScriptReader.GetExtractSql("106");
+            var wimScopedSql = wimSeedSql.Replace("WHERE td.IsDelete IS NULL", $"WHERE td.IsDelete IS NULL AND td.Location = '{prefix}'");
+            await ShareDataSqlSeed.SetCommonAsync(db, vdsPacket.PacketId, vdsScopedSql);
+            await ShareDataSqlSeed.SetCommonAsync(db, wimPacket.PacketId, wimScopedSql);
+            await SetTrafficDataCursorStartAsync(db, vdsPacket, cursorStart);
+            await SetTrafficDataCursorStartAsync(db, wimPacket, cursorStart);
+
+            var vdsId = $"{prefix}_V";
+            var wimId = $"{prefix}_W";
+            var vdsSameIdA = $"{prefix}_S1";
+            var vdsSameIdB = $"{prefix}_S2";
+            var vdsDetectTime = new DateTime(2099, 1, 3, 7, 15, 7, 613);
+            var wimDetectTime = new DateTime(2099, 1, 3, 7, 15, 8, 457);
+            var sameKeyDetectTime = new DateTime(2099, 1, 3, 7, 15, 9, 123);
+            var vdsRow = new TmsTrafficData { ID = vdsId, EquipmentId = $"{prefix}_EQ", DetectTime = vdsDetectTime, Type = "CAR", LicensePlate = $"{prefix}-1", Speed = 75.5f, Lane = "L1", Direction = "NORTH", Location = prefix, Height = 150, Width = 180, Length = 450 };
+            var wimRow = new TmsTrafficData { ID = wimId, DetectTime = wimDetectTime, Lane = "L2", Location = prefix, Speed = 60.5f, Height = 140, Width = 170, Length = 900 };
+            var vdsSameRowA = new TmsTrafficData { ID = vdsSameIdA, EquipmentId = $"{prefix}_EQ", DetectTime = sameKeyDetectTime, Type = "CAR", LicensePlate = $"{prefix}-2", Speed = 52.5f, Lane = "L3", Direction = "NORTH", Location = prefix };
+            var vdsSameRowB = new TmsTrafficData { ID = vdsSameIdB, EquipmentId = $"{prefix}_EQ", DetectTime = sameKeyDetectTime, Type = "TRUCK", LicensePlate = $"{prefix}-3", Speed = 88.0f, Lane = "L3", Direction = "NORTH", Location = prefix };
+            var seedRows = new[] { vdsRow, wimRow, vdsSameRowA, vdsSameRowB };
+            await db.Insertable(seedRows).ExecuteCommandAsync();
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, vdsId, sentAt);
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, wimId, sentAt);
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, vdsSameIdA, sentAt);
+            await SetRoundTripRowTimeAsync<TmsTrafficData>(db, vdsSameIdB, sentAt);
+
+            var wimCode1 = ClonePartnerCode(wimPacket, "W1");
+            var wimShape1 = RoundTripShapeJson("106", wimCode1, wimPacket.PacketCode);
+            var wimPartner1 = await SeedReceiverPartnerAsync(db, wimPacket, "W1", ReceiveEndpoint, wimShape1);
+            var wimCode2 = ClonePartnerCode(wimPacket, "W2");
+            var wimShape2 = RoundTripShapeJson("106", wimCode2, wimPacket.PacketCode);
+            var wimPartner2 = await SeedReceiverPartnerAsync(db, wimPacket, "W2", ReceiveEndpoint, wimShape2);
+            var vdsCode1 = ClonePartnerCode(vdsPacket, "V1");
+            var vdsShape1 = RoundTripShapeJson("103", vdsCode1, vdsPacket.PacketCode);
+            var vdsPartner1 = await SeedReceiverPartnerAsync(db, vdsPacket, "V1", ReceiveEndpoint, vdsShape1);
+            var vdsCode2 = ClonePartnerCode(vdsPacket, "V2");
+            var vdsShape2 = RoundTripShapeJson("103", vdsCode2, vdsPacket.PacketCode);
+            var vdsPartner2 = await SeedReceiverPartnerAsync(db, vdsPacket, "V2", ReceiveEndpoint, vdsShape2);
+
+            var notDueUntil = DateTime.Now.AddDays(1);
+            var allOutboundSubIds = new[]
+            {
+                wimPartner1.Outbound.ID,
+                wimPartner2.Outbound.ID,
+                vdsPartner1.Outbound.ID,
+                vdsPartner2.Outbound.ID
+            };
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == notDueUntil)
+                .Where(s => allOutboundSubIds.Contains(s.ID))
+                .ExecuteCommandAsync();
+
+            var sender = CreateReceiverClone(scope, null);
+            var receiver = CreateInboundService(scope);
+            const string checkSql = "SELECT ID, DetectTime, Type, LicensePlate, Speed, Lane, Direction, Location, EquipmentId, Height, Width, Length FROM TmsTrafficData WHERE Location LIKE @prefix ORDER BY ID";
+
+            // Act: W1 (106) gửi và ghi trước, V1 (103) tới sau, rồi W2/V2 gửi lại y hệt, cuối cùng cập nhật Speed của vdsRow để gửi lượt 2
+            await MakeSubscriptionDue(db, wimPartner1.Outbound.ID);
+            await sender.ProcessSubscriptions(CancellationToken.None);
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            await MakeSubscriptionDue(db, vdsPartner1.Outbound.ID);
+            await sender.ProcessSubscriptions(CancellationToken.None);
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            await MakeSubscriptionDue(db, wimPartner2.Outbound.ID);
+            await sender.ProcessSubscriptions(CancellationToken.None);
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            await MakeSubscriptionDue(db, vdsPartner2.Outbound.ID);
+            await sender.ProcessSubscriptions(CancellationToken.None);
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            await db.Updateable<TmsTrafficData>()
+                .SetColumns(t => t.Speed == 82.0f)
+                .SetColumns(t => t.UpdateTime == resentAt)
+                .Where(t => t.ID == vdsId)
+                .ExecuteCommandAsync();
+            await MakeSubscriptionDue(db, vdsPartner1.Outbound.ID);
+            await sender.ProcessSubscriptions(CancellationToken.None);
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+            await MakeSubscriptionDue(db, wimPartner1.Outbound.ID);
+            await sender.ProcessSubscriptions(CancellationToken.None);
+            await receiver.ProcessPendingPackets(CancellationToken.None);
+
+            // Assert
+            var sourceRows = await ReadRoundTripRowsAsync(db, checkSql, prefix);
+            var inboundRows = await ReadRoundTripRowsAsync(inboundDb, checkSql, prefix);
+            var allPartnerIds = new[]
+            {
+                wimPartner1.Partner.ID,
+                wimPartner2.Partner.ID,
+                vdsPartner1.Partner.ID,
+                vdsPartner2.Partner.ID
+            };
+            var alerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => allPartnerIds.Contains(a.PartnerId))
+                .ToListAsync();
+            var wim1Received = await ReceivedPacketsAsync(inboundDb, wimPacket, wimPartner1);
+            var wim2Received = await ReceivedPacketsAsync(inboundDb, wimPacket, wimPartner2);
+            var vds1Received = await ReceivedPacketsAsync(inboundDb, vdsPacket, vdsPartner1);
+            var vds2Received = await ReceivedPacketsAsync(inboundDb, vdsPacket, vdsPartner2);
+            var allReceived = wim1Received
+                .Concat(wim2Received)
+                .Concat(vds1Received)
+                .Concat(vds2Received)
+                .ToList();
+
+            Assert.Empty(alerts);
+            Assert.Equal(4, sourceRows.Count);
+            Assert.Equal(4, inboundRows.Count);
+            Assert.Equal(sourceRows, inboundRows);
+            Assert.Equal(2, wim1Received.Count);
+            Assert.Single(wim2Received);
+            Assert.Equal(2, vds1Received.Count);
+            Assert.Single(vds2Received);
+            foreach (var packetRow in allReceived)
+            {
+                Assert.Equal(BaseEnums.InboundProcessState.Done, packetRow.ProcessState);
+            }
+        }
+
+        /// <summary>
+        /// Author: DatHQ
         /// Description: Tệp sửa câu ghi trên CSDL đã nạp seed cũ: câu ghi mẫu chung gói 104, 106 còn bản so thời gian lệch kiểu
         ///              (cột datetime với datetime2 đọc từ JSON) được sửa đúng thành câu của seed hiện hành; chạy lại lần hai không đổi gì thêm.
         /// Created date: 13/11/2026

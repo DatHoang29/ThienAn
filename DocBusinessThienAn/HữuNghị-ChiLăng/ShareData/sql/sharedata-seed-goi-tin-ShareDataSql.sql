@@ -21,7 +21,8 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 18/11/2026 (câu mẫu gói 101 đổi đuôi __lastKey sang ISNULL(z.Code, '') và chỉ lấy trạng thái chưa xóa của vùng chưa xóa, cùng tập dữ liệu với câu riêng K4/K8;
+-- CẬP NHẬT LẦN CUỐI: 19/11/2026 (bổ sung bước nhận lại dòng 106 mồ côi 1-1 cho câu ghi gói 103_vdsData khi 106 tới trước 103, tránh nhân đôi TmsTrafficData; tự động cập nhật khi WriteSql 103 chưa có batchKeyCount);
+--                    18/11/2026 (câu mẫu gói 101 đổi đuôi __lastKey sang ISNULL(z.Code, '') và chỉ lấy trạng thái chưa xóa của vùng chưa xóa, cùng tập dữ liệu với câu riêng K4/K8;
 --                    câu ghi gói 106 bỏ qua khóa (DetectTime, Lane, Location) mơ hồ: gói có nhiều bản ghi khác số đo cùng khóa hoặc CSDL nhận đã có từ 2 dòng
 --                    cùng khóa (nhiều xe cùng thời điểm, làn, vị trí) thì không gộp MAX ghi đè lên dòng của gói 103; khóa chỉ một dòng vẫn gộp số đo như cũ;
 --                    bổ sung WHEN MATCHED AND EXISTS (... EXCEPT ...) chặn UPDATE trùng trên cả 9 gói 101-109 và thêm INSERT TmsEquipment cho gói 108_vmsInfo; thêm bước 1c dò cột tự động sinh FieldsJson và DescribedTime cho câu SQL còn trống); 16/11/2026; 13/11/2026 (câu ghi gói 104, 106 đổi thời gian về datetime trước khi so khóa: cột đích datetime so với datetime2 đọc từ JSON không khớp mili-giây lẻ nên mỗi lần gửi lại chèn thêm dòng); 11/11/2026 (bước 0.5 khôi phục dòng mẫu chung đã xóa mềm, vd gói 105 trống câu truy vấn trên staging; câu ghi gói 107 ghi ProcessMode = 'manual' khi thêm sự cố: cột NOT NULL, CSDL nhận có thể thiếu DEFAULT); 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
@@ -1124,6 +1125,59 @@ WHEN MATCHED AND EXISTS (
                t.UpdateUId  = @operator
 OUTPUT $action;
 
+UPDATE t
+SET t.ID           = s.detectionId,
+    t.DetectTime   = ISNULL(s.detectTime, t.DetectTime),
+    t.Type         = ISNULL(s.vehicleType, t.Type),
+    t.LicensePlate = ISNULL(s.licensePlate, t.LicensePlate),
+    t.Speed        = ISNULL(s.speed, t.Speed),
+    t.Lane         = ISNULL(s.lane, t.Lane),
+    t.Direction    = ISNULL(s.direction, t.Direction),
+    t.Location     = ISNULL(s.locationRoute, t.Location),
+    t.EquipmentId  = ISNULL(s.equipmentId, t.EquipmentId),
+    t.UpdateTime   = @now,
+    t.UpdateUId    = @operator
+OUTPUT N''UPDATE''
+FROM dbo.TmsTrafficData AS t WITH (UPDLOCK, HOLDLOCK)
+INNER JOIN (
+    SELECT g.detectionId, g.detectTime, g.vehicleType, g.licensePlate, g.speed, g.lane,
+           g.direction, g.locationRoute, g.equipmentId
+    FROM (
+        SELECT d.detectionId, d.detectTime, d.vehicleType, d.licensePlate, d.speed, d.lane,
+               d.direction, d.locationRoute, d.equipmentId,
+               COUNT(*) OVER (PARTITION BY d.detectTime, ISNULL(d.lane, N''''), ISNULL(d.locationRoute, N'''')) AS batchKeyCount
+        FROM (
+            SELECT detectionId, CONVERT(datetime, MAX(detectTime)) AS detectTime, MAX(vehicleType) AS vehicleType,
+                   MAX(licensePlate) AS licensePlate, MAX(speed) AS speed, MAX(lane) AS lane,
+                   MAX(direction) AS direction, MAX(locationRoute) AS locationRoute, MAX(equipmentId) AS equipmentId
+            FROM OPENJSON(@records) WITH (
+                detectionId nvarchar(64), detectTime datetime2, vehicleType nvarchar(32),
+                licensePlate nvarchar(32), speed float, lane nvarchar(32),
+                direction nvarchar(32), locationRoute nvarchar(32), equipmentId nvarchar(64))
+            WHERE detectionId IS NOT NULL
+            GROUP BY detectionId
+        ) AS d
+    ) AS g
+    WHERE g.detectTime IS NOT NULL
+      AND g.batchKeyCount = 1
+      AND NOT EXISTS (SELECT 1 FROM dbo.TmsTrafficData e WHERE e.ID = g.detectionId)
+      AND (SELECT COUNT(*) FROM dbo.TmsTrafficData x
+           WHERE x.DetectTime = g.detectTime
+             AND ISNULL(x.Lane, N'''') = ISNULL(g.lane, N'''')
+             AND ISNULL(x.Location, N'''') = ISNULL(g.locationRoute, N'''')) = 1
+) AS s
+   ON t.DetectTime = s.detectTime
+  AND ISNULL(t.Lane, N'''') = ISNULL(s.lane, N'''')
+  AND ISNULL(t.Location, N'''') = ISNULL(s.locationRoute, N'''')
+WHERE t.CreateUId = @operator
+  AND t.IsDelete IS NULL
+  AND TRY_CONVERT(uniqueidentifier, t.ID) IS NOT NULL
+  AND t.EquipmentId IS NULL
+  AND t.Type IS NULL
+  AND t.LicensePlate IS NULL
+  AND t.Direction IS NULL
+  AND (t.Speed = s.speed OR t.Speed IS NULL OR s.speed IS NULL);
+
 MERGE dbo.TmsTrafficData WITH (HOLDLOCK) AS t
 USING (
     SELECT detectionId, MAX(detectTime) AS detectTime, MAX(vehicleType) AS vehicleType,
@@ -1567,7 +1621,8 @@ WHERE s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR s.[WriteSql] IS NULL OR LTRIM(RTRIM(s.[WriteSql])) = ''
        OR CHARINDEX(N'WHEN MATCHED AND EXISTS', s.[WriteSql]) = 0
-       OR (src.[PacketCode] = '106_wimData' AND CHARINDEX(N'variantCount', s.[WriteSql]) = 0));
+       OR (src.[PacketCode] = '106_wimData' AND CHARINDEX(N'variantCount', s.[WriteSql]) = 0)
+       OR (src.[PacketCode] = '103_vdsData' AND CHARINDEX(N'batchKeyCount', s.[WriteSql]) = 0));
 DECLARE @WriteUpdated INT = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [WriteSql], [AffectedTables], [TenantId], [CreateTime], [CreateUId])

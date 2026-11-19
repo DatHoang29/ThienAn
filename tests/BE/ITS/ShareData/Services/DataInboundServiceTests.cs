@@ -1653,6 +1653,144 @@ public class DataInboundServiceTests(Host host)
 
     /// <summary>
     /// Author: DatHQ
+    /// Description: Tệp dọn trùng TmsTrafficData khi gói 106 tới trước gói 103: gộp chiều cao/rộng/dài từ dòng 106 mồ côi sang dòng 103
+    ///              khớp 1-1 theo (DetectTime, Lane, Location) và tốc độ rồi xóa dòng 106 mồ côi; bỏ qua cặp trùng 2 xe 103 và giữ dòng của phân hệ khác;
+    ///              chạy lại lần hai không đổi gì thêm.
+    /// Created date: 19/11/2026
+    /// </summary>
+    [Fact]
+    public async Task DuplicateCleanupScript_When106ArrivedBefore103_MergesWimColumnsInto103AndRemovesOrphan_Test()
+    {
+        // Arrange
+        var rawGuid = Guid.NewGuid().ToString("N");
+        var suffix = rawGuid[..8];
+        var key = $"M103_{suffix}";
+        var vdsId = $"{key}_VDS";
+        var eqId = $"{key}_EQ";
+        var vdsDupAId = $"{key}_C1";
+        var vdsDupBId = $"{key}_C2";
+        var orphanOneId = Guid.NewGuid().ToString().ToLowerInvariant();
+        var orphanDupId = Guid.NewGuid().ToString().ToLowerInvariant();
+        var otherModuleId = $"{key}_EXT";
+        var singleTime = new DateTime(2026, 10, 21, 9, 15, 7, 613);
+        var dupTime = new DateTime(2026, 10, 21, 9, 15, 8, 123);
+        var now = DateTime.Now;
+        var earlierTime = now.AddMinutes(-2);
+        var laterTime = now.AddMinutes(-1);
+
+        var rows = new[]
+        {
+            new TmsTrafficData
+            {
+                ID = vdsId,
+                EquipmentId = eqId,
+                DetectTime = singleTime,
+                Type = "CAR",
+                LicensePlate = "30A12345",
+                Direction = "1",
+                Lane = "1",
+                Location = key,
+                Speed = 55f,
+                CreateTime = earlierTime,
+                CreateUId = "SHAREDATA_INBOUND"
+            },
+            new TmsTrafficData
+            {
+                ID = orphanOneId,
+                DetectTime = singleTime,
+                Lane = "1",
+                Location = key,
+                Speed = 55f,
+                Height = 2100,
+                Width = 1800,
+                Length = 8420,
+                CreateTime = earlierTime.AddSeconds(5),
+                CreateUId = "SHAREDATA_INBOUND"
+            },
+            new TmsTrafficData
+            {
+                ID = vdsDupAId,
+                EquipmentId = eqId,
+                DetectTime = dupTime,
+                Type = "CAR",
+                LicensePlate = "30A11111",
+                Direction = "1",
+                Lane = "1",
+                Location = key,
+                Speed = 50f,
+                CreateTime = earlierTime,
+                CreateUId = "SHAREDATA_INBOUND"
+            },
+            new TmsTrafficData
+            {
+                ID = vdsDupBId,
+                EquipmentId = eqId,
+                DetectTime = dupTime,
+                Type = "TRUCK",
+                LicensePlate = "30A22222",
+                Direction = "1",
+                Lane = "1",
+                Location = key,
+                Speed = 80f,
+                CreateTime = earlierTime,
+                CreateUId = "SHAREDATA_INBOUND"
+            },
+            new TmsTrafficData
+            {
+                ID = orphanDupId,
+                DetectTime = dupTime,
+                Lane = "1",
+                Location = key,
+                Speed = 50f,
+                Height = 2000,
+                Width = 1750,
+                Length = 7500,
+                CreateTime = laterTime,
+                CreateUId = "SHAREDATA_INBOUND"
+            },
+            new TmsTrafficData
+            {
+                ID = otherModuleId,
+                DetectTime = singleTime,
+                Lane = "1",
+                Location = key,
+                Speed = 99f,
+                CreateTime = earlierTime.AddMinutes(-1),
+                CreateUId = "OTHER_MODULE"
+            }
+        };
+        await _inboundDb.Insertable(rows).ExecuteCommandAsync();
+
+        // Act
+        await RunInboundSqlScriptAsync("sharedata-don-trung-TmsTrafficData.sql");
+        await RunInboundSqlScriptAsync("sharedata-don-trung-TmsTrafficData.sql");
+
+        // Assert
+        var singleGroupRows = await _inboundDb.Queryable<TmsTrafficData>()
+            .Where(t => t.Location == key && t.DetectTime == singleTime)
+            .OrderBy(t => t.ID)
+            .ToListAsync();
+        var mergedVds = singleGroupRows.SingleOrDefault(t => t.ID == vdsId);
+        var preservedOther = singleGroupRows.SingleOrDefault(t => t.ID == otherModuleId);
+        var dupGroupRows = await _inboundDb.Queryable<TmsTrafficData>()
+            .Where(t => t.Location == key && t.DetectTime == dupTime)
+            .ToListAsync();
+        var dupCarA = dupGroupRows.Single(t => t.ID == vdsDupAId);
+        var dupCarB = dupGroupRows.Single(t => t.ID == vdsDupBId);
+
+        Assert.Equal(2, singleGroupRows.Count);
+        Assert.NotNull(mergedVds);
+        Assert.Equal(2100, mergedVds!.Height);
+        Assert.Equal(1800, mergedVds.Width);
+        Assert.Equal(8420, mergedVds.Length);
+        Assert.NotNull(preservedOther);
+        Assert.Equal(99f, preservedOther!.Speed);
+        Assert.Null(dupCarA.Height);
+        Assert.Null(dupCarB.Height);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
     /// Description: Chạy tệp script trong thư mục sql lên CSDL nhận như trên SSMS: bỏ dòng USE, chạy từng khối giữa các GO.
     /// Created date: 14/11/2026
     /// </summary>

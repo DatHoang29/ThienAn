@@ -23,5 +23,5 @@
 - [Biểu mẫu KPI](kpi-template.md) — tạo kỳ mới từ 2026.09; 2026.08 chỉ đọc để đối chiếu; quy chuẩn định dạng trong tệp
 
 ## Dự án
-- [ShareData](sharedata.md) — quyết định, kiểm tải; 17/11 câu 1 tầng, 10 đối tác, ô mốc 8–17 số; 18/11 K6 11:58, DMV: 106 đè 103, 108 ghi 0, ổ C: nghẽn
+- [ShareData](sharedata.md) — quyết định, kiểm tải; 19/11: PA 1 + D12 + D13 đã chạy staging; TmsTrafficData nhận 0 dòng sai so nguồn, 0 lỗi gửi nhận
 - [Bàn giao 11/2026](handover-2026-11.md) — tài liệu ở `bangiao/`, tách theo phân hệ, bản html và md
