@@ -1,0 +1,35 @@
+/*
+ * Nền "sân khấu tường màn hình" dùng chung cho Video Wall:
+ * Bố cục tường (Màn hình), Phân quyền vùng, Giám sát & điều khiển, Quản lý kịch bản.
+ * Dùng: @import '/@/theme/its/videoWallStage.scss'; rồi @include vw-stage; trong khối gốc.
+ */
+@mixin vw-stage {
+	--wg-accent: #3b8cff;
+	--wg-line-strong: rgba(150, 190, 255, 0.18);
+	--wg-frame: rgba(150, 190, 255, 0.32);
+	--wg-empty: rgba(20, 50, 100, 0.22);
+	--wg-empty-border: rgba(170, 205, 255, 0.4);
+	--wg-muted: rgba(215, 230, 250, 0.75);
+	--wg-panel: rgba(12, 32, 66, 0.4);
+	position: relative;
+	border-radius: 10px;
+	overflow: hidden;
+	/* Nền sáng hơn tấm màn (vw-stage-tile / wallScreenTile) để màn hình nổi lên trên sân khấu */
+	background: radial-gradient(ellipse 90% 70% at 50% 0%, #7096c9 0%, #5f88bd 45%, #5079b0 100%);
+	box-shadow: inset 0 0 0 1px var(--wg-frame);
+	color: #e8f0fb;
+}
+
+/* Tấm màn trên sân khấu tối: viền mỏng như bezel (giống wallScreenTile) */
+@mixin vw-stage-tile {
+	border: 1px solid rgba(120, 175, 255, 0.22);
+	border-radius: 4px;
+	background: linear-gradient(170deg, #1f3a63 0%, #152b4c 100%);
+	box-shadow: 0 1px 4px rgba(3, 12, 30, 0.3);
+	color: #f2f6fc;
+}
+
+/* Ô ngoài vùng được cấp trên sân khấu tối: sọc chéo */
+@mixin vw-stage-denied {
+	background: repeating-linear-gradient(45deg, rgba(8, 24, 52, 0.85), rgba(8, 24, 52, 0.85) 6px, rgba(40, 96, 180, 0.18) 6px, rgba(40, 96, 180, 0.18) 12px);
+}

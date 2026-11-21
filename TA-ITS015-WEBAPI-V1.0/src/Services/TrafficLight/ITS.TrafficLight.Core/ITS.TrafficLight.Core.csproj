@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ITS.TrafficLight.Core</RootNamespace>
+    <AssemblyName>ITS.TrafficLight.Core</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    ITS.TrafficLight.Core: Tầng lõi dịch vụ trung gian điều khiển Đèn tín hiệu giao thông (kênh ta.its.control.trafficlight).
+    - Messaging  : DTO gói tin NATS + cấu hình kết nối NATS.
+    - Integration: Điều phối lệnh tới Modules.Integration.TrafficLight (Siemens & Modbus).
+    - Logging    : Ghi log vận hành điều khiển độc lập theo ngày.
+    Author: ChuongLP
+    Date: 05/10/2026
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Modules\Integration\TrafficLight\Modules.Integration.TrafficLight.Base\Modules.Integration.TrafficLight.Base.csproj" />
+    <ProjectReference Include="..\..\..\Modules\Integration\TrafficLight\Modules.Integration.TrafficLight\Modules.Integration.TrafficLight.csproj" />
+    <ProjectReference Include="..\..\..\Modules\Integration\TrafficLight\Modules.Integration.TrafficLight.Siemens\Modules.Integration.TrafficLight.Siemens.csproj" />
+    <ProjectReference Include="..\..\..\Modules\Integration\TrafficLight\Modules.Integration.TrafficLight.Modbus\Modules.Integration.TrafficLight.Modbus.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NATS.Net" Version="2.7.3" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+  </ItemGroup>
+
+</Project>

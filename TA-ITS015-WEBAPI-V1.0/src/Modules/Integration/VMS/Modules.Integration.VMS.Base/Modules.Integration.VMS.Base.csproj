@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Core\Dtos\Chainzone\**" />
+    <Compile Remove="Core\Dtos\Dysten\**" />
+    <EmbeddedResource Remove="Core\Dtos\Chainzone\**" />
+    <EmbeddedResource Remove="Core\Dtos\Dysten\**" />
+    <None Remove="Core\Dtos\Chainzone\**" />
+    <None Remove="Core\Dtos\Dysten\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+  </ItemGroup>
+
+</Project>

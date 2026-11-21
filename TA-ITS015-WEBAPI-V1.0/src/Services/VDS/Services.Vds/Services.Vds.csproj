@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared configuration entities for typed catalog reads; no WebAPI implementation dependency. -->
+    <ProjectReference Include="../../../Modules/CfgSystem/Modules.CfgSystem.Core/Modules.CfgSystem.Core.csproj" />
+    <!-- Entity VdsTrafficData (bảng QuestDB). Dùng CHUNG một bản với module WebAPI Modules.VDS
+         để hai bên không trôi lệch schema. Project này nhẹ (Shared.DTO + Shared.Core.dll). -->
+    <ProjectReference Include="..\..\..\Modules\VDS\Modules.VDS.Core\Modules.VDS.Core.csproj" />
+
+    <!-- Entity Tms* trên SQL SERVER: TmsEquipment (danh mục camera), TmsZone*, TmsIncident…
+         Chỉ reference project ENTITIES nhẹ, KHÔNG reference Modules.TMS đầy đủ để tránh kéo Furion. -->
+    <ProjectReference Include="..\..\..\Modules\TMS\Modules.TMS.Core\Modules.TMS.Core.csproj" />
+
+    <!-- Nền kỹ thuật dùng chung cho mọi service: DatabaseManager (SqlSugar nhiều kết nối),
+         SqlSugarAccess, TransportManager (NATS), LogManager, IConfigLoader.
+         Kéo theo: Microsoft.Extensions.Hosting, SqlSugarCore (→ Npgsql cho QuestDB), ZLogger. -->
+    <ProjectReference Include="..\..\Shared\Services.Shared.Runtime\Services.Shared.Runtime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EntityTenant / EntityBase — base của các entity Tms* — nằm trong DLL biên dịch sẵn, không phải
+         NuGet package. Thiếu reference này thì mọi truy cập .ID / .IsDelete / .Code trên TmsEquipment
+         đều báo CS0012 "type 'EntityTenant' is defined in an assembly that is not referenced". -->
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Wolverine local queue cho vertical slice Ingestion. Pin cùng phiên bản với Services.Sample
+         và ITS.VDS.Core để tránh hai runtime khác nhau trong cùng solution. -->
+    <PackageReference Include="WolverineFx" Version="5.31.0" />
+  </ItemGroup>
+
+  <!-- Bố cục: README.md ở gốc project là điểm vào — nó mô tả 13 bước của Pipeline/VdsFrameProcessor.cs
+       (toàn bộ đường dữ liệu thời gian thực) và bản đồ thư mục. Vòng đời do Manager/VdsServiceManager
+       điều phối tường minh (IServiceManager), host chỉ gọi Init → Start → Stop. Xem docs/V7. -->
+
+</Project>

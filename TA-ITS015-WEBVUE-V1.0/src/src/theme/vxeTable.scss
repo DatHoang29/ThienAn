@@ -1,0 +1,157 @@
+@import 'vxe-table/styles/all.scss';
+@import 'vxe-pc-ui/styles/all.scss';
+
+// Global variable reference address https://github.com/x-extends/vxe-table/blob/master/styles/theme/base.scss
+:root {
+	--vxe-ui-font-family: var(--el-font-family);
+	// --vxe-ui-font-color: var(--el-text-color-primary); // Original: #606266;
+	// --vxe-ui-primary-color: var(--el-color-primary); // Original: #409eff;
+	// --vxe-ui-primary-lighten-color: var(--el-color-primary);
+	// --vxe-ui-table-row-height-small: 36px; // Original: 40px
+	// --vxe-ui-table-row-height-mini: 32px; // Original: 36px
+	// --vxe-ui-table-row-line-height: 18px; // Original: 22px
+	// // --vxe-ui-table-header-font-weight: 500; // Original 700
+	// --vxe-ui-table-font-color: var(--el-text-color-primary);
+	//  --vxe-ui-table-header-font-color: var(--el-text-color-primary);
+	// --vxe-ui-table-footer-font-color: var(--el-text-color-primary);
+	// --vxe-ui-table-cell-padding-left: 8px; // Original: 10px
+	// --vxe-ui-table-cell-padding-right: 8px; // Original: 10px
+	--vxe-ui-table-row-current-background-color: var(--el-color-primary-light-3) !important; // Background color of the current row
+	--vxe-ui-table-row-hover-current-background-color: var(--el-color-primary-light-7);
+	--vxe-ui-table-border-color: var(--el-color-primary-light-7);
+	--vxe-ui-table-row-striped-background-color: var(--el-color-primary-light-9);
+	--table-action-size: 24px;
+	--table-action-gap: 4px;
+
+}
+
+.vxe-toolbar {
+	padding: 0 0 6px 0;
+}
+
+.vxe-tools--operate>.vxe-button.size--mini,
+.vxe-custom--wrapper>.vxe-button.size--mini,
+.vxe-tools--wrapper>.vxe-button.size--mini {
+	height: 24px !important;
+	width: 24px !important;
+	min-width: 24px !important;
+	text-overflow: clip;
+	line-height: unset;
+	padding: 0 0.4em !important;
+}
+
+.vxe-cell {
+	padding-left: 5px !important;
+	padding-right: 5px !important;
+	user-select: text !important;
+
+	.el-button {
+		padding: 0 !important;
+	}
+}
+
+// Preserve Element Plus action colors; normalize spacing in all table bodies.
+.vxe-body--column .el-button.is-text,
+.el-table__body .el-button.is-text {
+	min-width: var(--table-action-size);
+	min-height: var(--table-action-size);
+	height: var(--table-action-size);
+	margin: 0 calc(var(--table-action-gap) / 2);
+	border-radius: 4px;
+}
+.vxe-body--column .row-actions,
+.el-table__body .row-actions {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--table-action-gap);
+}
+.vxe-body--column .row-actions .el-button.is-text,
+.el-table__body .row-actions .el-button.is-text {
+	margin: 0;
+}
+
+.vxe-pager.size--mini {
+	/*
+	 * Dùng padding-top thay cho margin-top: vxe-grid tính chiều cao body theo
+	 * offsetHeight (không tính margin) nên margin-top gây dư vài px -> xuất hiện
+	 * thanh scroll thừa dù nội dung vừa đủ. padding được tính vào offsetHeight
+	 * nên giữ được khoảng cách mà không sinh scroll thừa.
+	 */
+	height: 34px;
+	padding-top: 4px;
+	box-sizing: border-box;
+}
+
+// When there is a dropdown selection box in the table in El-Dialog, add this class popupClassName: 'zIndex2023' (effective from Vxe4.5.0) otherwise the popped-up dropdown container will be covered
+.zIndex2023 {
+	z-index: 2023 !important;
+}
+
+.popper-400 {
+	width: 400px !important;
+}
+
+.popper-400 .el-select-dropdown__list {
+	width: 100% !important;
+}
+
+.popper-400 .el-select-dropdown__option-item {
+	padding: 0 30px 0 10px !important;
+}
+
+// Table content color
+.vxe-table--render-default {
+	//color: var(--vxe-ui-font-color);
+	color: unset !important;
+}
+
+.vxe-table--header-wrapper {
+	color: unset !important;
+}
+
+// Table pagination color
+.vxe-pager {
+	color: unset !important;
+	--vxe-ui-input-height-default: 24px;
+	--vxe-ui-input-height-medium: 24px;
+	--vxe-ui-input-height-small: 24px;
+	--vxe-ui-input-height-mini: 24px;
+
+	.vxe-pager--sizes {
+		width: 104px;
+	}
+	.vxe-pager--jump .vxe-pager--goto {
+		width: 44px;
+	}
+	.vxe-pager--sizes .vxe-input,
+	.vxe-pager--goto.vxe-number-input {
+		font-size: 12px;
+	}
+}
+
+//SONTH
+// Default table style - fix auto-increment situation in classic layout
+.xGrid-style {
+	display: flex;
+	flex-direction: column;
+	--vxe-ui-table-header-background-color: var(--el-color-primary-light-8);
+	--vxe-ui-table-footer-background-color: var(--el-color-primary-light-8);
+	--vxe-ui-table-header-font-color: var(--el-color-primary) !important;
+}
+
+.vxe-table--header {
+	color: var(--el-color-primary) !important;
+
+	.vxe-checkbox--icon {
+		color: var(--el-color-primary) !important;
+	}
+}
+
+
+// :deep(.xGrid-style .vxe-body--row.warning-row) {
+// 	background-color: var(--el-color-warning-light-9);
+// }
+// :deep(.xGrid-style .vxe-body--row.success-row) {
+// 	background-color: var(--el-color-success-light-9);
+// }

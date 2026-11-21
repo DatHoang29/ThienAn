@@ -1,0 +1,92 @@
+    
+/// <summary>
+    /// Author: HieuNV
+    /// Description: Chuyển đổi Database.Json -> Database _Sharedata.Json khi start ShareData
+    /// Created date: 2026-09-22
+    /// </summary>
+
+{
+
+  "DbConnection": {
+    "EnableConsoleSql": true, // Bật Log console
+    "ConnectionConfigs": [
+      {
+        "ConfigId": "Default", // "Default"
+        "DbType": "SqlServer", // MySql、SqlServer、Sqlite、Oracle、PostgreSQL、Dm、Kdbndp、Oscar、MySqlConnector、Access、OpenGauss、QuestDB、HG、ClickHouse、GBase、Odbc、Custom
+        "ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
+        //"ConnectionString": "Server=LAPTOP-6EHRF80A\\LPC;Database=DEV_ITS015;MultipleActiveResultSets=true;User ID=sa;Password=123;TrustServerCertificate=True",
+        //"ConnectionString": "Server=localhost;Database=DEV_ITS10;Integrated Security=True;MultipleActiveResultSets=True;TrustServerCertificate=True;",
+
+        "DbSettings": {
+          "EnableInitDb": false, // Init DB
+          "EnableDiffLog": false, // Enable DiffLog
+          "EnableUnderLine": false // CamelCase
+        },
+        "TableSettings": {
+          "EnableInitTable": false, // Init Table
+          "EnableIncreTable": false //Enable incremental
+        },
+        "SeedSettings": {
+          "EnableInitSeed": false, // Init Seed Data
+          "EnableIncreSeed": false // Enable incremental
+        },
+        "SlaveSettings": [
+          //{
+          //  "HitRate": 10,
+          //  "ConnectionString": "Server=.;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@1234;TrustServerCertificate=True"
+          //}
+        ]
+      },
+      {
+        "ConfigId": "ShareDataDB", // "Default"
+        "DbType": "SqlServer", // MySql、SqlServer、Sqlite、Oracle、PostgreSQL、Dm、Kdbndp、Oscar、MySqlConnector、Access、OpenGauss、QuestDB、HG、ClickHouse、GBase、Odbc、Custom
+        "ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10_Inbound;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
+        //"ConnectionString": "Server=LAPTOP-6EHRF80A\\LPC;Database=DEV_ITS015;MultipleActiveResultSets=true;User ID=sa;Password=123;TrustServerCertificate=True",
+        //"ConnectionString": "Server=localhost;Database=DEV_ITS10_Inbound;Integrated Security=True;MultipleActiveResultSets=True;TrustServerCertificate=True;",
+
+        "DbSettings": {
+          "EnableInitDb": false, // Init DB
+          "EnableDiffLog": false, // Enable DiffLog
+          "EnableUnderLine": false // CamelCase
+        },
+        "TableSettings": {
+          "EnableInitTable": false, // Init Table
+          "EnableIncreTable": false //Enable incremental
+        },
+        "SeedSettings": {
+          "EnableInitSeed": false, // Init Seed Data
+          "EnableIncreSeed": false // Enable incremental
+        },
+        "SlaveSettings": [
+          //{
+          //  "HitRate": 10,
+          //  "ConnectionString": "Server=.;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@1234;TrustServerCertificate=True"
+          //}
+        ]
+      },
+      {
+        "ConfigId": "LogDefault", // "LogDefault for write log"
+        "DbType": "SqlServer", // MySql、SqlServer、Sqlite、Oracle、PostgreSQL、Dm、Kdbndp、Oscar、MySqlConnector、Access、OpenGauss、QuestDB、HG、ClickHouse、GBase、Odbc、Custom
+        "ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
+        //"ConnectionString": "Server=LAPTOP-6EHRF80A\\LPC;Database=DEV_ITS015_Log;MultipleActiveResultSets=true;User ID=sa;Password=123;TrustServerCertificate=True",
+        //"ConnectionString": "Server=localhost;Database=DEV_ITS10_Log;Integrated Security=True;MultipleActiveResultSets=True;TrustServerCertificate=True;",
+        "DbSettings": {
+          "EnableInitDb": false, // Init DB
+          "EnableDiffLog": false, // Enable DiffLog
+          "EnableUnderLine": false // CamelCase
+        },
+        "TableSettings": {
+          "EnableInitTable": false, // Init Table
+          "EnableIncreTable": false //Enable incremental
+        },
+        "SeedSettings": {
+          "EnableInitSeed": false, // Init Seed Data
+          "EnableIncreSeed": false // Enable incremental
+        },
+        "SlaveSettings": [
+
+        ]
+      }
+    ]
+  }
+}

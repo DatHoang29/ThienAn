@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ITS.PA.Core</RootNamespace>
+    <AssemblyName>ITS.PA.Core</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    ITS.PA.Core: Tầng lõi dịch vụ điều khiển hệ thống phát thanh công cộng (PA - Public Address) ITC.
+    Chuyển từ Integrated2.0 (Its.PA.Control.Controller) của ITS008:
+    - Integration : PaApiClient gọi REST API của máy chủ PA (đăng nhập, danh sách nhóm/thiết bị đầu cuối, bản nhạc, tác vụ).
+    - Processing  : PaDeviceExecutor (phát/dừng tác vụ) và PaControlService (luồng bật/tắt/kiểm âm của sự cố).
+    - Messaging   : nhận lệnh, trả kết quả và phát heartbeat qua NATS (TransportManager).
+    - Models      : DTO của API.
+    Bản SDK native ip_cast.dll (P/Invoke, 32-bit) của code cũ KHÔNG chuyển: production chỉ dùng đường REST API.
+    Author: ChuongLP
+    Date: 31/10/2026
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Services.Shared.Runtime\Services.Shared.Runtime.csproj" />
+  </ItemGroup>
+
+  <!--
+    SdkNative: DLL native của SDK ITC (ip_cast.dll + thư viện phụ thuộc), chép nguyên từ
+    ITS008 Its.PA.Control.Controller\ITC_PA\DLL. Là DLL 32-bit (x86). Hiện CHƯA có code P/Invoke dùng chúng
+    (production cũ chỉ gọi REST API); đặt sẵn và chép ra thư mục chạy cạnh exe để khi cần SDK thì dùng được.
+    Đã bỏ ip_cast.lib và json_vc71_libmtd.lib (thư viện liên kết lúc build, không cần lúc chạy).
+  -->
+  <ItemGroup>
+    <None Include="SdkNative\*.dll;SdkNative\*.ini" Link="%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,18 @@
+global using Furion;
+global using Furion.ConfigurableOptions;
+global using Furion.DependencyInjection;
+global using Furion.DynamicApiController;
+global using Furion.FriendlyException;
+global using Mapster;
+global using Microsoft.AspNetCore.Mvc;
+global using Modules.VDS.Core.Dto;
+global using Shared.Utility.Resilience;
+global using Microsoft.Extensions.Options;
+global using Newtonsoft.Json;
+global using SqlSugar;
+global using System.ComponentModel;
+global using System.ComponentModel.DataAnnotations;
+global using System.Data;
+global using Wolverine;
+global using Wolverine.Attributes;
+[assembly: WolverineModule]

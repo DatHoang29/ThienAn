@@ -1,0 +1,18 @@
+{
+  "lz.button.trafficLight.red": "Red light",
+  "lz.button.trafficLight.green": "Green light",
+  "lz.label.trafficLight.signalLight": "Traffic signal",
+  "lz.label.trafficLight.currentColor": "Current color",
+  "lz.label.trafficLight.red": "Red",
+  "lz.label.trafficLight.green": "Green",
+  "lz.label.trafficLight.unknown": "Unknown",
+  "lz.label.trafficLight.simulateHint": "Simulation mode: commands are not sent to real devices, only the map status is updated.",
+  "lz.message.trafficLight.confirmCommand": "Confirm \"{command}\" for {name}?",
+  "lz.message.trafficLight.commandSuccess": "Done: {command}",
+  "lz.message.trafficLight.commandFailed": "Failed: {command}",
+  "lz.label.trafficLight.equipmentList": "Traffic signal list",
+  "lz.label.trafficLight.clickToToggle": "Click a signal to select / deselect; commands apply to the selected signals.",
+  "lz.label.trafficLight.otherLocation": "Other",
+  "lz.message.trafficLight.multiTarget": "{count} selected signals",
+  "lz.message.trafficLight.commandPartial": "\"{command}\" done for {success}/{total} signals. Failed: {names}"
+}

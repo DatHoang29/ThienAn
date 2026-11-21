@@ -1,0 +1,22 @@
+{
+  "lz.button.fan.forward": "Chạy thuận",
+  "lz.button.fan.reverse": "Chạy nghịch",
+  "lz.button.fan.stop": "Dừng quạt",
+  "lz.button.fan.applyFrequency": "Áp dụng",
+  "lz.label.fan.mode": "Chế độ",
+  "lz.label.fan.modeForward": "Đang chạy thuận",
+  "lz.label.fan.modeReverse": "Đang chạy nghịch",
+  "lz.label.fan.modeStop": "Đã dừng",
+  "lz.label.fan.frequency": "Tần số",
+  "lz.label.fan.setpoint": "Giá trị đặt",
+  "lz.label.fan.setFrequency": "Đặt tần số",
+  "lz.label.fan.direction": "Hướng",
+  "lz.label.fan.directionForward": "Thuận chiều",
+  "lz.label.fan.directionReverse": "Ngược chiều",
+  "lz.label.fan.directionNone": "Đang dừng",
+  "lz.label.fan.simulateHint": "Chế độ giả lập: lệnh chưa gửi xuống biến tần thật, số liệu tần số/hướng là ngẫu nhiên.",
+  "lz.message.fan.confirmCommand": "Xác nhận thực hiện \"{command}\" cho {name}?",
+  "lz.message.fan.setFrequencyCommand": "Đặt tần số {value}",
+  "lz.message.fan.commandSuccess": "Đã thực hiện: {command}",
+  "lz.message.fan.commandFailed": "Thực hiện thất bại: {command}"
+}

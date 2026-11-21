@@ -1,0 +1,258 @@
+/* Cột danh sách kéo thả (cổng ra / màn) — cùng kiểu SourcePalette của Quản lý kịch bản. Dùng: @import './palette.scss' trong <style scoped>. */
+.vp {
+	position: relative;
+	min-height: 100%;
+	box-sizing: border-box;
+	padding: 12px;
+}
+
+/* Lớp phủ "thả để đưa ra ngoài lưới" */
+.vp-remove {
+	position: absolute;
+	inset: 6px;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	border: 2px dashed var(--el-color-danger-light-5);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--el-color-danger-light-9) 80%, transparent);
+	color: var(--el-color-danger);
+	font-size: 13px;
+	font-weight: 600;
+	text-align: center;
+	pointer-events: none;
+	transition: border-color 0.15s, background 0.15s;
+}
+.vp-remove .el-icon {
+	font-size: 28px;
+}
+.vp.is-remove-target .vp-remove {
+	border-color: var(--el-color-danger);
+	background: var(--el-color-danger-light-9);
+}
+
+/* Dính đầu vùng cuộn; lấn ra lề 12px để nền che kín nội dung cuộn bên dưới */
+.vp-head {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	margin: -12px -12px 12px;
+	padding: 12px 12px 10px;
+	background: var(--el-bg-color);
+	border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.vp-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--el-text-color-primary);
+}
+.vp-hint {
+	margin: 2px 0 10px;
+	font-size: 11px;
+	line-height: 1.4;
+	color: var(--el-text-color-secondary);
+}
+.vp-badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 14px 16px;
+	margin-top: 14px;
+}
+.vp-badges .el-button {
+	gap: 6px;
+}
+.vp-swatch {
+	flex-shrink: 0;
+	width: 10px;
+	height: 10px;
+	border-radius: 3px;
+}
+.vp-badge-code {
+	margin-left: 6px;
+	font-variant-numeric: tabular-nums;
+}
+.vp-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	padding: 24px 0;
+	font-size: 13px;
+	color: var(--el-text-color-secondary);
+}
+.vp-empty .el-icon {
+	font-size: 20px;
+}
+
+.vp-group {
+	margin-bottom: 12px;
+	scroll-margin-top: var(--vp-head-h);
+}
+.vp-group.is-collapsed {
+	margin-bottom: 4px;
+}
+/* Tiêu đề nhóm = nút thu gọn / mở rộng, dính ngay dưới đầu cột khi cuộn */
+.vp-group-header {
+	position: sticky;
+	top: var(--vp-head-h, 0px);
+	z-index: 3;
+	box-shadow: 0 0 0 4px var(--el-bg-color);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	margin-bottom: 6px;
+	padding: 6px 8px;
+	border: none;
+	border-radius: 6px;
+	background: var(--el-fill-color-lighter);
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--el-text-color-regular);
+	text-align: left;
+	cursor: pointer;
+	transition: background-color 0.15s;
+}
+.vp-group-header:hover {
+	background: var(--el-fill-color);
+}
+.vp-group-arrow {
+	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--el-text-color-secondary);
+	transform: rotate(90deg);
+	transition: transform 0.2s;
+}
+.vp-group.is-collapsed .vp-group-arrow {
+	transform: rotate(0deg);
+}
+.vp-group-icon.is-missing {
+	flex-shrink: 0;
+	font-size: 14px;
+	color: var(--el-color-danger);
+}
+.vp-group-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.vp-group-count {
+	flex-shrink: 0;
+	min-width: 22px;
+	padding: 0 7px;
+	border-radius: 999px;
+	background: var(--el-bg-color);
+	font-size: 11px;
+	line-height: 18px;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+	color: var(--el-text-color-secondary);
+}
+
+.vp-item {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	margin-bottom: 2px;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background-color 0.15s, opacity 0.15s;
+}
+.vp-item[draggable='true'] {
+	cursor: grab;
+}
+.vp-item:hover {
+	background: var(--el-fill-color-light);
+	border-color: var(--el-border-color-lighter);
+}
+.vp-item[draggable='true']:active {
+	cursor: grabbing;
+	opacity: 0.7;
+}
+/* Cổng đang chọn (trên lưới hoặc trong cột) */
+.vp-item--active,
+.vp-item--active:hover {
+	background: var(--el-color-primary-light-9);
+	border-color: var(--el-color-primary);
+	box-shadow: 0 0 0 2px var(--el-color-primary-light-7);
+	animation: vp-item-flash 0.9s ease-out;
+}
+@keyframes vp-item-flash {
+	0% {
+		box-shadow: 0 0 0 6px var(--el-color-primary-light-5);
+	}
+	100% {
+		box-shadow: 0 0 0 2px var(--el-color-primary-light-7);
+	}
+}
+.vp-item--off,
+.vp-item--dragging {
+	opacity: 0.5;
+}
+.vp-item--missing {
+	opacity: 0.7;
+}
+/* Ô màu bộ điều khiển; cổng đã trên lưới thì ô đặc, còn ngoài lưới thì viền nét đứt */
+.vp-item-color {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	flex-shrink: 0;
+	border-radius: 6px;
+	color: #fff;
+	font-size: 14px;
+	opacity: 0.45;
+}
+.vp-item--placed .vp-item-color,
+.vp-item--missing .vp-item-color {
+	opacity: 1;
+}
+.vp-item-info {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+.vp-item-name {
+	font-size: 13px;
+	color: var(--el-text-color-primary);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.vp-item-sub {
+	font-size: 11px;
+	color: var(--el-text-color-secondary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.vp-item-tag {
+	flex-shrink: 0;
+	font-variant-numeric: tabular-nums;
+}
+.vp-item-grip {
+	flex-shrink: 0;
+	color: var(--el-text-color-placeholder);
+}
+.vp-item-dirty {
+	position: absolute;
+	top: 5px;
+	left: 5px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--el-color-warning);
+	box-shadow: 0 0 0 2px var(--el-bg-color);
+}

@@ -1,0 +1,25 @@
+{
+  "DbConnection": {
+    "ConnectionConfigs": {
+      "9": {
+        "ConfigId": "VdsDefault",
+        "DbType": "QuestDB",
+        "ConnectionString": "Host=10.10.8.30;Port=12202;Username=admin;Password=quest;Database=qdb;ServerCompatibilityMode=NoTypeLoading;Command Timeout=1200;Timeout=30",
+        "DbSettings": {
+          "EnableInitDb": false,
+          "EnableDiffLog": false,
+          "EnableUnderLine": false
+        },
+        "TableSettings": {
+          "EnableInitTable": false,
+          "EnableIncreTable": false
+        },
+        "SeedSettings": {
+          "EnableInitSeed": false,
+          "EnableIncreSeed": false
+        },
+        "SlaveSettings": []
+      }
+    }
+  }
+}

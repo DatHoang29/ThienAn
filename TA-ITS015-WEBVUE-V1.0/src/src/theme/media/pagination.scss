@@ -1,0 +1,15 @@
+@import './index.scss';
+
+/* Page width less than 576px
+------------------------------- */
+@media screen and (max-width: $xs) {
+	.el-pager,
+	.el-pagination__jump {
+		display: none !important;
+	}
+	// Default center alignment
+	.el-pagination,
+	.table-footer {
+		justify-content: center !important;
+	}
+}

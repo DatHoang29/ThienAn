@@ -1,0 +1,20 @@
+{
+  "Logging": {
+    "BaseDirectory": "${basedir}",
+    "Defaults": {
+      "PathTemplate": "LogFile/${shortdate}/${kind}.log",
+      "RollingSizeKB": 10240,
+      "KeepFileCount": 30,
+      "FileShareRead": true
+    },
+    "Kinds": {
+      "Main": {
+        "PathTemplate": "LogFile/${shortdate}/TACMainLog.txt"
+      },
+      "Error": {
+        "PathTemplate": "LogFile/${shortdate}/TACError.txt",
+        "KeepFileCount": 90
+      }
+    }
+  }
+}

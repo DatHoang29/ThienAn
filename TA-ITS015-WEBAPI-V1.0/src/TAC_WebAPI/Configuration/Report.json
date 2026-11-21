@@ -1,0 +1,10 @@
+{
+  "Report": {
+    "TemplateFolder": "Report/Template",
+    "DataFolder":  "Report/Data", 
+    "BasePath": "",
+    "Carbone": {
+      "ServerUrl": "http://192.168.1.30:4000" //Server carbone.io
+    }
+  } 
+}

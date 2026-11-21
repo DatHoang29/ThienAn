@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ITS.FA.Worker</RootNamespace>
+    <AssemblyName>ITS.FA.Worker</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    ITS.FA.Worker: host chạy nền cho dịch vụ giám sát báo cháy. Chạy console hoặc Windows Service.
+    Thay Its.FireAlarm.Service (ITS008).
+    Author: ChuongLP
+    Date: 29/10/2026
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\ITS.FA.Core\ITS.FA.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Configuration\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <!-- File creds NATS: không nhân bản vào source, chỉ copy từ bản của TAC_WebAPI lúc build. -->
+    <None Include="..\..\..\TAC_WebAPI\Configuration\nats.creds" Link="Configuration\nats.creds"
+          Condition="Exists('..\..\..\TAC_WebAPI\Configuration\nats.creds')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,705 @@
+@import 'mixins/index.scss';
+
+/* Button
+------------------------------- */
+// Third-party font icon size
+.el-button:not(.is-circle) i.el-icon,
+.el-button i.iconfont,
+.el-button i.fa,
+.el-button--default i.iconfont,
+.el-button--default i.fa {
+	font-size: 14px !important;
+	margin-right: 5px;
+}
+
+.el-button--small i.iconfont,
+.el-button--small i.fa {
+	font-size: 12px !important;
+	margin-right: 5px;
+}
+
+/* Input, InputNumber
+------------------------------- */
+// Menu search
+.el-autocomplete-suggestion__wrap {
+	max-height: 280px !important;
+}
+
+// InputNumber without controls to be consistent with Input
+.el-input-number.is-without-controls .el-input__wrapper {
+	padding-left: 7px !important;
+	padding-right: 7px !important;
+
+	.el-input__inner {
+		text-align: left !important;
+	}
+}
+
+/* Form
+------------------------------- */
+.el-form {
+
+	// Used to modify the issue of excessive spacing in form content when modifying pop-up windows, such as the form content in the system settings' new menu pop-up
+	.el-form-item:last-of-type {
+		margin-bottom: 0 !important;
+	}
+
+	// Fix the issue of the last el-form-item in inline form moving down
+	&.el-form--inline {
+		.el-form-item--large.el-form-item:last-of-type {
+			margin-bottom: 22px !important;
+		}
+
+		.el-form-item--default.el-form-item:last-of-type,
+		.el-form-item--small.el-form-item:last-of-type {
+			margin-bottom: 18px !important;
+		}
+	}
+
+	// https://gitee.com/lyt-top/vue-next-admin/issues/I5K1PM
+	.el-form-item .el-form-item__label .el-icon {
+		margin-right: 0px;
+	}
+}
+
+/* Alert
+------------------------------- */
+.el-alert {
+	border: 1px solid;
+}
+
+.el-alert__title {
+	word-break: break-all;
+}
+
+/* Message
+------------------------------- */
+.el-message {
+	min-width: unset !important;
+	padding: 15px !important;
+	box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.02);
+}
+
+/* NavMenu
+------------------------------- */
+// Color on mouse hover
+.el-menu-hover-bg-color {
+	background-color: var(--next-bg-menuBarActiveColor) !important;
+	//background-color: var(--el-color-primary-light-7) !important;
+}
+
+// Default style modification
+.el-menu {
+	border-right: none !important;
+	width: 220px;
+}
+
+.el-menu-item {
+	height: 45px !important;
+	line-height: 45px !important;
+	margin: 0 0 1px 0;
+}
+
+//.el-menu-item,
+.el-sub-menu__title {
+	color: var(--next-bg-menuBarColor);
+	height: 45px !important;
+	line-height: 45px !important;
+}
+
+// Fix the issue of width not following when clicking to collapse and expand the left menu
+.el-menu--collapse {
+	width: 64px !important;
+}
+
+// For external links
+.el-menu-item a,
+.el-menu-item a:hover,
+.el-menu-item i,
+.el-sub-menu__title i {
+	color: inherit;
+	text-decoration: none;
+}
+
+// Third-party icon font spacing/size settings
+.el-menu-item .iconfont,
+.el-sub-menu .iconfont,
+.el-menu-item .fa,
+.el-sub-menu .fa {
+	@include generalIcon;
+}
+
+// Horizontal menu highlight background color, mouse hover, background color with submenus
+.el-menu-item.is-active,
+.el-sub-menu.is-active .el-sub-menu__title,
+.el-sub-menu:not(.is-opened):hover .el-sub-menu__title {
+	@extend .el-menu-hover-bg-color;
+	color: var(--el-color-primary-dark-2);
+}
+
+.el-sub-menu:not(.is-active) .el-sub-menu__title {
+	color: var(--next-bg-menuBarColor);
+}
+
+// Background color on mouse hover
+.el-menu-item:hover {
+	//@extend .el-menu-hover-bg-color;
+	background-color: var(--el-color-primary-light-9);
+}
+
+.el-sub-menu.is-active.is-opened .el-sub-menu__title {
+	background-color: unset !important;
+}
+
+// Right border of the currently selected menu
+.el-menu-item.is-active {
+	border-right: solid 3px var(--el-color-primary);
+}
+
+// Submenu background color
+// .el-menu--inline {
+// 	background: var(--next-bg-menuBar-light-1);
+// }
+// Horizontal menu collapse a tag
+.el-popper.is-dark a {
+	color: var(--el-color-white) !important;
+	text-decoration: none;
+}
+
+// Horizontal menu collapse background color
+.el-popper.is-pure.is-light {
+
+	// Vertical menu
+	.el-menu--vertical {
+		background: var(--next-bg-menuBar);
+
+		.el-sub-menu.is-active .el-sub-menu__title {
+			color: var(--el-menu-active-color);
+		}
+
+		.el-popper.is-pure.is-light {
+			.el-menu--vertical {
+				.el-sub-menu .el-sub-menu__title {
+					background-color: unset !important;
+					color: var(--next-bg-menuBarColor);
+				}
+
+				.el-sub-menu.is-active .el-sub-menu__title {
+					color: var(--el-menu-active-color);
+				}
+			}
+		}
+	}
+
+	// Horizontal menu
+	.el-menu--horizontal {
+		background: var(--next-bg-topBar);
+
+		.el-menu-item,
+		.el-sub-menu {
+			height: 45px !important;
+			line-height: 45px !important;
+			color: var(--next-bg-topBarColor);
+
+			.el-sub-menu__title {
+				height: 45px !important;
+				line-height: 45px !important;
+				color: var(--next-bg-topBarColor);
+			}
+
+			.el-popper.is-pure.is-light {
+				.el-menu--horizontal {
+					.el-sub-menu .el-sub-menu__title {
+						background-color: unset !important;
+						color: var(--next-bg-topBarColor);
+					}
+
+					.el-sub-menu.is-active .el-sub-menu__title {
+						color: var(--el-menu-active-color);
+					}
+				}
+			}
+		}
+
+		.el-menu-item.is-active,
+		.el-sub-menu.is-active .el-sub-menu__title {
+			color: var(--el-menu-active-color);
+		}
+
+		// Background color on mouse hover
+		.el-menu-item:hover {
+			background-color: var(--el-color-primary-light-9);
+		}
+	}
+}
+
+// Horizontal menu (classic, horizontal) layout
+.el-menu.el-menu--horizontal {
+	border-bottom: none !important;
+
+	width: 100% !important;
+
+	.el-menu-item,
+	.el-sub-menu__title {
+		height: 50px !important;
+		color: var(--next-bg-topBarColor);
+	}
+
+	.el-menu-item:not(.is-active):hover,
+	.el-sub-menu:not(.is-active):hover .el-sub-menu__title {
+		color: var(--next-bg-topBarColor);
+		//border-right: solid 3px var(--el-color-primary);
+	}
+
+	// Background color on mouse hover
+	.el-menu-item:hover {
+		background-color: var(--el-color-primary-light-9);
+	}
+
+	// Remove global right border when menu is active
+	.el-menu-item.is-active {
+		border-right: none;
+	}
+}
+
+// When the menu is collapsed, the icon is not centered
+.el-menu--collapse {
+
+	.el-menu-item .iconfont,
+	.el-sub-menu .iconfont,
+	.el-menu-item .fa,
+	.el-sub-menu .fa {
+		margin-right: 0 !important;
+	}
+
+	.el-sub-menu__title {
+		padding-right: 0 !important;
+	}
+}
+
+/* Tabs
+------------------------------- */
+.el-tabs__nav-wrap::after {
+	height: 1px !important;
+}
+
+/* Dropdown
+------------------------------- */
+.el-dropdown-menu {
+	list-style: none !important;
+	/* Fix Dropdown menu style issue 2022.03.04 */
+}
+
+.el-dropdown-menu .el-dropdown-menu__item {
+	white-space: nowrap;
+
+	&:not(.is-disabled):hover {
+		background-color: var(--el-dropdown-menuItem-hover-fill);
+		color: var(--el-dropdown-menuItem-hover-color);
+	}
+}
+
+/* Steps
+------------------------------- */
+.el-step__icon-inner {
+	font-size: 30px !important;
+	font-weight: 400 !important;
+}
+
+.el-step__title {
+	font-size: 14px;
+}
+
+/* Dialog
+------------------------------- */
+.el-overlay {
+	overflow: hidden;
+
+	.el-overlay-dialog {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		position: unset !important;
+		width: 100%;
+		height: 100%;
+
+		.el-dialog {
+			padding: 0 !important;
+			margin: 0 auto !important;
+			position: absolute;
+
+			.el-dialog__body {
+				padding: 18px;
+			}
+		}
+	}
+}
+
+.el-dialog__body {
+	max-height: calc(100vh - 160px) !important;
+	overflow-y: auto;
+	overflow-x: auto;
+}
+
+// .el-dialog__title{
+// 	font-size: 14px;
+// 	color: #FFF;
+// 	font-weight: 700;
+// }
+.el-dialog__header {
+	margin-right: 0;
+	padding: 8px;
+	background: var(--el-color-primary);
+}
+
+.el-dialog__footer {
+	padding: 15px;
+	// border-top: 1px solid var(--el-color-primary-light-7);
+}
+
+.el-dialog__headerbtn {
+	height: 37px;
+	width: 40px;
+	font-weight: 900;
+
+	.el-dialog__close {
+		color: #fff;
+	}
+}
+
+.el-dialog__headerbtn:hover .el-dialog__close {
+	color: var(--el-color-danger) !important;
+}
+
+/* Card
+------------------------------- */
+.el-card {
+	// Bỏ viền phẳng mặc định, dùng viền gradient dạng "ring" ở pseudo-element
+	--el-card-border-color: transparent;
+	position: relative;
+	border-color: transparent !important;
+	border-radius: 4px !important;
+	/* Bóng mềm nhiều lớp + vệt sáng inset phía trên = cảm giác nổi khối, có chiều sâu */
+	box-shadow: var(--shadow-tac-soft), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+	transition: box-shadow 0.28s ease;
+
+	/* Viền gradient chạy chéo góc (mask-composite tạo vành rỗng ruột) */
+	&::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		padding: 1px;
+		background: linear-gradient(135deg,
+				color-mix(in srgb, var(--el-color-primary) 78%, transparent) 0%,
+				color-mix(in srgb, var(--el-color-primary) 22%, transparent) 42%,
+				color-mix(in srgb, var(--el-color-primary) 16%, transparent) 60%,
+				color-mix(in srgb, var(--el-color-primary) 66%, transparent) 100%);
+		-webkit-mask:
+			linear-gradient(#fff 0 0) content-box,
+			linear-gradient(#fff 0 0);
+		-webkit-mask-composite: xor;
+		mask-composite: exclude;
+		pointer-events: none;
+		transition: background 0.28s ease;
+	}
+
+	&:hover {
+		box-shadow: 0 6px 24px -8px color-mix(in srgb, var(--el-color-primary) 58%, transparent), 0 0 16px -2px color-mix(in srgb, var(--el-color-primary) 40%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+
+		&::after {
+			background: linear-gradient(135deg,
+					color-mix(in srgb, var(--el-color-primary) 95%, transparent) 0%,
+					color-mix(in srgb, var(--el-color-primary) 40%, transparent) 45%,
+					color-mix(in srgb, var(--el-color-primary) 34%, transparent) 60%,
+					color-mix(in srgb, var(--el-color-primary) 88%, transparent) 100%);
+		}
+	}
+}
+
+.el-card__header {
+	padding: 15px 20px;
+	// Đường phân cách header dạng gradient (đậm giữa, mờ hai đầu)
+	border-bottom: none;
+	background-image: linear-gradient(90deg,
+			transparent 0%,
+			color-mix(in srgb, var(--el-color-primary) 60%, transparent) 15%,
+			color-mix(in srgb, var(--el-color-primary) 60%, transparent) 85%,
+			transparent 100%);
+	background-repeat: no-repeat;
+	background-position: bottom left;
+	background-size: 100% 1px;
+}
+
+.el-card__body {
+	padding: 8px;
+}
+
+/* Table element plus 2.2.0 version
+------------------------------- */
+.el-table {
+	// Table header background color
+	--el-table-header-bg-color: var(--next-bg-main-color);
+
+	.el-button.is-text {
+		padding: 0;
+	}
+
+	// Table header font color
+	thead {
+		color: var(--el-text-color-regular);
+
+		th {
+			font-weight: 500;
+		}
+	}
+}
+
+/* Prevent scrollbar disappearance issue when there are many second-level menus in column layout */
+.layout-columns-warp .layout-aside .el-scrollbar__view {
+	height: unset !important;
+}
+
+/* Pagination
+------------------------------- */
+// .el-pagination__editor {
+// 	margin-right: 8px;
+// }
+/* Highlight issue in pagination in dark mode */
+.el-pagination.is-background .btn-next.is-active,
+.el-pagination.is-background .btn-prev.is-active,
+.el-pagination.is-background .el-pager li.is-active {
+	background-color: var(--el-color-primary) !important;
+	color: var(--el-color-white) !important;
+}
+
+// Pagination component aligned to the right
+.el-pagination {
+	float: right;
+	margin: 8px 0 0 0 !important;
+}
+
+// Force set width for pagination component dropdown
+.el-pagination--small {
+	.el-select {
+		width: 100px !important;
+	}
+}
+
+/* scrollbar
+------------------------------- */
+.el-scrollbar__bar {
+	z-index: 4;
+}
+
+/* Prevent scrollbar height from changing during page switch (scrollbar height is not the scrolling height of the scrollbar) */
+.el-scrollbar__wrap {
+	max-height: 100%;
+}
+
+.el-select-dropdown .el-scrollbar__wrap {
+	overflow-x: scroll !important;
+}
+
+/* Fix Select height issue */
+.el-select-dropdown__wrap {
+	max-height: 274px !important;
+}
+
+/* Fix Cascader height issue */
+.el-cascader-menu__wrap.el-scrollbar__wrap {
+	height: 204px !important;
+}
+
+/* For adaptive interface height (main.vue), distinguish scrollbar__view to prevent scrollbar disappearance in other places using scrollbar */
+.layout-container-view .el-scrollbar__view {
+	height: 100%;
+}
+
+/* Drawer
+------------------------------- */
+.el-drawer {
+	--el-drawer-padding-primary: unset !important;
+
+	.el-drawer__header {
+		padding: 8px !important;
+		display: flex;
+		align-items: center;
+		margin-bottom: 0 !important;
+		border-bottom: 1px solid var(--el-border-color);
+		color: var(--el-color-white);
+		background-color: var(--el-color-primary);
+	}
+
+	.el-drawer__body {
+		width: 100%;
+		height: 100%;
+		overflow: auto;
+	}
+
+	.el-drawer__footer {
+		padding: 5px;
+	}
+}
+
+.el-drawer__close-btn:hover .el-drawer__close {
+	color: var(--el-color-danger) !important;
+}
+
+$--el-table-text-color: #fb6d49;
+
+// Hack for list page
+.layout-parent {
+	height: 0;
+	overflow: auto;
+
+	// Option one: If you are worried about affecting other pages, you can directly modify the .home-container style in src/views/home/index.vue.
+	// Option two: This modification is to avoid changing the original page of the framework, making it easier to synchronize upgrades later.
+	// Choose as you wish
+	// Workbench scrollbar
+	.home-container {
+		overflow: auto !important;
+	}
+
+	// Table page automatically fills the page
+	>div:first-child {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+
+		.full-table {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-between;
+
+			.el-card__body {
+				height: 100%;
+				display: flex;
+				padding: 5px 5px 8px 5px;
+				flex-direction: column;
+				justify-content: space-between;
+
+				.el-table {
+					flex: 1;
+				}
+
+				.el-pagination>span:first-child {
+					flex: 1;
+					text-align: right;
+				}
+			}
+		}
+	}
+}
+
+/* ================================================================
+   Neon & Depth — hiệu ứng phát sáng + chiều sâu dùng chung toàn app
+   - Nút màu: quầng sáng neon theo tông, đậm dần khi hover, lún nhẹ khi nhấn
+   - Input/Select khi focus: vành sáng + glow ngoài
+   - Menu active: thanh neon + glow
+   - Tag: viền sáng nhẹ tạo khối
+   ================================================================ */
+
+/* --- Nút: neon glow theo tông màu ---
+   Loại trừ nút dạng text/link (vd: icon copy/edit/delete trong bảng)
+   vì nhóm này cần hiển thị dạng phẳng, không viền/khung/box-shadow. */
+.el-button--primary:not(.is-text):not(.is-link),
+.el-button--success:not(.is-text):not(.is-link),
+.el-button--warning:not(.is-text):not(.is-link),
+.el-button--danger:not(.is-text):not(.is-link),
+.el-button--info:not(.is-text):not(.is-link) {
+	transition: box-shadow 0.25s ease, transform 0.08s ease;
+}
+
+.el-button--primary:not(.is-text):not(.is-link) {
+	box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--el-color-primary) 55%, transparent);
+}
+
+.el-button--primary:not(.is-text):not(.is-link):hover {
+	box-shadow: 0 4px 16px -2px color-mix(in srgb, var(--el-color-primary) 70%, transparent),
+		0 0 12px color-mix(in srgb, var(--el-color-primary) 50%, transparent);
+}
+
+.el-button--success:not(.is-text):not(.is-link) {
+	box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--el-color-success) 55%, transparent);
+}
+
+.el-button--success:not(.is-text):not(.is-link):hover {
+	box-shadow: 0 4px 16px -2px color-mix(in srgb, var(--el-color-success) 70%, transparent),
+		0 0 12px color-mix(in srgb, var(--el-color-success) 50%, transparent);
+}
+
+.el-button--warning:not(.is-text):not(.is-link) {
+	box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--el-color-warning) 55%, transparent);
+}
+
+.el-button--warning:not(.is-text):not(.is-link):hover {
+	box-shadow: 0 4px 16px -2px color-mix(in srgb, var(--el-color-warning) 70%, transparent),
+		0 0 12px color-mix(in srgb, var(--el-color-warning) 50%, transparent);
+}
+
+.el-button--danger:not(.is-text):not(.is-link) {
+	box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--el-color-danger) 55%, transparent);
+}
+
+.el-button--danger:not(.is-text):not(.is-link):hover {
+	box-shadow: 0 4px 16px -2px color-mix(in srgb, var(--el-color-danger) 70%, transparent),
+		0 0 12px color-mix(in srgb, var(--el-color-danger) 55%, transparent);
+}
+
+/* Nhấn xuống: lún nhẹ tạo phản hồi có chiều sâu */
+.el-button--primary:not(.is-text):not(.is-link):active,
+.el-button--success:not(.is-text):not(.is-link):active,
+.el-button--warning:not(.is-text):not(.is-link):active,
+.el-button--danger:not(.is-text):not(.is-link):active,
+.el-button--info:not(.is-text):not(.is-link):active {
+	transform: translateY(1px);
+}
+
+/* Đảm bảo nút dạng text/link luôn phẳng, không khung/box-shadow */
+.el-button.is-text,
+.el-button.is-link {
+	box-shadow: none !important;
+	background: none !important;
+	border-color: transparent !important;
+}
+
+/* --- Input / Textarea / Select khi focus: vành sáng + glow ngoài --- */
+.el-input.is-focus .el-input__wrapper,
+.el-select .el-select__wrapper.is-focused {
+	box-shadow: 0 0 0 1px var(--el-color-primary) inset,
+		0 0 8px color-mix(in srgb, var(--el-color-primary) 40%, transparent) !important;
+}
+
+.el-textarea__inner:focus {
+	box-shadow: 0 0 0 1px var(--el-color-primary) inset,
+		0 0 8px color-mix(in srgb, var(--el-color-primary) 40%, transparent) !important;
+}
+
+/* --- Menu active: thanh neon bên phải + quầng sáng --- */
+.el-menu-item.is-active {
+	box-shadow: inset 0 0 14px -6px color-mix(in srgb, var(--el-color-primary) 60%, transparent);
+}
+
+.el-menu-item.is-active::after {
+	content: '';
+	position: absolute;
+	right: 0;
+	top: 20%;
+	bottom: 20%;
+	width: 3px;
+	border-radius: 3px;
+	background: var(--el-color-primary);
+	box-shadow: 0 0 8px 0 color-mix(in srgb, var(--el-color-primary) 80%, transparent);
+}
+
+/* --- Tag: viền sáng nhẹ tạo cảm giác khối phát quang --- */
+.el-tag {
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent);
+}
+
+/* --- Switch bật: glow theo tông primary --- */
+.el-switch.is-checked .el-switch__core {
+	box-shadow: 0 0 8px color-mix(in srgb, var(--el-color-primary) 55%, transparent);
+}

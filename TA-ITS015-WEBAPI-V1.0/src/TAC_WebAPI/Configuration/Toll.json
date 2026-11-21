@@ -1,0 +1,88 @@
+{
+  "BaseUrl": "http://10.10.9.223:9089/api/tcs23quanly",
+  "TimeoutSeconds": 30,
+  "DateFormat": "yyyy-MM-dd HH:mm:ss",
+  "AutoCallIntervalSeconds": 60,
+  "Endpoints": [
+    {
+      "Key": "master",
+      "Name": "Danh mục (Master Data)",
+      "Url": "mdsmasterdatatcs/masterdata",
+      "RequiresDateRange": false,
+      "DateFromParam": "FromDate",
+      "DateToParam": "ToDate",
+      "DataType": "Master",
+      "Enabled": true
+    },
+    {
+      "Key": "station",
+      "Name": "Danh mục trạm",
+      "Url": "mdstram/allstation",
+      "RequiresDateRange": false,
+      "DateFromParam": "FromDate",
+      "DateToParam": "ToDate",
+      "DataType": "Station",
+      "Enabled": true
+    },
+    {
+      "Key": "lane",
+      "Name": "Danh mục làn",
+      "Url": "mdslane/alllane",
+      "RequiresDateRange": false,
+      "DateFromParam": "FromDate",
+      "DateToParam": "ToDate",
+      "DataType": "Lane",
+      "Enabled": true
+    },
+    {
+      "Key": "shift",
+      "Name": "Danh mục ca làm việc",
+      "Url": "http://10.10.9.223:9089/api/acs13quanly/mdsca/list",
+      "RequiresDateRange": false,
+      "DateFromParam": "FromDate",
+      "DateToParam": "ToDate",
+      "DataType": "Shift",
+      "Enabled": true
+    },
+    {
+      "Key": "transactionIn",
+      "Name": "Giao dịch xe vào",
+      "Url": "mdsmasterdatatcs/alltransactionin",
+      "RequiresDateRange": true,
+      "DateFromParam": "FromDate",
+      "DateToParam": "ToDate",
+      "DataType": "TransactionIn",
+      "Enabled": true
+    },
+    {
+      "Key": "transactionOut",
+      "Name": "Giao dịch xe ra",
+      "Url": "mdsmasterdatatcs/alltransactionout",
+      "RequiresDateRange": true,
+      "DateFromParam": "FromDate",
+      "DateToParam": "ToDate",
+      "DataType": "TransactionOut",
+      "Enabled": true
+    },
+    {
+      "Key": "outSummary",
+      "Name": "Tổng hợp vé ra",
+      "Url": "mdsmasterdatatcs/alloutsummaryticket",
+      "RequiresDateRange": false,
+      "DateFromParam": "FromDate",
+      "DateToParam": "ToDate",
+      "DataType": "OutSummary",
+      "Enabled": true
+    },
+    {
+      "Key": "accessLog",
+      "Name": "API lịch sử truy cập",
+      "Url": "appaccesslog/accesshistorytcs",
+      "RequiresDateRange": true,
+      "DateFromParam": "FromDate",
+      "DateToParam": "ToDate",
+      "DataType": "AccessLog",
+      "Enabled": true
+    }
+  ]
+}

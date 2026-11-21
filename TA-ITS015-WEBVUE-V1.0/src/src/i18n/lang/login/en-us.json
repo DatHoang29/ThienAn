@@ -1,0 +1,15 @@
+{
+  "lz.login.label.capLockOn": "Caps Lock is on",
+  "lz.login.label.pleaseInput": "Please input {input}",
+  "lz.login.label.account": "Account",
+  "lz.login.label.password": "Password",
+  "lz.login.label.otp": "OTP Code",
+  "lz.login.button.signIn": "Sign In",
+  "lz.login.label.signInByAccount": "Sign in by account",
+  "lz.login.validation.required": "The {PropertyName} is required.",
+  "lz.login.exception.noPermission": "Sorry, you do not have permission to log in.",
+  "lz.login.label.signInText": "Welcome back!",
+  "lz.login.exception.errorOccurred": "Error occurred. Please try again!",
+  "lz.login.label.forgotPassword": "Forgot password?",
+  "lz.login.label.systemName": "TRAFFIC MONITORING SYSTEM"
+}

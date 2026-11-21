@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    ITS.Toll.Core: tầng lõi cho công cụ TEST API thu phí (ETC).
+    - Configuration: cấu hình động danh sách API + đọc/ghi file JSON.
+    - Models: kết quả gọi API / kết quả lưu DB.
+    - Persistence: kết nối SqlSugar tới DB ITS (chứa các bảng Toll*).
+    - Services: HttpClient gọi GET + lưu dữ liệu masterdata xuống DB.
+  -->
+
+  <ItemGroup>
+    <!-- Dùng lại entity gốc (TollMasterData/TollRoad/TollPriceListDetail...) đã có. -->
+    <ProjectReference Include="..\..\..\Modules\TOLL\Module.TOLL.Core\Module.TOLL.Core.csproj" />
+    <!-- Entity SysOpConfig thật (bảng tham số hoạt động) — KHÔNG tự tạo entity riêng. -->
+    <ProjectReference Include="..\..\..\Modules\CfgSystem\Modules.CfgSystem.Core\Modules.CfgSystem.Core.csproj" />
+    <!-- Nền dùng chung cho service: DatabaseManager/SqlSugarAccess (repository dùng chung) — thay TollDb tự tạo. -->
+    <ProjectReference Include="..\..\Shared\Services.Shared.Runtime\Services.Shared.Runtime.csproj" />
+  </ItemGroup>
+
+  <!--
+    Tham chiếu shared framework ASP.NET Core để Core cung cấp phần map minimal API
+    (Endpoints/TollCallBackEndpoints.cs) dùng chung cho cả Worker (Kestrel) lẫn form WPF (Kestrel nhúng).
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.216" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.10" />
+    <!-- Lắng nghe/gửi tín hiệu lấy dữ liệu thủ công qua NATS (dùng chung cho Worker và WPF). -->
+    <PackageReference Include="NATS.Net" Version="2.7.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EntityTenant (ID/TenantId/CreateTime...) nằm trong Shared.Core.dll. -->
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

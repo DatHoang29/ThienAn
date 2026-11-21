@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Entity Toll* (TollRoad/TollStation/TollMasterData) để tra trạm vào/ra, tên loại xe cho bảng giá -->
+    <ProjectReference Include="..\..\TOLL\Module.TOLL.Core\Module.TOLL.Core.csproj" />
+    <!-- Entity TmsWorkUnit: đơn vị TMS gán cho trạm thu phí (TollStation.RefId) -->
+    <ProjectReference Include="..\..\TMS\Modules.TMS.Core\Modules.TMS.Core.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Utility\Shared.Utility.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

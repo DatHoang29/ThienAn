@@ -1,0 +1,33 @@
+/* Nút footer dùng chung cho các vỏ chứa controlVms (vmsInfo, lcsInfo, vmsModal, lcsModal).
+   - "Nội dung mặc định": nút phụ dạng viền, không tranh điểm nhấn với nút Xác nhận.
+   - "Xác nhận": kèm số thiết bị đang chọn. */
+
+.btn-default-content {
+    --el-button-bg-color: transparent;
+    --el-button-text-color: #4ade80;
+    --el-button-border-color: rgba(74, 222, 128, 0.45);
+    --el-button-hover-bg-color: rgba(74, 222, 128, 0.12);
+    --el-button-hover-text-color: #86efac;
+    --el-button-hover-border-color: #4ade80;
+    --el-button-active-bg-color: rgba(74, 222, 128, 0.2);
+    --el-button-active-border-color: #4ade80;
+}
+
+.btn-confirm {
+    .confirm-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        margin-left: 6px;
+        padding: 0 5px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--el-color-primary);
+        background: #fff;
+        font-variant-numeric: tabular-nums;
+    }
+}

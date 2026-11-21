@@ -1,0 +1,97 @@
+{
+  "SocketCluster": {
+    "Enabled": false,
+    "Url": "ws://127.0.0.1:7046/socketcluster/"
+  },
+  "Nats": {
+    "Enabled": true,
+    "Url": "tls://115.78.1.139:12211",
+    "InsecureSkipVerify": true,
+    "ClientName": "ITS_BE_SERVICE",
+    "AuthMode": "JWT",
+    "JwtFile": "Configuration/nats.creds",
+    "UserSeedFile": "Configuration/nats.creds",
+    "UseJetStream": true,
+    "Streams": [
+      {
+        "Name": "PubSub",
+        "Subjects": "ta.its.status.fms,ta.its.data.incident,ta.its.data.vms,ta.its.data.fms,ta.its.data.videowall.control,ta.its.data.videowall,ta.its.data.videowall.scene,ta.its.data.equipment.visible,ta.its.data.control,ta.its.control.toll,ta.its.control.topology",
+        "SubjectsList": [
+          {
+            "Subject": "ta.its.status.fms",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.incident",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.vms",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.videowall.control",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.videowall",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.vds.statistic",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.vds.count",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.vds.traffic",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.vds.zone",
+            "Mode": "pubsub"
+          },
+          {
+            "// [Cảnh báo biển số VDS]": "VDS phát khi biển số khớp danh sách đen/trắng và Alarm = 1; FE hiện notification",
+            "Subject": "ta.its.data.vds.filter",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.equipment.visible",
+            "Mode": "pubsub"
+          },
+          {
+            "// [Kênh điều khiển FMS dùng chung]": "2 chiều, phân biệt bằng Type; phân loại lệnh bằng Action (vd sync-topology). Type=request: BE->DeviceMonitor; Type=result: DeviceMonitor->FE.",
+            "Subject": "ta.its.control.fms",
+            "Mode": "pubsub"
+          },
+          {
+            "// [Điều khiển lấy dữ liệu thu phí thủ công]": "Dùng chung 2 chiều, phân biệt bằng field Type. Type=request: BE->ITS.Toll.Worker; Type=result: Worker->FE (FE subscribe trực tiếp).",
+            "Subject": "ta.its.control.toll",
+            "Mode": "pubsub"
+          },
+          {
+            "// [Điều khiển bảng VMS]": "Dùng chung 2 chiều, phân biệt bằng field Type, phân loại lệnh bằng Action. Type=request: BE->ITS.VMS.Worker (gọi SDK ra thiết bị); Type=result: Worker->BE (BE bắn Event cập nhật VmsCurrent/TmsSignalLog và gửi socket cho FE).",
+            "Subject": "ta.its.control.vms",
+            "Mode": "pubsub"
+          }
+
+        ]
+      },
+      {
+        "Name": "JetStream",
+        "Subjects": "ta.its.refresh",
+        "Storage": "file",
+        "MaxAge": "12h",
+        "SubjectsList": [
+          {
+            "Subject": "ta.its.refresh",
+            "Mode": "jetstream"
+          }
+        ]
+      }
+    ]
+  }
+}

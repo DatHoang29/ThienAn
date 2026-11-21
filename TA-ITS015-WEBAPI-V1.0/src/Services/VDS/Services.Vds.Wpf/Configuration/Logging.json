@@ -1,0 +1,17 @@
+{
+  "Logging": {
+    "// [Harness]": "Giữ ít file, xoá nhanh — harness chạy ngắn và log hiển thị trực tiếp trên cửa sổ.",
+    "BaseDirectory": "${basedir}",
+    "Defaults": {
+      "PathTemplate": "LogFile/${shortdate}/${kind}.log",
+      "RollingSizeKB": 5120,
+      "KeepFileCount": 5,
+      "FileShareRead": true
+    },
+    "Kinds": {
+      "Main": { "PathTemplate": "LogFile/${shortdate}/VdsWpfMainLog.txt" },
+      "Error": { "PathTemplate": "LogFile/${shortdate}/VdsWpfError.txt", "KeepFileCount": 10 },
+      "Nats": { "PathTemplate": "LogFile/${shortdate}/VdsWpfNatsLog.txt" }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Utility\Shared.Utility.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+	  <Reference Include="Modules.Report.Base">
+	    <HintPath>..\..\..\DLLs\Modules.Report.Base.dll</HintPath>
+	  </Reference>
+	  <Reference Include="Shared.Core">
+		  <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+	  </Reference>
+	  <Reference Include="Shared.Infrastructure">
+		  <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+	  </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Dto\LuuLuong\LuuLuongTheoCa\" />
+    <Folder Include="Dto\LuuLuong\LuuLuongTheoLoTrinh\" />
+    <Folder Include="Dto\LuuLuong\LuuLuongTheoNam\" />
+    <Folder Include="Dto\LuuLuong\LuuLuongTheoQuy\" />
+    <Folder Include="Dto\LuuLuong\LuuLuongTheoThang\" />
+    <Folder Include="Dto\DoanhThu\DoanhThuTheoThoiGian\" />
+    <Folder Include="Dto\DoanhThu\DoanhThuTheoNgay\" />
+    <Folder Include="Dto\DoanhThu\DoanhThuTheoThang\" />
+    <Folder Include="Dto\DoanhThu\DoanhThuTheoQuy\" />
+    <Folder Include="Dto\DoanhThu\DoanhThuTheoNam\" />
+  </ItemGroup>
+
+</Project>

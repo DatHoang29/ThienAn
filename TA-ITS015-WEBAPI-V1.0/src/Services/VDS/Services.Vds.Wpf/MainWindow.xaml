@@ -1,0 +1,360 @@
+<Window x:Class="Services.Vds.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="VDS — Test Console (nguồn mô phỏng)" Height="760" Width="1040">
+    <Window.Resources>
+        <!-- Tiêu đề nhóm camera theo hướng tuyến (DirectionId của TmsEquipment) -->
+        <DataTemplate x:Key="DirectionHeader">
+            <Border Background="#E3F2FD" Padding="6,3" Margin="0,4,0,2">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#0D47A1"/>
+                    <TextBlock Text="{Binding ItemCount, StringFormat=' ({0} camera)'}" Foreground="#546E7A"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- Nhóm theo hướng khai bằng XAML thay vì dựng ICollectionView trong code-behind -->
+        <CollectionViewSource x:Key="RawCamerasView" Source="{Binding RawCameras}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="DirectionName"/>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+        <CollectionViewSource x:Key="EventCamerasView" Source="{Binding EventCameras}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="DirectionName"/>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+
+        <!-- Tiêu đề nhóm ở tab sự kiện: thêm nút tích/bỏ cả hướng -->
+        <DataTemplate x:Key="EventDirectionHeader">
+            <Border Background="#E3F2FD" Padding="6,3" Margin="0,4,0,2">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#0D47A1" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding ItemCount, StringFormat=' ({0} camera)'}" Foreground="#546E7A"
+                               VerticalAlignment="Center"/>
+                    <Button Content="Chọn/bỏ cả hướng" Margin="10,0,0,0" Padding="6,0" FontSize="11"
+                            Command="{Binding DataContext.ToggleEventDirectionCommand,
+                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding Name}"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- Một dòng nhật ký (Services.Shared.Events.Activity): giờ + nguồn + nội dung, tô màu theo mức -->
+        <DataTemplate x:Key="ActivityRow">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding TimestampLocal, StringFormat='HH:mm:ss'}" Foreground="#616161"/>
+                <TextBlock Text="{Binding Stage, StringFormat=' [{0}] '}" Foreground="#00695C"/>
+                <TextBlock Text="{Binding Detail}" TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Level}" Value="Warning">
+                                    <Setter Property="Foreground" Value="#E65100"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Level}" Value="Error">
+                                    <Setter Property="Foreground" Value="#B71C1C"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Level}" Value="Success">
+                                    <Setter Property="Foreground" Value="#1B5E20"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="220"/>
+        </Grid.RowDefinitions>
+
+        <TabControl Grid.Row="0">
+
+            <!-- ============ TAB 1: mô phỏng Regular + Statistic ============ -->
+            <TabItem Header="Regular (tự động)">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Camera sinh dữ liệu raw -->
+                    <DockPanel Grid.Row="0" Grid.Column="0" Margin="0,0,6,0">
+                        <TextBlock DockPanel.Dock="Top" FontWeight="Bold" Margin="0,0,0,4"
+                                   Text="Camera sinh dữ liệu RAW (QuestDB: VdsTrafficData)"/>
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,4,0,0">
+                            <Button Content="Chọn tất cả" Command="{Binding CheckAllRawCommand}" Width="90"/>
+                            <Button Content="Bỏ chọn" Command="{Binding UncheckAllRawCommand}" Width="80" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <ListBox ItemsSource="{Binding Source={StaticResource RawCamerasView}}"
+                                 BorderBrush="#BDBDBD" BorderThickness="1">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" Content="{Binding Display}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.GroupStyle>
+                                <GroupStyle HeaderTemplate="{StaticResource DirectionHeader}"/>
+                            </ListBox.GroupStyle>
+                        </ListBox>
+                    </DockPanel>
+
+                    <!-- Camera nhận bản nhân đôi số đếm của từng hướng -->
+                    <DockPanel Grid.Row="0" Grid.Column="1" Margin="6,0,0,0">
+                        <TextBlock DockPanel.Dock="Top" FontWeight="Bold" Margin="0,0,0,4"
+                                   Text="Camera tính COUNT theo hướng (nhân bản bản tin)"/>
+                        <TextBlock DockPanel.Dock="Bottom" TextWrapping="Wrap" Foreground="#D84315" FontSize="11"
+                                   Margin="0,4,0,0"
+                                   Text="Mỗi hướng chọn 1 camera: xe sinh ở BẤT KỲ camera nào của hướng sẽ được bơm THÊM một bản y hệt cho camera này ⇒ 2 bản ghi raw. Bỏ trống = hướng đó không nhân bản. Phạm vi đếm để mặc định: đếm TẤT CẢ camera."/>
+                        <ItemsControl ItemsSource="{Binding DirectionCounts}" BorderBrush="#BDBDBD" BorderThickness="1"
+                                      Padding="6">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="{Binding DirectionName}" FontWeight="Bold" Foreground="#0D47A1"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                            <ComboBox Width="330" ItemsSource="{Binding Cameras}"
+                                                      DisplayMemberPath="Display"
+                                                      SelectedItem="{Binding Selected, Mode=TwoWay}"/>
+                                            <Button Content="Bỏ chọn" Width="70" Margin="6,0,0,0"
+                                                    Command="{Binding DataContext.ClearDirectionCountCommand,
+                                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DockPanel>
+
+                    <!-- Khoảng giá trị random -->
+                    <WrapPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,10,0,0">
+                        <TextBlock Text="Nhịp gửi (giây):" VerticalAlignment="Center" FontWeight="Bold"/>
+                        <TextBox Width="50" Margin="6,0,0,0" VerticalAlignment="Center"
+                                 Text="{Binding MinIntervalSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="→" VerticalAlignment="Center" Margin="4,0"/>
+                        <TextBox Width="50" VerticalAlignment="Center"
+                                 Text="{Binding MaxIntervalSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <TextBlock Text="Dài (m):" VerticalAlignment="Center" FontWeight="Bold" Margin="18,0,0,0"/>
+                        <TextBox Width="50" Margin="6,0,0,0" VerticalAlignment="Center"
+                                 Text="{Binding MinLengthMeter, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="→" VerticalAlignment="Center" Margin="4,0"/>
+                        <TextBox Width="50" VerticalAlignment="Center"
+                                 Text="{Binding MaxLengthMeter, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <TextBlock Text="Statistic mỗi (phút):" VerticalAlignment="Center" FontWeight="Bold" Margin="18,0,0,0"/>
+                        <TextBox Width="45" Margin="6,0,0,0" VerticalAlignment="Center"
+                                 Text="{Binding StatisticPeriodMinutes, UpdateSourceTrigger=PropertyChanged}"/>
+                    </WrapPanel>
+
+                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,44,0,0" TextWrapping="Wrap"
+                               Foreground="#0D47A1" FontSize="11"
+                               Text="{Binding SpeedRangeInfo}"
+                               ToolTip="Sửa vds_route_{hướng}_min_speed / _max_speed trong VdsConfig, nhóm vds_config; khởi động lại WPF để nạp cấu hình local"/>
+
+                    <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0">
+                        <WrapPanel>
+                            <Button Content="BẮT ĐẦU" Command="{Binding StartSimulationCommand}" Width="120"
+                                    Background="#C8E6C9" FontWeight="Bold"/>
+                            <Button Content="DỪNG" Command="{Binding StopSimulationCommand}" Width="100" Margin="8,0,0,0"
+                                    Background="#FFCDD2" FontWeight="Bold"/>
+                            <Button Content="Một lượt giả lập" Command="{Binding SimulateBatchCommand}" Width="130"
+                                    Margin="8,0,0,0" Background="#B3E5FC"
+                                    ToolTip="IServiceManager.SimulateBatchAsync — một bản tin Regular cho mỗi camera trong danh mục"/>
+                            <Button Content="Tải lại danh sách camera" Command="{Binding ReloadCamerasCommand}"
+                                    Width="170" Margin="8,0,0,0"/>
+                            <TextBlock Text="{Binding SimulationStatus}" VerticalAlignment="Center" Margin="14,0,0,0"
+                                       Foreground="DarkSlateBlue"/>
+                        </WrapPanel>
+
+                        <!-- Đếm xe được truy vấn từ dữ liệu hiện có; nút dưới chỉ đọc số bản ghi.
+                             Ghép hành trình chạy theo cấu hình Journey, không có nút gửi cặp giả. -->
+                        <TextBlock Margin="0,12,0,4" FontWeight="Bold" Text="Quan sát dữ liệu"/>
+                        <WrapPanel>
+                            <Button Content="Đếm bản ghi DB" Command="{Binding CountRowsCommand}" Width="130"
+                                    Margin="0,0,8,6" Background="#E1BEE7"/>
+                        </WrapPanel>
+                        <TextBlock Text="{Binding DatabaseInfo}" TextWrapping="Wrap" Foreground="#4A148C" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============ TAB 2: gửi sự kiện thủ công ============ -->
+            <TabItem Header="Sự kiện (thủ công)">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Chọn nhiều camera: bấm GỬI là bắn cho tất cả camera đang tích -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                        <TextBlock Text="Camera:" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="Bold"/>
+                        <Button Content="Chọn tất cả" Command="{Binding CheckAllEventCommand}" Width="90"/>
+                        <Button Content="Bỏ chọn" Command="{Binding UncheckAllEventCommand}" Width="80" Margin="6,0,0,0"/>
+                        <TextBlock Text="{Binding SelectedCameraInfo}" VerticalAlignment="Center" Margin="12,0,0,0"
+                                   Foreground="DarkSlateBlue"/>
+                    </StackPanel>
+
+                    <ListBox Grid.Row="1" Margin="0,0,0,10" MinHeight="120"
+                             ItemsSource="{Binding Source={StaticResource EventCamerasView}}"
+                             BorderBrush="#BDBDBD" BorderThickness="1">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" Content="{Binding Display}"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <ListBox.GroupStyle>
+                            <GroupStyle HeaderTemplate="{StaticResource EventDirectionHeader}"/>
+                        </ListBox.GroupStyle>
+                    </ListBox>
+
+                    <WrapPanel Grid.Row="2" Margin="0,0,0,10">
+                        <TextBlock Text="Loại:" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="Bold"/>
+                        <ComboBox Width="200" VerticalAlignment="Center"
+                                  ItemsSource="{Binding EventTypes}"
+                                  SelectedItem="{Binding SelectedEventType, Mode=TwoWay}"/>
+                        <TextBlock Text="Làn:" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                        <TextBox Width="45" VerticalAlignment="Center"
+                                 Text="{Binding Lane, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="Biển số:" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                        <TextBox Width="115" VerticalAlignment="Center"
+                                 Text="{Binding Plate, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Nhập &quot;-&quot; để mô phỏng bản tin không có biển số"/>
+                        <TextBlock Text="Tốc độ (km/h):" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                        <TextBox Width="50" VerticalAlignment="Center"
+                                 Text="{Binding SpeedKmh, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding IsSpeedEditable}"
+                                 ToolTip="Chỉ Speeding cho nhập tốc độ tay. Type Speeding là kết luận thiết bị và không tự đổi thành Slow Moving. Loại khác lấy giữa ngưỡng hướng từ VdsConfig"/>
+                        <TextBlock VerticalAlignment="Center" Margin="6,0,0,0" FontSize="11" Foreground="#546E7A"
+                                   Text="{Binding EffectiveSpeedInfo}"/>
+                        <TextBlock Text="Dài (m):" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                        <TextBox Width="50" VerticalAlignment="Center"
+                                 Text="{Binding LengthMeterText, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Nhập mét; phân cỡ theo vds_mapping_vehicle_size. Để trống để test chiều dài không xác định"/>
+                        <TextBlock Text="Số lượng:" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                        <TextBox Width="45" VerticalAlignment="Center"
+                                 Text="{Binding SendCount, UpdateSourceTrigger=PropertyChanged}"/>
+                    </WrapPanel>
+
+                    <WrapPanel Grid.Row="3">
+                        <Button Content="GỬI" Command="{Binding SendCommand}" Width="120" Margin="0,0,8,6"
+                                Background="#C8E6C9" FontWeight="Bold"
+                                ToolTip="Gửi cho mọi camera đang tích; mỗi camera gửi đúng &quot;Số lượng&quot; bản tin"/>
+                    </WrapPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============ TAB 3: trạng thái vùng (zone) ============ -->
+            <TabItem Header="Zone (trạng thái vùng)">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Chọn vùng: danh sách lấy từ mapping của chính 10 camera VDS trong cấu hình -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Vùng:" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="Bold"/>
+                            <ComboBox Width="380" VerticalAlignment="Center" DisplayMemberPath="Display"
+                                      ItemsSource="{Binding Zones}" SelectedItem="{Binding SelectedZone}"/>
+                            <Button Content="Tải lại vùng" Command="{Binding ReloadZonesCommand}" Width="110"
+                                    Margin="8,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding SelectedZoneInfo}" Foreground="DarkSlateBlue" TextWrapping="Wrap"
+                                   Margin="0,4,0,0"/>
+                        <TextBlock Text="{Binding ZoneStatusInfo}" Foreground="#4A148C" TextWrapping="Wrap"
+                                   Margin="0,2,0,0"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,4,0,0"
+                                   Text="Vùng lấy từ mapping TmsZoneEquipment của catalog đang nạp. Nút áp dụng và các mẫu xe có thể cập nhật TmsZoneStatus; phát NATS phụ thuộc cấu hình transport/publish."/>
+                    </StackPanel>
+
+                    <!-- Đặt trạng thái mong muốn -->
+                    <StackPanel Grid.Row="1" Margin="0,0,0,10">
+                        <TextBlock Text="Đặt trạng thái mong muốn" FontWeight="Bold" Margin="0,0,0,4"/>
+                        <WrapPanel>
+                            <ComboBox Width="150" VerticalAlignment="Center" Margin="0,0,8,6"
+                                      ItemsSource="{Binding ZoneConditions}"
+                                      SelectedItem="{Binding SelectedZoneCondition}"/>
+                            <Button Content="ÁP DỤNG NGAY" Command="{Binding ApplyZoneConditionCommand}" Width="140"
+                                    Margin="0,0,8,6" Background="#C8E6C9" FontWeight="Bold"
+                                    ToolTip="Ép trạng thái vùng như vừa nhận sự kiện tương ứng: ghi TmsZoneStatus ngay, tự hết theo TTL của chốt sự kiện"/>
+                        </WrapPanel>
+                    </StackPanel>
+
+                    <!-- Kịch bản mẫu -->
+                    <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                        <TextBlock Text="Kịch bản mẫu (bơm bản tin thật vào pipeline)" FontWeight="Bold" Margin="0,0,0,4"/>
+                        <WrapPanel>
+                            <TextBlock Text="Số xe:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBox Width="45" VerticalAlignment="Center" Margin="0,0,12,6"
+                                     Text="{Binding ZoneSampleCount, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Text="Tốc độ thoáng:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBox Width="45" VerticalAlignment="Center" Margin="0,0,12,6"
+                                     Text="{Binding ZoneFreeSpeedKmh, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Phải ≥ V_min của vùng + ZoneStatus:SpeedSlow:ClearMarginKmh mới hạ được bậc chậm theo tốc độ. Tự đặt giữa ngưỡng khi đổi vùng"/>
+                            <TextBlock Text="Tốc độ chậm:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBox Width="45" VerticalAlignment="Center" Margin="0,0,12,6"
+                                     Text="{Binding ZoneSlowSpeedKmh, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Phải DƯỚI V_min của vùng mới tính là xe chậm. Tự đặt bằng nửa V_min khi đổi vùng"/>
+                        </WrapPanel>
+                        <WrapPanel>
+                            <Button Content="Gọi Congestion" Command="{Binding SendZoneCongestionCommand}"
+                                    Width="140" Margin="0,0,8,6" Background="#FFCDD2"
+                                    ToolTip="Bản tin Congestion ⇒ vùng NGHẼN (đường duy nhất ra nghẽn), tự hết sau CongestionEventTtlSeconds"/>
+                            <Button Content="Huỷ Congestion" Command="{Binding CancelZoneCongestionCommand}"
+                                    Width="140" Margin="0,0,8,6" Background="#BBDEFB"
+                                    ToolTip="Hạ chốt nghẽn ngay, không chờ TTL"/>
+                            <Button Content="Gọi Slow Moving" Command="{Binding SendZoneSlowEventCommand}"
+                                    Width="140" Margin="0,0,8,6" Background="#FFF9C4"
+                                    ToolTip="Bản tin Slow Moving ⇒ vùng CHẬM, tự hết sau SlowEventTtlSeconds"/>
+                            <Button Content="Huỷ Slow Moving" Command="{Binding CancelZoneSlowCommand}"
+                                    Width="140" Margin="0,0,8,6" Background="#BBDEFB"
+                                    ToolTip="Hạ chốt chậm ngay, không chờ TTL. Bậc chậm theo tốc độ (nếu bật) giữ nguyên"/>
+                        </WrapPanel>
+                        <WrapPanel>
+                            <Button Content="Chạy N xe THÔNG THOÁNG" Command="{Binding SendZoneFreeFlowCommand}"
+                                    Width="190" Margin="0,0,8,6" Background="#C8E6C9"
+                                    ToolTip="Chỉ đổi trạng thái khi bật ZoneStatus:SpeedSlow:Enabled"/>
+                            <Button Content="Chạy N xe CHẬM" Command="{Binding SendZoneSlowCommand}"
+                                    Width="150" Margin="0,0,8,6" Background="#FFE0B2"
+                                    ToolTip="Chỉ đổi trạng thái khi bật ZoneStatus:SpeedSlow:Enabled"/>
+                        </WrapPanel>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="3" TextWrapping="Wrap" Foreground="Gray"
+                               Text="Ba bậc: thông thoáng · chậm · nghẽn. NGHẼN chỉ do sự kiện Congestion; CHẬM do sự kiện Slow Moving, hoặc theo tốc độ khi bật ZoneStatus:SpeedSlow (cửa sổ AvgWindowSeconds có ≥ MinVehicles xe, tốc độ TB &lt; V_min và ≥ SlowShare số xe dưới V_min; hết chậm khi TB ≥ V_min + ClearMarginKmh). V_min = TmsZone.MinSpeed, thiếu thì mặc định theo hướng. Mỗi xe gửi một biển số khác nhau để không bị lọc trùng."/>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Nhật ký dùng chung cho cả hai tab -->
+        <DockPanel Grid.Row="1" Margin="0,10,0,0">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4">
+                <TextBlock Text="NHẬT KÝ (mới nhất ở trên)" FontWeight="Bold" VerticalAlignment="Center"/>
+                <Button Content="Xoá nhật ký" Command="{Binding ClearActivitiesCommand}" Width="100" Margin="12,0,0,0"/>
+            </StackPanel>
+            <ListBox ItemsSource="{Binding Activities}" FontFamily="Consolas" FontSize="12"
+                     ItemTemplate="{StaticResource ActivityRow}"
+                     HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+        </DockPanel>
+    </Grid>
+</Window>

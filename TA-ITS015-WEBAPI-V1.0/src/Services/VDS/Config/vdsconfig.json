@@ -1,0 +1,46 @@
+{
+  "CamIn": [],
+  "CamOut": [],
+  "InDirectionIds": [ 1 ],
+  "OutDirectionIds": [ 2 ],
+  "EquipmentTypeIds": [ "0b56dd08-6275-46de-8b5e-67cd38fca7fd" ],
+  "EventTypeMap": [
+    { "vds_EventType": "speed", "its_EventType": "speed" },
+    { "vds_EventType": "wrongdirection", "its_EventType": "wrongdirection" },
+    { "vds_EventType": "illegalparking", "its_EventType": "illegalparking" },
+    { "vds_EventType": "pedestrian", "its_EventType": "pedestrian" },
+    { "vds_EventType": "abandonedobject", "its_EventType": "abandonedobject" },
+    { "vds_EventType": "construction", "its_EventType": "construction" },
+    { "vds_EventType": "slowmoving", "its_EventType": "slowmoving" },
+    { "vds_EventType": "lanechange", "its_EventType": "lanechange" },
+    { "vds_EventType": "crosslane", "its_EventType": "crosslane" },
+    { "vds_EventType": "suddenspeeddrop", "its_EventType": "suddenspeeddrop" },
+    { "vds_EventType": "trafficaccident", "its_EventType": "accident" },
+    { "vds_EventType": "conflagration", "its_EventType": "fire" },
+    { "vds_EventType": "congestion", "its_EventType": "traffic_jam" }
+  ],
+  "EventAlarm": [
+    "speed",
+    "wrongdirection",
+    "illegalparking",
+    "pedestrian",
+    "abandonedobject",
+    "construction",
+    "accident",
+    "fire"
+  ],
+  "Render": {
+    "Stop": "illegalparking",
+    "Way": "wrongdirection,lanechange",
+    "Slow": "slowmoving"
+  },
+  "TimeIgnore": [
+    { "VDS_EventType": "Others", "TimeSecond": 1 },
+    { "VDS_EventType": "speed", "TimeSecond": 2 }
+  ],
+  "TimeSkip": [
+    { "VDS_EventType": "Others", "TimeSecond": 10 },
+    { "VDS_EventType": "speed", "TimeSecond": 5 }
+  ],
+  "VehicleFilterIgnoreMinutes": 10
+}

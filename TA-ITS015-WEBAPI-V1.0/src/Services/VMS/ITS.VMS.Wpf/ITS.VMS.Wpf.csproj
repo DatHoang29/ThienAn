@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ITS.VMS.Wpf</RootNamespace>
+    <AssemblyName>ITS.VMS.Wpf</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    ITS.VMS.Wpf: công cụ theo dõi + kiểm thử luồng điều khiển bảng VMS trên kênh ta.its.control.vms.
+    Form đảm nhiệm ĐỒNG THỜI 2 vai (bật/tắt độc lập) để test trọn luồng mà chưa cần dựng Worker:
+      - Vai DỊCH VỤ  : bật VmsControlNatsListener -> nhận Type=request, gọi SDK thiết bị, phát Type=result.
+                       (đúng phần việc của ITS.VMS.Worker)
+      - Vai GỬI LỆNH : VmsControlSender -> phát Type=request và chờ Type=result theo RequestId.
+                       (đúng phần việc của VmsControlBridge ở BE)
+    Mọi gói tin đi qua kênh đều hiện nguyên văn trên form để đối chiếu hợp đồng bản tin.
+  -->
+
+  <ItemGroup>
+    <!-- [ObservableProperty]/[RelayCommand] cho MainViewModel - bỏ boilerplate INPC + ICommand. -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ITS.VMS.Core\ITS.VMS.Core.csproj" />
+    <!--
+      2 project driver dưới đây KHÔNG được gọi trực tiếp trong code (VmsDeviceExecutor nạp bằng Assembly.LoadFrom).
+      Tham chiếu ở đây CHỈ để MSBuild copy DLL driver + dependency vào thư mục chạy, nếu không thì
+      form ở vai DỊCH VỤ sẽ báo thiếu DLL khi gửi ra thiết bị thật.
+    -->
+    <ProjectReference Include="..\..\..\Modules\Integration\VMS\Modules.Integration.VMS.Chainzone\Modules.Integration.VMS.Chainzone.csproj" />
+    <ProjectReference Include="..\..\..\Modules\Integration\VMS\Modules.Integration.Vms.Dysten\Modules.Integration.Vms.Dysten.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <!-- File xác thực NATS (bí mật) - cần có trong thư mục chạy để kết nối được. -->
+    <None Update="Configuration\nats.creds">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+  <!--
+    Native DLL của SDK Chainzone (czVMSII = kênh SDK, czJetFileII* = kênh API dùng P/Invoke).
+    Các project Adapter không tự khai báo copy nên copy thẳng cạnh exe:
+    Assembly.LoadFrom và DllImport đều tìm theo thư mục của TIẾN TRÌNH đang chạy.
+
+    ĐÂY LÀ LINK, KHÔNG PHẢI BẢN SAO — file gốc vẫn nằm trong Adapter\DllApi và Adapter\DllSdk.
+    Visible=false để Solution Explorer không vẽ chúng ở gốc project cho đỡ rối;
+    XOÁ khối này thì DLL không được copy sang bin và RegisterModule sẽ báo VendorDllNotFound.
+  -->
+  <ItemGroup>
+    <None Include="..\..\..\Modules\Integration\VMS\Chainzone\Modules.Integration.VMS.Chainzone.Adapter\DllApi\*.dll"
+          Link="%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Visible>false</Visible>
+    </None>
+    <None Include="..\..\..\Modules\Integration\VMS\Chainzone\Modules.Integration.VMS.Chainzone.Adapter\DllSdk\*.dll"
+          Link="%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Visible>false</Visible>
+    </None>
+  </ItemGroup>
+
+</Project>

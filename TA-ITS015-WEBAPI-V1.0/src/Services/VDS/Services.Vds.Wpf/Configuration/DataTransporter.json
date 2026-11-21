@@ -1,0 +1,12 @@
+{
+  "// [NATS]": "Harness WPF KHÔNG publish ra NATS: để Url rỗng ⇒ TransportManager không kết nối, VdsPublisher bỏ qua êm và chỉ ghi log. Muốn thử publish thật thì điền Url.",
+  "Nats": {
+    "Url": "nats://115.78.1.139:12218",
+    "ClientName": "ITS_DM_SERVICE",
+        "AuthMode": "JWT",
+    "JwtFile": "Configuration/nats.creds",
+    "UserSeedFile": "Configuration/nats.creds",
+    "UseJetStream": true,
+    "RetryIntervalSeconds": 5
+  }
+}

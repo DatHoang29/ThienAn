@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ITS.FA.Wpf</RootNamespace>
+    <AssemblyName>ITS.FA.Wpf</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    ITS.FA.Wpf: form test hệ báo cháy + sự cố. Chạy ĐÚNG luồng của dịch vụ (FaAlarmMonitor) trên DB thật,
+    tủ báo cháy có thể là tủ giả (Modbus TCP giả lập ngay trong form) hoặc tủ thật.
+    Author: ChuongLP
+    Date: 02/11/2026
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ITS.FA.Core\ITS.FA.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EntityTenant nằm trong DLL biên dịch sẵn; thiếu reference thì .ID/.IsDelete báo CS0012. -->
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Configuration\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- File creds NATS: không nhân bản vào source, chỉ copy từ bản của TAC_WebAPI lúc build. -->
+    <None Include="..\..\..\TAC_WebAPI\Configuration\nats.creds" Link="Configuration\nats.creds"
+          Condition="Exists('..\..\..\TAC_WebAPI\Configuration\nats.creds')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

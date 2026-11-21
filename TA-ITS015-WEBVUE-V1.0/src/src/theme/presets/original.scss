@@ -1,0 +1,13 @@
+/* =============================================================================
+   PRESET: ORIGINAL (Nguyên bản)
+   -----------------------------------------------------------------------------
+   Cố tình để TRỐNG: giao diện nguyên bản = toàn bộ style gốc trong theme/*.scss.
+   Nếu sau này bạn muốn tinh chỉnh riêng cho bản nguyên bản mà không ảnh hưởng
+   preset design, hãy viết CSS ở đây, bọc trong `html.design-original { ... }`.
+
+   Bật preset này: đổi ACTIVE_DESIGN = 'original' trong theme/presets/designPreset.ts
+   ============================================================================= */
+
+/* html.design-original {
+	// CSS riêng cho bản nguyên bản (nếu cần)
+} */

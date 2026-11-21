@@ -1,0 +1,74 @@
+{
+  "subjects": [
+    {
+      "subject": "ta.its.status.fms",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.data.vms",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.data.incident",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.data.tms.zone",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.data.vds.traffic",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.data.fms",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.refresh",
+      "mode": "jetstream",
+      "allowSubscribeOnFe": false
+    },
+    {
+      "subject": "ta.its.data.videowall.scene",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.data.videowall",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.data.vds.filter",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.control.toll",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.control.fms",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.heartbeat.>",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    },
+    {
+      "subject": "ta.its.noti",
+      "mode": "pubsub",
+      "allowSubscribeOnFe": true
+    }
+  ]
+}

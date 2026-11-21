@@ -1,0 +1,63 @@
+@import './index.scss';
+
+/* Page width less than 576px
+------------------------------- */
+@media screen and (max-width: $xs) {
+	// MessageBox popup
+	.el-message-box {
+		width: 80% !important;
+	}
+	// Lock screen page
+	.layout-lock-screen-date-top {
+		display: none;
+	}
+}
+
+/* Page width less than 768px
+------------------------------- */
+@media screen and (max-width: $sm) {
+	// Breadcrumb
+	.layout-navbars-breadcrumb-hide {
+		display: none;
+	}
+	// External link view
+	.layout-view-link {
+		a {
+			max-width: 80%;
+			text-align: center;
+		}
+	}
+	// Menu search
+	.layout-search-dialog {
+		.el-autocomplete {
+			width: 80% !important;
+		}
+	}
+}
+
+/* Page width less than 1000px
+------------------------------- */
+@media screen and (max-width: 1000px) {
+	// Layout configuration
+	.layout-drawer-content-flex {
+		position: relative;
+		&::after {
+			content: 'Mobile version does not support layout switching';
+			position: absolute;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			z-index: 1;
+			text-align: center;
+			height: 140px;
+			line-height: 140px;
+			background: rgba(255, 255, 255, 0.9);
+			color: #666666;
+		}
+	}
+	// // pagination toolbar in the footer
+	// .table-footer-tool {
+	// 	display: none !important;
+	// }
+}

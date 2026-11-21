@@ -1,0 +1,19 @@
+{
+  "QuestHa": {
+    "// [QuestHa]": "THỬ HA 30/10/2026: WebAPI đọc dữ liệu VDS QuestDB qua router 2 node A/B (tên node phải giống WPF/Worker). TẮT 05/11/2026: ReadMode=Single ⇒ đọc một DB VdsDefault như cũ; bật lại: Router.",
+    "ReadMode": "Single",
+    "JournalConnectionString": "Server=localhost;Database=QuestJournal;Trusted_Connection=True;TrustServerCertificate=True;Connect Timeout=5",
+    "Nodes": [
+      {
+        "Name": "A",
+        "PgConnectionString": "Host=127.0.0.1;Port=8912;Username=admin;Password=quest;Database=qdb;ServerCompatibilityMode=NoTypeLoading;Timeout=5;Command Timeout=30",
+        "Priority": 0
+      },
+      {
+        "Name": "B",
+        "PgConnectionString": "Host=.;Port=8012;Username=admin;Password=quest;Database=qdb;ServerCompatibilityMode=NoTypeLoading;Timeout=5;Command Timeout=30",
+        "Priority": 1
+      }
+    ]
+  }
+}

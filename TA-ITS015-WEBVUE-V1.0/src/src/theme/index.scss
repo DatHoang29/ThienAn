@@ -1,0 +1,17 @@
+@import 'element-plus/dist/index.css';
+@import './app.scss';
+@import 'common/transition.scss';
+@import './other.scss';
+@import './element.scss';
+@import './media/media.scss';
+@import './waves.scss';
+@import './dark.scss';
+@import './iconfont/font_2298093_rnp72ifj3ba.scss';
+@import './font-awesome/font-awesome.scss';
+@import './vxeTable.scss';
+@import 'basic.scss';
+/* Design presets — chọn preset bằng ACTIVE_DESIGN trong theme/presets/designPreset.ts.
+   Mỗi preset bọc trong class riêng của <html> nên preset không bật sẽ không ảnh hưởng gì. */
+@import './presets/original.scss';
+@import './presets/depthBlueAmber.scss';
+@import './workspace.scss';

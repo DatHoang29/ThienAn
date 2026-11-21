@@ -1,0 +1,30 @@
+{
+  "lasttimesync": "2026-09-08T08:41:03+07:00",
+  "mapName": "ITS",
+  "nodes": [
+    {
+      "id": "10084",
+      "name": "Core server",
+      "deviceType": "Server",
+      "ip": "127.0.0.1",
+      "equipmentId": null,
+      "status": 1
+    },
+    {
+      "id": "10815",
+      "name": "MAY-187",
+      "deviceType": "host",
+      "ip": "10.10.8.187",
+      "equipmentId": "919ede08-20dd-4c13-8c52-b28b18e45853",
+      "status": 4
+    },
+    {
+      "id": "10816",
+      "name": "May-168",
+      "deviceType": "host",
+      "ip": "10.10.8.168",
+      "equipmentId": null,
+      "status": 4
+    }
+  ]
+}

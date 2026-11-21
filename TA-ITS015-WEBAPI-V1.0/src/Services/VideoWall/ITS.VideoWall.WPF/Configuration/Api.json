@@ -1,0 +1,9 @@
+{
+  // Địa chỉ TAC_WebAPI. Mặc định trỏ vào backend chạy local (Configuration/App.json: http://*:5005).
+  "Api": {
+    "BaseUrl": "http://localhost:5005",
+    "TimeoutSeconds": 60,
+    // Ngôn ngữ gửi kèm header Accept-Language để backend trả thông báo lỗi đúng tiếng.
+    "Language": "vi-VN"
+  }
+}

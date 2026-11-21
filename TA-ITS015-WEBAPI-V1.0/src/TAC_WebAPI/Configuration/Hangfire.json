@@ -1,0 +1,6 @@
+{
+  "Hangfire": {
+    "ConnectionString": "Server=10.10.8.30;Initial Catalog=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
+    "Enable": false
+  }
+}

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    Modules.Integration.Barrier.Base: hợp đồng chung của tầng tích hợp Barrier.
+    - Interfaces (IBarrierIntegration), Enums, DTO, Constants, Helper mạng.
+    - KHÔNG tham chiếu Shared.Reference / Shared.Utility (kéo Furion + SqlSugar) để
+      dùng được ở CẢ TAC_WebAPI lẫn ITS.Barrier.Worker / ITS.Barrier.Wpf (không có Furion).
+      Cùng nguyên tắc với Modules.Integration.VMS.Base.
+  -->
+
+</Project>

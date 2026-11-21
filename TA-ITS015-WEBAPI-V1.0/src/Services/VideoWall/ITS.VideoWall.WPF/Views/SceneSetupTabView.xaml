@@ -1,0 +1,890 @@
+<UserControl x:Class="Module.VideoWall.WPF.Views.SceneSetupTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:interaction="clr-namespace:Module.VideoWall.WPF.Interaction"
+             xmlns:viewModels="clr-namespace:Module.VideoWall.WPF.ViewModels"
+             xmlns:controls="clr-namespace:Module.VideoWall.WPF.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="700" d:DesignWidth="1100">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <interaction:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <interaction:StatusColorConverter x:Key="StatusColorConverter" />
+        <interaction:InverseNullToVisibilityConverter x:Key="InverseNullToVisibility" />
+
+        <Style x:Key="CenterColumnHeader" TargetType="DataGridColumnHeader">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridColumnHeader">
+                        <Grid Background="{TemplateBinding Background}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                            <Thumb x:Name="PART_LeftHeaderGripper"
+                                   HorizontalAlignment="Left"
+                                   Width="5"
+                                   Cursor="SizeWE"
+                                   Background="Transparent" />
+                            <Thumb x:Name="PART_RightHeaderGripper"
+                                   HorizontalAlignment="Right"
+                                   Width="5"
+                                   Cursor="SizeWE"
+                                   Background="Transparent" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CenterCell" TargetType="DataGridCell">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Grid Background="{TemplateBinding Background}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="6">
+        <Grid.RowDefinitions>
+            <!-- Hàng 0: Khung 1. Thiết lập Kịch bản (Scene) -->
+            <RowDefinition Height="Auto" />
+            <!-- Hàng 1: Khung 2. Thông số phần cứng (4 Metric Cards & Khảo sát lại) -->
+            <RowDefinition Height="Auto" />
+            <!-- Hàng 2: Khung 3. Nội dung chính (Sub-Tabs: Bố cục ô Camera & Chi tiết Topology) -->
+            <RowDefinition Height="*" MinHeight="300" />
+        </Grid.RowDefinitions>
+
+        <!-- HÀNG 0: CHỌN & QUẢN LÝ KỊCH BẢN (SCENE) -->
+        <Border Grid.Row="0" Background="#F8FAFC" BorderBrush="#D2D6DC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,4">
+            <StackPanel>
+                <!-- Tiêu đề, Nút Tạo mới / Huỷ kịch bản & Chọn kịch bản (WrapPanel tự động xuống dòng khi màn hình hẹp) -->
+                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,2">
+                    <TextBlock Text="1. Thiết lập Kịch bản" FontWeight="Bold" Foreground="#2D3748" FontSize="13" VerticalAlignment="Center" Margin="0,2,10,2" />
+                    
+                    <Button Content="➕ Tạo mới"
+                            Style="{StaticResource ToolbarButton}"
+                            Command="{Binding StartCreateNewSceneCommand}"
+                            Visibility="{Binding IsNotCreatingNewScene, Converter={StaticResource BoolToVisibility}}"
+                            FontWeight="SemiBold"
+                            Height="21"
+                            Padding="8,1"
+                            Margin="0,1,6,1"
+                            ToolTip="Tạo kịch bản mới: Nhập tên kịch bản rồi chọn mẫu bố cục" />
+
+                    <!-- Nhóm chọn kịch bản: Tự động ẩn khi đang tạo mới -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,1,8,1"
+                                Visibility="{Binding IsNotCreatingNewScene, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Kịch bản:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,4,0" FontWeight="Medium" />
+                        <Grid MinWidth="340" Width="420" Height="21">
+                            <ComboBox ItemsSource="{Binding Scenes}"
+                                      SelectedItem="{Binding CurrentScene}"
+                                      MinWidth="340" Width="420" Height="21"
+                                      ToolTip="{Binding CurrentScene.DisplayName}">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem">
+                                        <Setter Property="SnapsToDevicePixels" Value="True" />
+                                        <Setter Property="Padding" Value="8,4" />
+                                        <Setter Property="HorizontalContentAlignment" Value="Left" />
+                                        <Setter Property="VerticalContentAlignment" Value="Center" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="#2D3748" />
+                                        <Setter Property="FontWeight" Value="Normal" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ComboBoxItem">
+                                                    <Border x:Name="ItemBorder"
+                                                            Background="{TemplateBinding Background}"
+                                                            Padding="{TemplateBinding Padding}"
+                                                            SnapsToDevicePixels="True">
+                                                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}"
+                                                                          TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                                                          VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter TargetName="ItemBorder" Property="Background" Value="#2B6CB0" />
+                                                            <Setter Property="Foreground" Value="#FFFFFF" />
+                                                            <Setter Property="FontWeight" Value="Bold" />
+                                                        </Trigger>
+                                                        <MultiTrigger>
+                                                            <MultiTrigger.Conditions>
+                                                                <Condition Property="IsMouseOver" Value="True" />
+                                                                <Condition Property="IsSelected" Value="False" />
+                                                            </MultiTrigger.Conditions>
+                                                            <Setter TargetName="ItemBorder" Property="Background" Value="#EDF2F7" />
+                                                            <Setter Property="Foreground" Value="#1A202C" />
+                                                        </MultiTrigger>
+                                                        <MultiTrigger>
+                                                            <MultiTrigger.Conditions>
+                                                                <Condition Property="IsMouseOver" Value="True" />
+                                                                <Condition Property="IsSelected" Value="True" />
+                                                            </MultiTrigger.Conditions>
+                                                            <Setter TargetName="ItemBorder" Property="Background" Value="#2C5282" />
+                                                            <Setter Property="Foreground" Value="#FFFFFF" />
+                                                        </MultiTrigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="(Chưa có kịch bản)"
+                                       FontStyle="Italic"
+                                       Foreground="#A0AEC0"
+                                       FontSize="11"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,24,0"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding HasScenes, Converter={StaticResource InverseBoolToVisibility}}" />
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Nhóm nút thao tác kịch bản -->
+                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center" Visibility="{Binding IsNotCreatingNewScene, Converter={StaticResource BoolToVisibility}}">
+                        <Button Content="⚡ Kích hoạt chiếu"
+                                Style="{StaticResource PrimaryButton}"
+                                Command="{Binding ActivateSceneCommand}"
+                                Height="21"
+                                Padding="8,1"
+                                Margin="0,1,6,1"
+                                ToolTip="Phát kịch bản này lên màn hình tường ghép ngay lập tức&#x0a;• Tốc độ: Tức thời (&lt; 0.2s)&#x0a;• Cơ chế: Chỉ gửi 1 lệnh gọi kịch bản đã lưu sẵn trong thiết bị phần cứng (PUT .../scene/{id}/activate)&#x0a;• Dành cho: Người vận hành / trực ban chuyển nhanh giữa các kịch bản" />
+
+                        <Button Content="🗑 Xoá kịch bản"
+                                Style="{StaticResource ToolbarButton}"
+                                Command="{Binding DeleteSceneCommand}"
+                                Height="21"
+                                Padding="8,1"
+                                Margin="0,1,0,1"
+                                ToolTip="Xoá kịch bản đang chọn khỏi danh sách" />
+                    </WrapPanel>
+                </WrapPanel>
+
+                <!-- Biểu mẫu khi Đang tạo mới kịch bản -->
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,2,0,0"
+                        Visibility="{Binding IsCreatingNewScene, Converter={StaticResource BoolToVisibility}}">
+                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Tên kịch bản mới:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,1,4,1" FontWeight="SemiBold" />
+                        <TextBox MinWidth="280" Width="400" Height="21" Padding="5,1" VerticalContentAlignment="Center"
+                                 Text="{Binding SceneName, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,1,8,1"
+                                 ToolTip="Nhập tên cho kịch bản mới (ví dụ: Giờ cao điểm, Ban đêm, Tai nạn Km15...)" />
+                        
+                        <Button Content="💾 Lưu kịch bản"
+                                Style="{StaticResource PrimaryButton}"
+                                Command="{Binding CreateSceneCommand}"
+                                FontWeight="Bold"
+                                Height="21"
+                                Padding="8,1"
+                                Margin="0,1,6,1"
+                                ToolTip="Lưu kịch bản mới này vào danh sách" />
+
+                        <Button Content="❌ Huỷ bỏ"
+                                Style="{StaticResource ToolbarButton}"
+                                Command="{Binding CancelCreateNewSceneCommand}"
+                                Height="21"
+                                Padding="8,1"
+                                Margin="0,1,0,1"
+                                ToolTip="Huỷ bỏ tạo mới và quay lại kịch bản trước đó" />
+                    </WrapPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- HÀNG 1: 4 THẺ CHỈ SỐ TỔNG QUAN PHẦN CỨNG (METRIC CARDS) -->
+        <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#D2D6DC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,4">
+            <StackPanel>
+                <!-- Tiêu đề Thông số phần cứng -->
+                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
+                    <TextBlock Text="📊 Thông số Phần cứng &amp; Bố cục Tường ghép"
+                               FontWeight="Bold"
+                               FontSize="12"
+                               Foreground="#2D3748"
+                               VerticalAlignment="Center"
+                               Margin="0,2,8,2" />
+                </WrapPanel>
+
+                <!-- 4 Thẻ chỉ số tổng quan -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Card 1: Tổng kích thước Tường ghép -->
+                    <Border Grid.Column="0" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="4" Padding="6,3" Margin="0,0,3,0">
+                        <StackPanel>
+                            <TextBlock Text="📐 TỔNG KÍCH THƯỚC TƯỜNG" FontSize="9.5" FontWeight="SemiBold" Foreground="#15803D" Margin="0,0,0,1" />
+                            <TextBlock Text="{Binding Connection.ProbeTotalDimensionText}" FontSize="12" FontWeight="Bold" Foreground="#166534" />
+                            <TextBlock Text="{Binding Connection.ProbeWallDimensionsFormatted}" FontSize="9.5" Foreground="#15803D" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card 2: Cổng ra màn hình -->
+                    <Border Grid.Column="1" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="6,3" Margin="2,0,2,0">
+                        <StackPanel>
+                            <TextBlock Text="🖥️ CỔNG RA MÀN HÌNH" FontSize="9.5" FontWeight="SemiBold" Foreground="#1D4ED8" Margin="0,0,0,1" />
+                            <TextBlock Text="{Binding Connection.ProbeOutputCountText}" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" />
+                            <TextBlock Text="{Binding Connection.ProbeOutputResolutionSummary}" FontSize="9.5" Foreground="#1D4ED8" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card 3: Nguồn tín hiệu vào -->
+                    <Border Grid.Column="2" Background="#FAF5FF" BorderBrush="#E9D5FF" BorderThickness="1" CornerRadius="4" Padding="6,3" Margin="2,0,2,0">
+                        <StackPanel>
+                            <TextBlock Text="🎥 NGUỒN TÍN HIỆU VÀO" FontSize="9.5" FontWeight="SemiBold" Foreground="#7E22CE" Margin="0,0,0,1" />
+                            <TextBlock Text="{Binding Connection.ProbeInputCountText}" FontSize="12" FontWeight="Bold" Foreground="#6B21A8" />
+                            <TextBlock Text="Cổng vào tín hiệu trên các bo mạch" FontSize="9.5" Foreground="#7E22CE" Margin="0,1,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card 4: Năng lực thiết bị -->
+                    <Border Grid.Column="3" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="1" CornerRadius="4" Padding="6,3" Margin="3,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="⚡ NĂNG LỰC THIẾT BỊ" FontSize="9.5" FontWeight="SemiBold" Foreground="#B45309" Margin="0,0,0,1" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Tối đa " FontSize="10" FontWeight="Normal" Foreground="#B45309" VerticalAlignment="Bottom" Margin="0,0,2,0" />
+                                <TextBlock Text="{Binding Connection.ProbeMaxWindowNumsText}" FontSize="12" FontWeight="Bold" Foreground="#92400E" />
+                                <TextBlock Text=" Ô / " FontSize="10" FontWeight="Normal" Foreground="#B45309" VerticalAlignment="Bottom" Margin="2,0,2,0" />
+                                <TextBlock Text="{Binding SceneCountSummary}" FontSize="12" FontWeight="Bold" Foreground="#92400E" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding DeviceCapabilitySummary}" FontSize="9.5" Foreground="#B45309" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- HÀNG 2: NỘI DUNG CHÍNH (SUB-TABS: BỐ CỤC Ô CAMERA & CHI TIẾT CỔNG PHẦN CỨNG) -->
+        <TabControl Grid.Row="2" Margin="0,2,0,0">
+            <TabControl.Template>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid KeyboardNavigation.TabNavigation="Local">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <WrapPanel Grid.Row="0"
+                                   Panel.ZIndex="1"
+                                   IsItemsHost="True"
+                                   KeyboardNavigation.TabIndex="1"
+                                   Background="Transparent" />
+                        <Border Grid.Row="1"
+                                Panel.ZIndex="0"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                Margin="0,-1,0,0">
+                            <ContentPresenter ContentSource="SelectedContent" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </TabControl.Template>
+
+            <!-- TAB CON 1: BỐ CỤC Ô CAMERA TRÊN TƯỜNG GHÉP -->
+            <TabItem Header="🖼️ Bố cục Ô Camera trên Tường ghép">
+                <Border BorderThickness="1" BorderBrush="#D2D6DC" Background="#FFFFFF" CornerRadius="0,4,4,4" Padding="6,4">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.4*" MinWidth="380" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="1.6*" MinWidth="440" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Header Sub-tab 1: Thanh công cụ điều khiển Canvas & Đẩy cấu hình -->
+                        <WrapPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,0,0,4">
+                            <Button Content="➕ Thêm ô camera"
+                                    Style="{StaticResource ToolbarButton}"
+                                    Command="{Binding AddSceneWindowCommand}"
+                                    FontWeight="SemiBold"
+                                    Height="22" Padding="8,1"
+                                    Margin="0,1,6,1"
+                                    ToolTip="Thêm một ô camera mới vào danh sách bố cục kịch bản" />
+
+                            <Button Content="🌐 Quản lý nguồn IP"
+                                    Style="{StaticResource ToolbarButton}"
+                                    Command="{Binding OpenSourceManagementCommand}"
+                                    FontWeight="SemiBold"
+                                    Height="22" Padding="8,1"
+                                    Margin="0,1,6,1"
+                                    ToolTip="Quản lý và thêm các nguồn camera IP stream (RTSP, ONVIF) cục bộ" />
+
+                            <Button Content="🚀 Áp dụng &amp; Đẩy xuống thiết bị"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding PushToDeviceCommand}"
+                                    Height="22"
+                                    Padding="10,1"
+                                    Margin="0,1,6,1"
+                                    FontWeight="Bold"
+                                    VerticalAlignment="Center"
+                                    ToolTip="Nạp bố cục &amp; Gán Camera xuống phần cứng thiết bị:&#x0a;• Thực hiện khi tạo mới hoặc thay đổi toạ độ/camera của kịch bản.&#x0a;• Mở các ô cửa sổ, gán camera và đóng gói lưu thành Kịch bản (saveData) vào thiết bị.&#x0a;• Sau khi đẩy 1 lần, hàng ngày bạn chỉ cần bấm '⚡ Kích hoạt chiếu (Active)' ở trên để chuyển nhanh." />
+
+                            <CheckBox Content="Xoá cửa sổ cũ (Reset)"
+                                      IsChecked="{Binding ResetWindows}"
+                                      VerticalAlignment="Center"
+                                      Margin="4,1,8,1"
+                                      ToolTip="Xoá toàn bộ các ô cửa sổ cũ trên tường trước khi mở ô mới" />
+
+                            <CheckBox Content="Kích hoạt ngay"
+                                      IsChecked="{Binding ActivateAfterPush}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,1,8,1"
+                                      FontWeight="SemiBold"
+                                      ToolTip="Tự động kích hoạt (phát) kịch bản lên màn hình sau khi đẩy xong" />
+
+                            <TextBlock Text="⚠️ Cần bấm 🔍 Khảo sát (Probe) trước"
+                                       Foreground="#B45309" FontSize="11" FontStyle="Italic"
+                                       VerticalAlignment="Center" Margin="4,1,0,1"
+                                       Visibility="{Binding Connection.HasProbeResult, Converter={StaticResource InverseBoolToVisibility}}" />
+                        </WrapPanel>
+
+                        <!-- CỘT TRÁI: 🎨 KHUNG CANVAS ĐỒ HOẠ TƯƠNG TÁC (VISUAL WALL CANVAS) -->
+                        <Border Grid.Row="1" Grid.Column="0" Background="#0B1120" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" MinHeight="260">
+                            <controls:VisualWallCanvas />
+                        </Border>
+
+                        <!-- THANH PHÂN CÁCH DỌC KÉO DÃN TRÁI / PHẢI (GridSplitter) -->
+                        <GridSplitter Grid.Row="1" Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="#E2E8F0" Cursor="SizeWE" Margin="2,0" />
+
+                        <!-- CỘT PHẢI: BẢNG DỮ LIỆU & THAO TÁC CÁC Ô (DATAGRID + ACTIONS) -->
+                        <Grid Grid.Row="1" Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" MinHeight="100" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0">
+                                <DataGrid Style="{StaticResource ReadOnlyGrid}"
+                                          ItemsSource="{Binding SceneWindows}"
+                                          SelectedItem="{Binding SelectedSceneWindow}"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          CanUserResizeColumns="True"
+                                          AutoGenerateColumns="False"
+                                          SelectionMode="Single"
+                                          BorderBrush="#E2E8F0"
+                                          BorderThickness="1"
+                                          MinHeight="50"
+                                          VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                         <!-- Chọn nhiều để xoá -->
+                                         <DataGridTemplateColumn Width="28" CanUserResize="False"
+                                                                 HeaderStyle="{StaticResource CenterColumnHeader}"
+                                                                 CellStyle="{StaticResource CenterCell}">
+                                             <DataGridTemplateColumn.Header>
+                                                 <CheckBox IsChecked="{Binding DataContext.IsAllSceneWindowsSelected, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                           ToolTip="Chọn / Bỏ chọn tất cả"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0" Padding="0" />
+                                             </DataGridTemplateColumn.Header>
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0" Padding="0" />
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <DataGridTextColumn Header="STT" Width="30"
+                                                             HeaderStyle="{StaticResource CenterColumnHeader}"
+                                                             Binding="{Binding OrderNo, Mode=OneWay}">
+                                             <DataGridTextColumn.ElementStyle>
+                                                 <Style TargetType="TextBlock">
+                                                     <Setter Property="HorizontalAlignment" Value="Center" />
+                                                     <Setter Property="VerticalAlignment" Value="Center" />
+                                                 </Style>
+                                             </DataGridTextColumn.ElementStyle>
+                                         </DataGridTextColumn>
+
+                                         <!-- Tên ô camera -->
+                                         <DataGridTemplateColumn Header="Tên ô" Width="105">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"
+                                                              Height="21" Padding="3,1" VerticalContentAlignment="Center"
+                                                              ToolTip="{Binding Name}" />
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <!-- Chia ô: 1, 4, 9, 16 ô -->
+                                         <DataGridTemplateColumn Header="Chia ô" Width="60"
+                                                                 HeaderStyle="{StaticResource CenterColumnHeader}">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <ComboBox ItemsSource="{x:Static viewModels:SceneWindowRow.AvailableWindowModes}"
+                                                               SelectedItem="{Binding WindowMode, UpdateSourceTrigger=PropertyChanged}"
+                                                               Height="21"
+                                                               Padding="2,1"
+                                                               HorizontalContentAlignment="Center"
+                                                               VerticalContentAlignment="Center"
+                                                               ToolTip="{Binding WindowMode, StringFormat='Chế độ chia: {0} ô'}">
+                                                         <ComboBox.ItemTemplate>
+                                                             <DataTemplate>
+                                                                 <TextBlock Text="{Binding StringFormat='{}{0} ô'}" HorizontalAlignment="Center" />
+                                                             </DataTemplate>
+                                                         </ComboBox.ItemTemplate>
+                                                     </ComboBox>
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <!-- Camera hiển thị -->
+                                         <DataGridTemplateColumn Header="Camera" Width="*">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <Grid ToolTip="{Binding SelectedSource.DisplayName, TargetNullValue='(Chưa gán nguồn)'}">
+                                                         <ComboBox ItemsSource="{Binding DataContext.Sources, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                   SelectedItem="{Binding SelectedSource, UpdateSourceTrigger=PropertyChanged}"
+                                                                   Height="21" Padding="4,1">
+                                                             <ComboBox.ItemTemplate>
+                                                                 <DataTemplate>
+                                                                     <TextBlock Text="{Binding DisplayName}"
+                                                                                TextTrimming="CharacterEllipsis"
+                                                                                ToolTip="{Binding DisplayName}" />
+                                                                 </DataTemplate>
+                                                             </ComboBox.ItemTemplate>
+                                                         </ComboBox>
+                                                         <TextBlock Text="(Chưa gán nguồn)"
+                                                                    FontStyle="Italic"
+                                                                    Foreground="#A0AEC0"
+                                                                    FontSize="11"
+                                                                    TextTrimming="CharacterEllipsis"
+                                                                    VerticalAlignment="Center"
+                                                                    Margin="6,0,24,0"
+                                                                    IsHitTestVisible="False"
+                                                                    Visibility="{Binding SelectedSource, Converter={StaticResource InverseNullToVisibility}}" />
+                                                     </Grid>
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <!-- Màn hình bắt đầu: Chọn nhanh Màn 1..N tự động điền X, Y -->
+                                         <DataGridTemplateColumn Header="Vị trí" Width="66">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <Grid ToolTip="{Binding SelectedStartScreen.Name, TargetNullValue='(Chưa khảo sát)'}">
+                                                         <ComboBox ItemsSource="{Binding DataContext.AvailableStartScreens, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                   SelectedItem="{Binding SelectedStartScreen, UpdateSourceTrigger=PropertyChanged}"
+                                                                   Height="21"
+                                                                   Padding="3,1"
+                                                                   VerticalContentAlignment="Center">
+                                                             <ComboBox.ItemTemplate>
+                                                                 <DataTemplate>
+                                                                     <TextBlock Text="{Binding Name}"
+                                                                                TextTrimming="CharacterEllipsis"
+                                                                                ToolTip="{Binding Name}" />
+                                                                 </DataTemplate>
+                                                             </ComboBox.ItemTemplate>
+                                                         </ComboBox>
+                                                         <TextBlock Text="(Chưa)"
+                                                                    FontStyle="Italic"
+                                                                    Foreground="#A0AEC0"
+                                                                    FontSize="10"
+                                                                    TextTrimming="CharacterEllipsis"
+                                                                    VerticalAlignment="Center"
+                                                                    Margin="3,0,18,0"
+                                                                    IsHitTestVisible="False"
+                                                                    Visibility="{Binding SelectedStartScreen, Converter={StaticResource InverseNullToVisibility}}" />
+                                                     </Grid>
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <!-- Tọa độ X (px) -->
+                                         <DataGridTemplateColumn Header="X" Width="50" MinWidth="45"
+                                                                 HeaderStyle="{StaticResource CenterColumnHeader}">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <TextBox Text="{Binding X, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"
+                                                              Height="21" Padding="1,1" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                                              FontFamily="Consolas" FontSize="11"
+                                                              ToolTip="{Binding X, StringFormat='Tọa độ ngang X: {0} px'}" />
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <!-- Tọa độ Y (px) -->
+                                         <DataGridTemplateColumn Header="Y" Width="50" MinWidth="45"
+                                                                 HeaderStyle="{StaticResource CenterColumnHeader}">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <TextBox Text="{Binding Y, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"
+                                                              Height="21" Padding="1,1" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                                              FontFamily="Consolas" FontSize="11"
+                                                              ToolTip="{Binding Y, StringFormat='Tọa độ dọc Y: {0} px'}" />
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <!-- Chiều rộng W (px) -->
+                                         <DataGridTemplateColumn Header="W" Width="50" MinWidth="45"
+                                                                 HeaderStyle="{StaticResource CenterColumnHeader}">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <TextBox Text="{Binding W, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"
+                                                              Height="21" Padding="1,1" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                                              FontFamily="Consolas" FontSize="11"
+                                                              ToolTip="{Binding W, StringFormat='Chiều rộng W: {0} px'}" />
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <!-- Chiều cao H (px) -->
+                                         <DataGridTemplateColumn Header="H" Width="50" MinWidth="45"
+                                                                 HeaderStyle="{StaticResource CenterColumnHeader}">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <TextBox Text="{Binding H, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"
+                                                              Height="21" Padding="1,1" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                                              FontFamily="Consolas" FontSize="11"
+                                                              ToolTip="{Binding H, StringFormat='Chiều cao H: {0} px'}" />
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <!-- Kích thước -->
+                                         <DataGridTemplateColumn Header="Cỡ" Width="56" MinWidth="52"
+                                                                 HeaderStyle="{StaticResource CenterColumnHeader}">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <Grid ToolTip="{Binding SizeLabel}">
+                                                         <ComboBox ItemsSource="{x:Static viewModels:SceneWindowRow.AvailableSizePresets}"
+                                                                   SelectedItem="{Binding SelectedSizePreset, UpdateSourceTrigger=PropertyChanged}"
+                                                                   Height="21"
+                                                                   Padding="2,1"
+                                                                   VerticalContentAlignment="Center">
+                                                             <ComboBox.ItemTemplate>
+                                                                 <DataTemplate>
+                                                                     <TextBlock Text="{Binding Name}"
+                                                                                TextTrimming="CharacterEllipsis"
+                                                                                ToolTip="{Binding Name}" />
+                                                                 </DataTemplate>
+                                                             </ComboBox.ItemTemplate>
+                                                         </ComboBox>
+                                                         <TextBlock Text="Tùy biến"
+                                                                    FontStyle="Italic"
+                                                                    Foreground="#A0AEC0"
+                                                                    FontSize="9"
+                                                                    VerticalAlignment="Center"
+                                                                    Margin="4,0,16,0"
+                                                                    IsHitTestVisible="False"
+                                                                    Visibility="{Binding SelectedSizePreset, Converter={StaticResource InverseNullToVisibility}}" />
+                                                     </Grid>
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+
+                                         <!-- Lớp Z-Index -->
+                                         <DataGridTemplateColumn Header="Z" Width="75" MinWidth="70"
+                                                                 HeaderStyle="{StaticResource CenterColumnHeader}">
+                                             <DataGridTemplateColumn.CellTemplate>
+                                                 <DataTemplate>
+                                                     <TextBox Text="{Binding ZIndex, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"
+                                                              Height="21" Padding="1,1" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                                              ToolTip="{Binding ZIndex, StringFormat='Lớp Z: {0}'}" />
+                                                 </DataTemplate>
+                                             </DataGridTemplateColumn.CellTemplate>
+                                         </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <!-- Trạng thái khi chưa có ô camera nào -->
+                                <Border Background="#FAFAFA"
+                                        BorderBrush="#E2E8F0"
+                                        BorderThickness="1"
+                                        Visibility="{Binding HasSceneWindows, Converter={StaticResource InverseBoolToVisibility}}"
+                                        IsHitTestVisible="False">
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="📋 Chưa có ô camera nào trong kịch bản."
+                                                   FontWeight="SemiBold" Foreground="#718096" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                                        <TextBlock Text="Vui lòng bấm '➕ Thêm ô' hoặc '🔌 Kết nối &amp; Khảo sát' để bắt đầu."
+                                                   FontSize="11" Foreground="#A0AEC0" HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!-- Thanh công cụ dưới bảng: Thao tác ô & Mẫu bố cục -->
+                            <WrapPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                                <Button Content="➕ Thêm ô"
+                                        Style="{StaticResource ToolbarButton}"
+                                        Command="{Binding AddSceneWindowCommand}"
+                                        FontWeight="SemiBold"
+                                        Height="21"
+                                        Padding="6,1"
+                                        Margin="0,1,3,1"
+                                        ToolTip="Thêm một ô camera mới vào danh sách bố cục kịch bản" />
+                                <Button Content="🗑 Xoá đã chọn"
+                                        Style="{StaticResource ToolbarButton}"
+                                        Command="{Binding DeleteSelectedSceneWindowsCommand}"
+                                        Height="21"
+                                        Padding="6,1"
+                                        Foreground="#E53E3E"
+                                        Margin="0,1,6,1"
+                                        ToolTip="Xoá tất cả các ô camera đang được tick chọn khỏi kịch bản" />
+                                <Button Content="💾 Lưu bố cục"
+                                        Style="{StaticResource ToolbarButton}"
+                                        Command="{Binding SaveAllSceneWindowsCommand}"
+                                        FontWeight="SemiBold"
+                                        Height="21"
+                                        Padding="6,1"
+                                        Margin="0,1,6,1"
+                                        ToolTip="Lưu toạ độ và cấu hình các ô camera vào kịch bản hiện tại" />
+
+                                <Rectangle Width="1" Height="14" Fill="#CBD5E1" Margin="2,1,4,1" VerticalAlignment="Center" />
+
+                                <TextBlock Text="Mẫu:" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,1,3,1" FontWeight="SemiBold" />
+                                <Button Content="🔲 Trọng điểm"
+                                        Style="{StaticResource ToolbarButton}"
+                                        Command="{Binding ApplyBigCenterTemplateCommand}"
+                                        Height="21"
+                                        Padding="6,1"
+                                        Margin="0,1,3,1"
+                                        ToolTip="Tự động bố trí ô trọng điểm 2x2 ở giữa + 8 ô xung quanh" />
+                                <Button Content="🔲 Song song"
+                                        Style="{StaticResource ToolbarButton}"
+                                        Command="{Binding ApplyDual2x2TemplateCommand}"
+                                        Height="21"
+                                        Padding="6,1"
+                                        Margin="0,1,3,1"
+                                        ToolTip="Tự động phân bổ 2 khối 2x2 song song" />
+                                <Button Content="🔲 Toàn tường"
+                                        Style="{StaticResource ToolbarButton}"
+                                        Command="{Binding ApplyFullWallTemplateCommand}"
+                                        Height="21"
+                                        Padding="6,1"
+                                        Margin="0,1,3,1"
+                                        ToolTip="1 Camera hoặc bản đồ GIS phủ kín 100% toàn bộ diện tích tường ghép thực tế" />
+
+                                <Rectangle Width="1" Height="14" Fill="#CBD5E1" Margin="2,1,4,1" VerticalAlignment="Center" />
+
+                                <Button Content="🔄 Đặt lại"
+                                        Style="{StaticResource ToolbarButton}"
+                                        Command="{Binding ResetSceneWindowsCommand}"
+                                        Height="21"
+                                        Padding="6,1"
+                                        Margin="0,1,0,1"
+                                        ToolTip="Huỷ bỏ các thay đổi tạm thời chưa lưu/chưa áp dụng và tải lại bố cục gốc" />
+                            </WrapPanel>
+
+                            <!-- BẢNG CẤU HÌNH CÁC Ô CON KHI CHIA Ô (WINDOWMODE > 1) -->
+                            <Border Grid.Row="2"
+                                    Background="#F8FAFC"
+                                    BorderBrush="#CBD5E1"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="6,4"
+                                    Margin="0,4,0,0"
+                                    Visibility="{Binding SelectedSceneWindow.IsSubwindowMode, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="False" Margin="0,0,0,4">
+                                        <TextBlock FontWeight="Bold" Foreground="#1E293B" FontSize="11.5" VerticalAlignment="Center">
+                                            <Run Text="🪟 Cấu hình Nguồn cho từng ô con của " />
+                                            <Run Text="{Binding SelectedSceneWindow.Name, Mode=OneWay}" Foreground="#2563EB" />
+                                            <Run Text="{Binding SelectedSceneWindow.WindowMode, StringFormat=' (Chia {0} ô):', Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock Text="Kéo-thả hoặc chọn camera cho từng ô con"
+                                                   DockPanel.Dock="Right"
+                                                   FontStyle="Italic"
+                                                   Foreground="#64748B"
+                                                   FontSize="10.5"
+                                                   VerticalAlignment="Center" />
+                                    </DockPanel>
+
+                                    <!-- Danh sách N ô con -->
+                                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="140">
+                                        <ItemsControl ItemsSource="{Binding SelectedSceneWindow.SubCells}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="#FFFFFF"
+                                                            BorderBrush="#E2E8F0"
+                                                            BorderThickness="1"
+                                                            CornerRadius="3"
+                                                            Padding="4,2"
+                                                            Margin="0,2,6,2"
+                                                            MinWidth="170">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="36" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="{Binding Title}"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="#334155"
+                                                                       FontSize="11"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,4,0" />
+                                                            <Grid Grid.Column="1" ToolTip="{Binding SelectedSource.DisplayName, TargetNullValue='(Chưa gán nguồn)'}">
+                                                                <ComboBox ItemsSource="{Binding DataContext.Sources, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                          SelectedItem="{Binding SelectedSource, UpdateSourceTrigger=PropertyChanged}"
+                                                                          Height="21"
+                                                                          Padding="4,1">
+                                                                    <ComboBox.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                                       TextTrimming="CharacterEllipsis"
+                                                                                       ToolTip="{Binding DisplayName}" />
+                                                                        </DataTemplate>
+                                                                    </ComboBox.ItemTemplate>
+                                                                </ComboBox>
+                                                                <TextBlock Text="(Trống)"
+                                                                           FontStyle="Italic"
+                                                                           Foreground="#A0AEC0"
+                                                                           FontSize="10"
+                                                                           VerticalAlignment="Center"
+                                                                           Margin="6,0,24,0"
+                                                                           IsHitTestVisible="False"
+                                                                           Visibility="{Binding SelectedSource, Converter={StaticResource InverseNullToVisibility}}" />
+                                                            </Grid>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </TabItem>
+
+            <!-- TAB CON 2: CHI TIẾT CỔNG RA & KÊNH TÍN HIỆU -->
+            <TabItem Header="🖥️ Chi tiết Cổng ra &amp; Kênh tín hiệu">
+                <Border BorderThickness="1" BorderBrush="#D2D6DC" Background="#FFFFFF" CornerRadius="0,4,4,4" Padding="6,4">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <!-- BẢNG TRÊN: DANH SÁCH MÀN HÌNH VẬT LÝ -->
+                            <RowDefinition Height="1.2*" MinHeight="130" />
+                            <!-- Thanh phân cách mỏng -->
+                            <RowDefinition Height="Auto" />
+                            <!-- BẢNG DƯỚI: DANH SÁCH NGUỒN TÍN HIỆU CAMERA VÀO -->
+                            <RowDefinition Height="1*" MinHeight="110" />
+                        </Grid.RowDefinitions>
+
+                        <!-- BẢNG TRÊN: DANH SÁCH MÀN HÌNH VẬT LÝ -->
+                        <Border Grid.Row="0" BorderThickness="1" BorderBrush="#E2E8F0" Background="#FFFFFF" CornerRadius="4" Padding="6,4">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <WrapPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
+                                    <TextBlock Text="🖥️ Danh sách Cổng ra Màn hình" FontWeight="Bold" Foreground="#2D3748" FontSize="12" VerticalAlignment="Center" Margin="0,2,12,2" />
+                                    <TextBlock Text="{Binding Connection.ProbeOutputCount, StringFormat='Tổng: {0} cổng'}" Foreground="#718096" FontSize="11" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                </WrapPanel>
+
+                                <DataGrid Grid.Row="1"
+                                          Style="{StaticResource ReadOnlyGrid}"
+                                          ItemsSource="{Binding Connection.ProbeOutputsList}"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          AutoGenerateColumns="False"
+                                          SelectionMode="Single"
+                                          BorderBrush="#E2E8F0"
+                                          BorderThickness="1"
+                                          VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="STT / Cổng" Width="100" Binding="{Binding Id, StringFormat='Cổng {0}'}" />
+                                        <DataGridTextColumn Header="Hardware ID" Width="120" Binding="{Binding OutputId}" />
+                                        <DataGridTextColumn Header="Tọa độ X" Width="100" Binding="{Binding X}" />
+                                        <DataGridTextColumn Header="Tọa độ Y" Width="100" Binding="{Binding Y}" />
+                                        <DataGridTextColumn Header="Chiều rộng (W)" Width="120" Binding="{Binding Width, StringFormat='{}{0} px'}" />
+                                        <DataGridTextColumn Header="Chiều cao (H)" Width="120" Binding="{Binding Height, StringFormat='{}{0} px'}" />
+                                        <DataGridTextColumn Header="Độ phân giải" Width="130" Binding="{Binding Resolution}" />
+                                        <DataGridTextColumn Header="Chế độ tọa độ" Width="*" Binding="{Binding CoordinateMode}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <!-- Thanh ngăn cách mỏng có thể kéo dãn -->
+                        <GridSplitter Grid.Row="1"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
+                                      Height="4"
+                                      Background="#E2E8F0"
+                                      Cursor="SizeNS"
+                                      Margin="0,2" />
+
+                        <!-- BẢNG DƯỚI: DANH SÁCH NGUỒN TÍN HIỆU CAMERA VÀO -->
+                        <Border Grid.Row="2" BorderThickness="1" BorderBrush="#E2E8F0" Background="#FFFFFF" CornerRadius="4" Padding="6,4">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <WrapPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
+                                    <TextBlock Text="🎥 Danh sách Kênh Camera vào" FontWeight="Bold" Foreground="#2D3748" FontSize="12" VerticalAlignment="Center" Margin="0,2,12,2" />
+                                    <TextBlock Text="{Binding Connection.ProbeInputCount, StringFormat='Tổng: {0} kênh'}" Foreground="#718096" FontSize="11" VerticalAlignment="Center" Margin="0,2,0,2" />
+                                </WrapPanel>
+
+                                <DataGrid Grid.Row="1"
+                                          Style="{StaticResource ReadOnlyGrid}"
+                                          ItemsSource="{Binding Connection.ProbeInputsList}"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          AutoGenerateColumns="False"
+                                          SelectionMode="Single"
+                                          BorderBrush="#E2E8F0"
+                                          BorderThickness="1"
+                                          PreviewMouseLeftButtonDown="ProbeInputsGrid_PreviewMouseLeftButtonDown"
+                                          MouseMove="ProbeInputsGrid_MouseMove"
+                                          VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="ID Kênh" Width="90" Binding="{Binding Id}" />
+                                        <DataGridTextColumn Header="Tên nguồn vào" Width="200" Binding="{Binding Name}" />
+                                        <DataGridTextColumn Header="Loại cổng" Width="100" Binding="{Binding InputPortType}" />
+                                        <DataGridTextColumn Header="Địa chỉ IP" Width="130" Binding="{Binding PortInBoard.IpAddress}" />
+                                        <DataGridTextColumn Header="Port" Width="60" Binding="{Binding PortInBoard.Port}" />
+                                        <DataGridTextColumn Header="Trạng thái" Width="100" Binding="{Binding VideoInputChannelAccessStatus}" />
+                                        <DataGridTextColumn Header="Vị trí Bo mạch &amp; Cổng" Width="*" Binding="{Binding BoardInfo}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

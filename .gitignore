@@ -46,3 +46,15 @@ SQL/Bacpac/
 !.claude/settings.json
 !.claude/settings.local.json
 talicense-client-raw-console-ITS015-1-osx-arm64
+
+# Node modules & large archive exceeding GitHub 100MB limit
+node_modules/
+TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker-clone-20261117.zip
+
+# Local config & secret files in WEBAPI / WEBVUE
+TA-ITS015-WEBAPI-V1.0/**/Configuration/Database.json
+TA-ITS015-WEBAPI-V1.0/**/*.key
+TA-ITS015-WEBAPI-V1.0/src/DLLs/Shared.Core.Security.dll
+TA-ITS015-WEBVUE-V1.0/src/.env.development
+TA-ITS015-WEBVUE-V1.0/src/.env.local
+TA-ITS015-WEBVUE-V1.0/src/.env.*.local

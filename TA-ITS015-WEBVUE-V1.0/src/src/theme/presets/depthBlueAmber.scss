@@ -1,0 +1,682 @@
+/* =============================================================================
+   PRESET: DEPTH BLUE + AMBER FOCUS  (MẪU 1)
+   -----------------------------------------------------------------------------
+   Bật preset này: đổi ACTIVE_DESIGN = 'depthBlueAmber' trong theme/presets/designPreset.ts
+   Toàn bộ CSS bọc trong `html.design-depth-blue-amber` nên khi tắt preset thì
+   file này KHÔNG ảnh hưởng gì tới giao diện nguyên bản.
+
+   BẢNG MÀU (theo mô tả design)
+   - Primary / Cobalt      #1E56A0   nút chính, tab active, icon active, phân trang
+   - Sidebar Dark Navy     #0F172A → #1E293B
+   - Menu active (Royal)   #2563EB   chữ #FFFFFF
+   - Chữ menu thường       #94A3B8
+   - Header ứng dụng       #1E3A8A   18px / 700 / UPPERCASE
+   - Nền content (Slate)   #F8FAFC
+   - Header bảng           #F8FAFC → #EDF2F7, chữ #475569 13px / 600
+   - Dữ liệu bảng          #1E293B  13px / 400, line-height 40px
+   - Dòng chọn (Focus 1)   nền #FEF3C7 + viền #D97706
+   - Divider ngang         #E2E8F0  (bỏ hoàn toàn kẻ dọc)
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   CÔNG TẮC KIỂU THANH TIÊU ĐỀ BẢNG (header data)
+   Đổi giá trị biến dưới đây rồi lưu file là xong (Vite tự build lại CSS):
+     'metallic' → Ánh kim xanh theo tông theme (mặc định, sang trọng)
+     'neon'     → Nền xanh đậm + chữ trắng phát sáng (nổi bật, tối)
+     'slate'    → Xám slate nhạt (bản trước, phẳng và dịu)
+----------------------------------------------------------------------------- */
+$d1-table-header: 'neon';
+
+/* Màu navy dự phòng cho sidebar (chỉ dùng khi cấu hình chưa có giá trị nào).
+   Đổi màu sidebar: sửa `menuBar` trong theme/presets/designPreset.ts
+   hoặc đổi ngay trong app: Cấu hình trang → Màu nền menu. */
+$d1-navy-top: #0f172a;
+
+/* Biến dùng nội bộ preset */
+html.design-depth-blue-amber {
+	--d1-navy-top: #0f172a;
+	--d1-navy-bottom: #1e293b;
+	/* Các màu bố cục dưới đây ưu tiên lấy từ cấu hình app (drawer "Cấu hình trang"),
+	   giá trị sau dấu phẩy chỉ là fallback của preset. Nhờ vậy mẫu mới vẫn đổi màu được. */
+	--d1-menu-text: var(--next-bg-menuBarColor, #94a3b8);
+	--d1-menu-active: var(--next-bg-menuBarActiveColor, #2563eb);
+	/* Tiêu đề hệ thống: đậm hơn tông chủ đạo 1 bậc để luôn khớp khi đổi màu theme */
+	--d1-title: var(--el-color-primary-dark-2, #1e3a8a);
+	--d1-surface: #f8fafc;
+	--d1-surface-2: #edf2f7;
+	--d1-border: #e2e8f0;
+	--d1-border-strong: #cbd5e1;
+	--d1-text: #1e293b;
+	--d1-text-muted: #475569;
+	--d1-text-secondary: #64748b;
+	--d1-amber-bg: #fef3c7;
+	--d1-amber-line: #d97706;
+
+	/* Bảng dữ liệu: kẻ lưới + sọc dòng lấy theo tông theme để đồng nhất màu sắc */
+	/* Đường kẻ lưới (dọc & ngang) */
+	--d1-grid-line: color-mix(in srgb, var(--el-color-primary) 18%, #e2e8f0);
+	/* Dòng xen kẽ: primary rất nhạt (dòng lẻ giữ nền trắng) */
+	--d1-row-alt: color-mix(in srgb, var(--el-color-primary) 18%, #ffffff);
+	/* Dòng hover */
+	--d1-row-hover: color-mix(in srgb, var(--el-color-primary) 10%, #ffffff);
+}
+
+/* =============================================================================
+   A. SIDEBAR — Dark Navy, tách biệt hoàn toàn vùng "Điều hướng" với "Dữ liệu"
+   ============================================================================= */
+html.design-depth-blue-amber {
+	.layout-container .layout-aside {
+		/* Nền sidebar lấy theo cấu hình (Cấu hình trang → Màu nền menu), fallback = navy của preset.
+		   Nhờ vậy bạn đổi màu sidebar trong drawer Settings vẫn có hiệu lực. */
+		background: linear-gradient(180deg,
+				var(--next-bg-menuBar, #{$d1-navy-top}) 0%,
+				color-mix(in srgb, var(--next-bg-menuBar, #{$d1-navy-top}) 88%, #ffffff) 100%) !important;
+		box-shadow: 2px 0 8px rgba(15, 23, 42, 0.12);
+	}
+
+	/* Bỏ vệt sáng neon ở cạnh phải sidebar (bản gốc) cho gọn gàng */
+	.layout-container .layout-aside::after {
+		display: none !important;
+	}
+
+	/* Viền phải khi menuBar là màu sáng — không cần với nền tối */
+	.layout-container .layout-el-aside-br-color {
+		border-right: none !important;
+	}
+
+	/* Khu vực logo: nền TRẮNG riêng, tách khỏi màu tối của sidebar */
+	.layout-aside .layout-logo,
+	.layout-aside .layout-logo-size {
+		background-color: #ffffff !important;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.10) !important;
+		box-shadow: none !important;
+		color: #0f172a !important; /* nếu có chữ tiêu đề thì đọc được trên nền trắng */
+	}
+
+	.layout-aside {
+
+		/* Menu: 14px / Medium 500 / #94A3B8 */
+		.el-menu,
+		.el-menu--inline {
+			background-color: transparent !important;
+		}
+
+		/* Chữ menu: theo cấu hình "Màu chữ menu", fallback slate gray (xem khối biến đầu file) */
+		.el-menu-item,
+		.el-sub-menu__title {
+			color: var(--d1-menu-text) !important;
+			font-size: 14px;
+			font-weight: 500;
+		}
+
+		/* Icon theo màu chữ */
+		.el-menu-item .iconfont,
+		.el-menu-item .fa,
+		.el-menu-item svg,
+		.el-sub-menu__title .iconfont,
+		.el-sub-menu__title .fa,
+		.el-sub-menu__title svg {
+			color: inherit !important;
+		}
+
+		/* Hover: phủ trắng mờ, chữ sáng lên */
+		.el-menu-item:hover,
+		.el-sub-menu:not(.is-active):hover>.el-sub-menu__title,
+		.el-sub-menu.is-active:hover>.el-sub-menu__title {
+			background-color: rgba(255, 255, 255, 0.06) !important;
+			color: #e2e8f0 !important;
+		}
+
+		/* Item ĐANG CHỌN: khối Royal Blue bo góc 8px, chữ trắng */
+		.el-menu-item.is-active {
+			background-color: var(--d1-menu-active) !important;
+			color: #ffffff !important;
+			border-radius: 8px;
+			margin: 0 8px 2px 8px;
+			border-right: none !important;
+			/* Bóng theo tông theme để tự khớp khi đổi màu */
+			box-shadow: 0 4px 10px -4px color-mix(in srgb, var(--d1-menu-active) 60%, transparent) !important;
+		}
+
+		/* Bỏ thanh neon dọc của bản gốc */
+		.el-menu-item.is-active::after {
+			display: none !important;
+		}
+
+		/* Sub-menu cha đang mở/đang chọn: chỉ sáng chữ, không đổ nền */
+		.el-sub-menu.is-active>.el-sub-menu__title,
+		.el-sub-menu.is-opened>.el-sub-menu__title {
+			color: #ffffff !important;
+			background-color: transparent !important;
+		}
+
+		/* Scrollbar sáng trên nền tối */
+		.el-scrollbar__thumb {
+			background-color: rgba(255, 255, 255, 0.2) !important;
+		}
+	}
+
+	/* Popup menu con khi sidebar thu gọn */
+	.el-popper.is-pure.is-light .el-menu--vertical {
+		background: var(--d1-navy-bottom) !important;
+
+		.el-menu-item,
+		.el-sub-menu__title {
+			color: var(--d1-menu-text) !important;
+		}
+
+		.el-menu-item.is-active {
+			background-color: var(--d1-menu-active) !important;
+			color: #ffffff !important;
+		}
+	}
+}
+
+/* =============================================================================
+   B. TIÊU ĐỀ TRANG / TOP BAR / CHỈ HƯỚNG (BREADCRUMB)
+   ============================================================================= */
+html.design-depth-blue-amber {
+	.layout-navbars-breadcrumb-index {
+		border-bottom: 1px solid var(--d1-border);
+	}
+
+	/* Bỏ vệt sáng gradient dưới header (bản gốc) */
+	.layout-navbars-breadcrumb-index::after {
+		display: none !important;
+	}
+
+	/* Header ứng dụng: 18px / Bold 700 / #1E3A8A / in hoa */
+	.top-bar-title {
+		color: var(--d1-title) !important;
+		font-size: 18px !important;
+		font-weight: 700 !important;
+		letter-spacing: 0.4px;
+		text-transform: uppercase;
+	}
+
+	/* Chỉ hướng (breadcrumb): chữ xám trung tính, icon thu gọn menu cùng tông */
+	.layout-navbars-breadcrumb-icon,
+	.layout-navbars-breadcrumb-span,
+	.layout-navbars-breadcrumb .el-breadcrumb__separator,
+	.layout-navbars-breadcrumb .el-breadcrumb__inner {
+		color: var(--d1-text-muted) !important;
+	}
+}
+
+/* =============================================================================
+   C. CHÂN TRANG
+   ============================================================================= */
+html.design-depth-blue-amber {
+	.layout-footer {
+		background-image: none !important;
+	}
+
+	/* Bỏ đường accent phát sáng phía trên footer */
+	.layout-footer::before {
+		display: none !important;
+	}
+
+	.layout-footer-warp {
+		color: var(--d1-text-secondary) !important;
+		font-size: 12px;
+	}
+}
+
+/* =============================================================================
+   D. NỘI DUNG THEO CHỨC NĂNG — nền slate, card sạch, input bo góc
+   Chỉ áp cho light mode để không phá dark mode.
+   ============================================================================= */
+html.design-depth-blue-amber:not([data-theme='dark']) {
+
+	/* Nền tổng thể: Slate Light, phẳng (bỏ gradient primary của bản gốc) */
+	body,
+	#app {
+		background-color: var(--d1-surface) !important;
+	}
+
+	.layout-container .layout-main {
+		background-image: none !important;
+		background-color: var(--d1-surface) !important;
+	}
+
+	/* Khung nội dung: trắng, bo 8px, viền mảnh, bóng mềm */
+	.layout-container .layout-padding-view {
+		border: 1px solid var(--d1-border) !important;
+		border-radius: 8px;
+		box-shadow: 0 4px 16px -6px rgba(15, 23, 42, 0.08) !important;
+	}
+
+	/* Bỏ viền gradient chạy góc của bản gốc */
+	.layout-container .layout-padding-view::after {
+		display: none !important;
+	}
+
+	/* Card: phẳng sạch (bỏ viền gradient + bóng neon của bản gốc) */
+	.el-card {
+		border: 1px solid var(--d1-border) !important;
+		border-radius: 8px !important;
+		box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+	}
+
+	.el-card::after {
+		display: none !important;
+	}
+
+	.el-card:hover {
+		box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.1) !important;
+	}
+
+	.el-card__header {
+		background-image: none !important;
+		border-bottom: 1px solid var(--d1-border);
+	}
+
+	/* Focus cấp 3: input bo 6px, viền xám mảnh, click vào sáng viền xanh */
+	.el-input__wrapper,
+	.el-select__wrapper,
+	.el-textarea__inner {
+		border-radius: 6px;
+		box-shadow: 0 0 0 1px var(--d1-border-strong) inset;
+	}
+
+	.el-input.is-focus .el-input__wrapper,
+	.el-input__wrapper.is-focus,
+	.el-select .el-select__wrapper.is-focused {
+		box-shadow: 0 0 0 1px var(--el-color-primary) inset !important;
+	}
+
+	.el-textarea__inner:focus {
+		box-shadow: 0 0 0 1px var(--el-color-primary) inset !important;
+	}
+
+	/* Focus cấp 2: nút chính Solid Blue, bỏ quầng neon cho gọn */
+	.el-button {
+		border-radius: 6px;
+	}
+
+	.el-button--primary:not(.is-text):not(.is-link),
+	.el-button--success:not(.is-text):not(.is-link),
+	.el-button--warning:not(.is-text):not(.is-link),
+	.el-button--danger:not(.is-text):not(.is-link),
+	.el-button--info:not(.is-text):not(.is-link) {
+		box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12) !important;
+	}
+
+	.el-button--primary:not(.is-text):not(.is-link):hover {
+		box-shadow: 0 2px 6px rgba(30, 86, 160, 0.3) !important;
+	}
+
+	/* Badge / trạng thái: 12px / Medium 500 */
+	.el-tag {
+		font-size: 12px;
+		font-weight: 500;
+		border-radius: 4px;
+		box-shadow: none;
+	}
+
+	/* Switch: bỏ glow */
+	.el-switch.is-checked .el-switch__core {
+		box-shadow: none !important;
+	}
+
+	/* Dialog / Drawer header giữ nền primary nhưng phẳng hơn */
+	.el-dialog__header {
+		background: var(--el-color-primary);
+	}
+}
+
+/* =============================================================================
+   E. BẢNG DỮ LIỆU (VxeTable) — Table Polish
+   - Header slate light, chữ #475569 semi-bold
+   - Bỏ toàn bộ kẻ dọc, chỉ giữ kẻ ngang #E2E8F0
+   - Bỏ sọc xen kẽ (nền phẳng liền mạch)
+   - Dòng chọn: nền amber #FEF3C7 + viền #D97706
+   ============================================================================= */
+html.design-depth-blue-amber:not([data-theme='dark']) {
+	.xGrid-style {
+		--vxe-ui-table-footer-background-color: #f8fafc;
+		/* Kẻ lưới: dùng tông theme rất nhạt cho hài hoà */
+		--vxe-ui-table-border-color: var(--d1-grid-line);
+		/* Sọc xen kẽ: trắng → primary rất nhạt → trắng */
+		--vxe-ui-table-row-striped-background-color: var(--d1-row-alt);
+		/* Dòng chọn / hover */
+		--vxe-ui-table-row-current-background-color: #fef3c7;
+		--vxe-ui-table-row-hover-background-color: var(--d1-row-hover);
+		--vxe-ui-table-row-hover-current-background-color: #fdeeb4;
+		/* Màu nền cột header khi hover */
+		--vxe-ui-table-column-hover-background-color: #315f93;
+		/* Độ thở: chiều cao dòng 40px */
+		--vxe-ui-table-row-height-mini: 40px;
+		--vxe-ui-table-row-height-small: 40px;
+		--vxe-ui-table-row-height-medium: 40px;
+	}
+
+	/* ---------------------------------------------------------------------
+	   E1. THANH TIÊU ĐỀ BẢNG — chọn kiểu bằng biến $d1-table-header ở đầu file
+	   --------------------------------------------------------------------- */
+	@if $d1-table-header =='metallic' {
+
+		/* Ánh kim xanh theo tông theme: dải sáng ở trên, đậm dần xuống dưới */
+		.vxe-table--header-wrapper {
+			background-image: linear-gradient(180deg,
+					color-mix(in srgb, var(--el-color-primary) 8%, #ffffff) 0%,
+					color-mix(in srgb, var(--el-color-primary) 20%, #ffffff) 45%,
+					color-mix(in srgb, var(--el-color-primary) 34%, #ffffff) 100%) !important;
+			// VXE measures clientHeight, which excludes borders. Draw the divider inside the header.
+			border-bottom: 0 !important;
+			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 color-mix(in srgb, var(--el-color-primary) 55%, transparent);
+		}
+
+		.vxe-table--header {
+			color: var(--el-color-primary-dark-2) !important;
+
+			.vxe-checkbox--icon {
+				color: var(--el-color-primary-dark-2) !important;
+			}
+
+			.vxe-header--column {
+				font-size: 13px;
+				font-weight: 600;
+				text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+			}
+		}
+	}
+
+	@else if $d1-table-header =='neon' {
+
+		/* Neon: nền xanh đậm + chữ trắng phát sáng + viền dưới rực */
+		.vxe-table--header-wrapper {
+			--vxe-ui-table-column-hover-background-color: #315f93;
+			background-image: linear-gradient(180deg,
+					color-mix(in srgb, var(--el-color-primary) 78%, #0f172a) 0%,
+					var(--el-color-primary) 100%) !important;
+			border-bottom: 0 !important;
+			box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--el-color-primary) 45%, #ffffff), 0 2px 10px -2px color-mix(in srgb, var(--el-color-primary) 65%, transparent);
+		}
+
+		.vxe-table--header {
+			color: #ffffff !important;
+
+			.vxe-checkbox--icon {
+				color: #ffffff !important;
+			}
+
+			.vxe-header--column {
+				font-size: 13px;
+				font-weight: 600;
+				text-shadow: 0 0 8px rgba(255, 255, 255, 0.55);
+
+				&:not(.col--seq):hover {
+					background-color: #315f93 !important;
+				}
+			}
+		}
+
+		/* Kẻ dọc trong header sáng hơn để thấy trên nền đậm */
+		.vxe-table--header-wrapper .vxe-header--column {
+			border-right: 1px solid rgba(255, 255, 255, 0.22) !important;
+		}
+
+		/* Icon sắp xếp — phân biệt rõ 3 trạng thái trên nền header đậm.
+		   !important cần thiết vì rule cha (.vxe-table--header) đã ép !important trên nền neon. */
+
+		/* Idle: mờ nhẹ trên nền xanh đậm */
+		.vxe-table--header .vxe-sort--asc-btn,
+		.vxe-table--header .vxe-sort--desc-btn {
+			color: rgba(255, 255, 255, 0.45) !important;
+			transition: color 0.15s ease;
+		}
+
+		/* Hover: sáng hơn để người dùng biết có thể bấm */
+		.vxe-table--header .vxe-sort--asc-btn:hover,
+		.vxe-table--header .vxe-sort--desc-btn:hover {
+			color: rgba(255, 255, 255, 0.9) !important;
+		}
+
+		/* Active (đang sort theo chiều đó): vàng amber nổi bật, rõ ràng nhất */
+		.vxe-table--header .vxe-sort--asc-btn.sort--active,
+		.vxe-table--header .vxe-sort--desc-btn.sort--active {
+			color: #f59e0b !important;
+			filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.6));
+		}
+	}
+
+	@else {
+
+		/* Slate: xám nhạt phẳng, dịu mắt */
+		.vxe-table--header-wrapper {
+			background-image: linear-gradient(180deg, var(--d1-surface) 0%, var(--d1-surface-2) 100%) !important;
+			border-bottom: 0 !important;
+			box-shadow: inset 0 -1px 0 var(--d1-border);
+		}
+
+		.vxe-table--header {
+			color: var(--d1-text-muted) !important;
+
+			.vxe-checkbox--icon {
+				color: var(--d1-text-muted) !important;
+			}
+
+			.vxe-header--column {
+				font-size: 13px;
+				font-weight: 600;
+			}
+		}
+	}
+
+	/* ---------------------------------------------------------------------
+	   E2. DỮ LIỆU + KẺ NGANG, giữ phân cách cột ở header/footer
+	   --------------------------------------------------------------------- */
+	.vxe-table--body-wrapper .vxe-body--column {
+		font-size: 13px;
+		font-weight: 400;
+		color: var(--d1-text);
+	}
+
+	/* Giữ kẻ dọc ở header/footer để nhận biết ranh giới cột. */
+	.vxe-table .vxe-header--column,
+	.vxe-table .vxe-footer--column {
+		border-right: 1px solid var(--d1-grid-line);
+	}
+
+	/* Bỏ cả border và đường dọc do VXE vẽ bằng background-image. */
+	.vxe-table .vxe-body--column {
+		border-right: 0;
+		background-image: none;
+	}
+
+	/* Cột cuối không cần kẻ dọc */
+	.vxe-table .vxe-header--column:last-child,
+	.vxe-table .vxe-body--column:last-child,
+	.vxe-table .vxe-footer--column:last-child {
+		border-right: none;
+	}
+
+	/* Kẻ ngang giữa các dòng */
+	.vxe-table .vxe-body--row>.vxe-body--column {
+		border-bottom: 1px solid var(--d1-grid-line);
+	}
+
+	/* ---------------------------------------------------------------------
+	   E2b. Ô CHECKBOX (phần thân bảng) — tăng tương phản để không bị chìm
+	   Mặc định VxeTable tô ô CHƯA chọn bằng --vxe-ui-input-border-color (rất nhạt),
+	   nên trên nền lưới/sọc xanh nhạt rất khó nhìn. Ép màu slate rõ ràng cho ô trống,
+	   và dùng tông chủ đạo cho trạng thái đã chọn / một phần / hover.
+	   --------------------------------------------------------------------- */
+	.vxe-table--body-wrapper .vxe-cell--checkbox .vxe-checkbox--icon {
+		color: #64748b !important;
+	}
+
+	.vxe-table--body-wrapper .vxe-cell--checkbox.is--checked .vxe-checkbox--icon,
+	.vxe-table--body-wrapper .vxe-cell--checkbox.is--indeterminate .vxe-checkbox--icon,
+	.vxe-table--body-wrapper .vxe-cell--checkbox:not(.is--disabled):hover .vxe-checkbox--icon {
+		color: var(--el-color-primary) !important;
+	}
+
+	/* ---------------------------------------------------------------------
+	   E3. SỌC DÒNG XEN KẼ: trắng → primary rất nhạt → trắng
+	   Dùng nth-child nên không cần bật prop stripe ở từng trang.
+	   --------------------------------------------------------------------- */
+	.vxe-table--body .vxe-body--row:nth-child(even)>.vxe-body--column {
+		background-color: var(--d1-row-alt);
+	}
+
+	/* Hover dòng: đậm hơn sọc một chút để thấy rõ con trỏ đang ở đâu */
+	.vxe-table--body .vxe-body--row:hover>.vxe-body--column {
+		background-color: var(--d1-row-hover) !important;
+	}
+
+	/* Focus cấp 1: dòng đang chọn nền vàng kem (đã bỏ 2 viền cam trên/dưới theo yêu cầu) */
+	.vxe-table .vxe-body--row.row--current>.vxe-body--column {
+		background-color: var(--d1-amber-bg) !important;
+	}
+
+	.vxe-table .vxe-body--row.row--current:hover>.vxe-body--column {
+		background-color: #fdeeb4 !important;
+	}
+
+	/* Phân trang: trang hiện tại Solid Blue */
+	.vxe-pager .vxe-pager--num-btn.is--active {
+		background-color: var(--el-color-primary) !important;
+		border-color: var(--el-color-primary) !important;
+		color: #ffffff !important;
+	}
+
+	/* ---------------------------------------------------------------------
+	   E4. Bảng của Element Plus (trang nào dùng el-table)
+	   --------------------------------------------------------------------- */
+	.el-table {
+		--el-table-border-color: var(--d1-grid-line);
+		--el-table-header-text-color: #475569;
+		--el-table-text-color: #1e293b;
+		--el-table-current-row-bg-color: #fef3c7;
+		--el-table-row-hover-bg-color: var(--d1-row-hover);
+	}
+
+	.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+		background-color: var(--d1-row-alt);
+	}
+}
+
+/* =============================================================================
+   F. DIALOG / FORM NHẬP LIỆU — áp chung cho mọi el-dialog
+   - Khung bo 10px, bóng sâu, header primary gradient
+   - Body thoáng hơn, label xám đậm, divider nét đứt nhạt
+   - Footer nền slate + kẻ trên để tách vùng nút
+   Chỉ áp cho light mode để không phá dark mode.
+   ============================================================================= */
+html.design-depth-blue-amber:not([data-theme='dark']) {
+	.el-overlay .el-overlay-dialog .el-dialog {
+		border-radius: 10px;
+		overflow: hidden;
+		box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(15, 23, 42, 0.06) !important;
+
+		.el-dialog__body {
+			padding: 16px 24px 8px;
+		}
+
+		/* Body có tabs: kéo tabs sát header hơn */
+		.el-dialog__body:has(.el-tabs) {
+			padding-top: 4px;
+		}
+	}
+
+	/* Header: gradient primary pha navy cho trầm, chữ trắng 15px semi-bold */
+	.el-dialog__header {
+		padding: 12px 48px 12px 18px;
+		background: linear-gradient(135deg, color-mix(in srgb, var(--el-color-primary) 88%, #0f172a) 0%, color-mix(in srgb, var(--el-color-primary) 72%, #0f172a) 100%);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+		color: #ffffff;
+		font-size: 15px;
+		font-weight: 600;
+		letter-spacing: 0.2px;
+		line-height: 22px;
+
+		.el-dialog__title {
+			color: #ffffff;
+			font-size: 15px;
+			font-weight: 600;
+		}
+	}
+
+	.el-dialog__headerbtn {
+		top: 0;
+		height: 47px;
+		width: 46px;
+
+		.el-dialog__close {
+			color: rgba(255, 255, 255, 0.85);
+			font-size: 18px;
+			transition: transform 0.2s ease, color 0.2s ease;
+		}
+
+		&:hover .el-dialog__close {
+			color: #ffffff !important;
+			transform: rotate(90deg);
+		}
+	}
+
+	/* Footer: nền slate nhạt, kẻ trên, nút cách đều */
+	.el-dialog__footer {
+		padding: 12px 20px;
+		background-color: var(--d1-surface);
+		border-top: 1px solid var(--d1-border);
+
+		.el-button {
+			min-width: 88px;
+		}
+
+		.el-button + .el-button {
+			margin-left: 10px;
+		}
+	}
+
+	/* Form trong dialog */
+	.el-dialog {
+		.el-form-item {
+			margin-bottom: 18px;
+		}
+
+		.el-form-item__label {
+			color: var(--d1-text-muted);
+			font-weight: 500;
+		}
+
+		.el-form-item.is-required:not(.is-no-asterisk) > .el-form-item__label::before {
+			color: var(--el-color-danger);
+		}
+
+		/* Ô bị khoá: nền slate, không lẫn với ô nhập được */
+		.el-input.is-disabled .el-input__wrapper,
+		.el-select__wrapper.is-disabled,
+		.el-textarea.is-disabled .el-textarea__inner {
+			background-color: var(--d1-surface-2);
+		}
+
+		/* Divider phân nhóm: nét đứt nhạt, khoảng cách gọn */
+		.el-divider--horizontal {
+			margin: 6px 0 22px;
+			border-top: 1px dashed var(--d1-border-strong);
+		}
+
+		.el-divider__text {
+			background-color: #ffffff;
+			color: var(--el-color-primary);
+			font-weight: 600;
+			font-size: 13px;
+		}
+
+		/* Tabs trong dialog: khoảng cách với nội dung, bỏ <br> đầu tab */
+		.el-tabs__header {
+			margin-bottom: 16px;
+		}
+
+		.el-tabs__item {
+			font-weight: 500;
+		}
+
+		.el-tab-pane > br:first-child {
+			display: none;
+		}
+	}
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "Code": "TL-01",
+    "Name": "Đèn Tín Hiệu Cửa Hầm Bắc - Làn 1",
+    "IpAddress": "192.168.0.10",
+    "Port": 102,
+    "Rack": 0,
+    "Slot": 0,
+    "Vendor": 1,
+    "DbNumber": 3,
+    "TimeOn": 3,
+    "TimeOff": 1,
+    "RedOutput": 1,
+    "YellowOutput": 2,
+    "GreenOutput": 3,
+    "FmOutput": 4,
+    "TimeoutMs": 5000,
+    "PingBeforeConnect": true
+  },
+  {
+    "Code": "TL-02",
+    "Name": "Đèn Tín Hiệu Cửa Hầm Nam - Làn 1 (Modbus)",
+    "IpAddress": "192.168.0.11",
+    "Port": 502,
+    "Rack": 0,
+    "Slot": 0,
+    "Vendor": 2,
+    "DbNumber": 3,
+    "TimeOn": 3,
+    "TimeOff": 1,
+    "RedOutput": 1,
+    "YellowOutput": 2,
+    "GreenOutput": 3,
+    "FmOutput": 4,
+    "TimeoutMs": 5000,
+    "PingBeforeConnect": true
+  }
+]

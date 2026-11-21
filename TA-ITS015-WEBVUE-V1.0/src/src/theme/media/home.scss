@@ -1,0 +1,23 @@
+@import './index.scss';
+
+/* Page width less than 768px
+------------------------------- */
+@media screen and (max-width: $sm) {
+	.home-media,
+	.home-media-sm {
+		margin-top: 15px;
+	}
+}
+
+/* Page width less than 1200px
+------------------------------- */
+@media screen and (max-width: $lg) {
+	.home-media-lg {
+		margin-top: 15px;
+	}
+	.home-monitor {
+		.flex-warp-item {
+			width: 33.33% !important;
+		}
+	}
+}

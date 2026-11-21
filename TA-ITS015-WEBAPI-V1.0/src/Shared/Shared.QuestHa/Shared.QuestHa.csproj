@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Shared.QuestHa — QuestDB HA dùng chung cho WebAPI (đọc qua router) và Services.Vds (journal + replicator):
+    journal SQL Server + replicator từng node QuestDB + router đọc có failover + reconciler + backup/restore nguội.
+    Chuyển từ lab Tools/QuestHaLab (QuestHa.Core) ngày 27/10/2026. Chạy được cả host không Furion (Worker/WPF)
+    ⇒ đăng ký DI tay qua Extensions/QuestHaServiceCollectionExtensions.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared.Reference\Shared.Reference.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Chỉ test/harness local thấy lớp nội bộ; host dùng QuestHaManager + AddQuestHa. -->
+    <InternalsVisibleTo Include="Shared.QuestHa.Tests" />
+    <InternalsVisibleTo Include="Services.Vds.Shadow.Tests" />
+    <InternalsVisibleTo Include="Services.Vds.ShadowPoc" />
+  </ItemGroup>
+
+</Project>

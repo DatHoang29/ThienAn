@@ -1,0 +1,15 @@
+{
+  "DeviceIntegration": {
+    "// [VmsLocal]": "true = giả lập ngay tại BE: KHÔNG phát lệnh NATS, coi như gửi thiết bị thành công (dùng khi lập trình viên không bật dịch vụ VMS). Phải để FALSE mới test được luồng BE -> dịch vụ -> BE.",
+    "VmsLocal": false,
+    "// [VmsSimulate]": "Chỉ có tác dụng khi VmsLocal = false. true = vẫn đi qua NATS tới dịch vụ VMS nhưng dịch vụ trả thành công giả lập, KHÔNG gọi thiết bị thật (dùng để thông luồng khi chưa có thiết bị).",
+    "VmsSimulate": true,
+    "// [VmsTimeoutSeconds]": "Số giây BE chờ ITS.VMS.Worker phản hồi. Phải LỚN HƠN Nats:DeviceTimeoutSeconds của Worker (mặc định 25s) để BE nhận được gói result thay vì tự kết luận timeout.",
+    "VmsTimeoutSeconds": 10,
+    "// [VmsMaxImageKb]": "Trần kích thước ảnh base64 nhúng vào gói NATS (KB). Vượt ngưỡng thì BE KHÔNG nhúng, dịch vụ tự lấy ảnh theo url. Để dư chỗ so với max_payload của NATS (mặc định 1MB phía server). BMP 32-bit: 384x64 ~96KB, 560x64 ~140KB.",
+    "VmsMaxImageKb": 700,
+    "// [VmsTelemetryTimeoutSeconds]": "Số giây BE chờ dịch vụ trả kết quả đọc thông số THEO LÔ (job Hangfire quét toàn bộ thiết bị). Phải lớn hơn VmsTimeoutSeconds vì dịch vụ đọc song song theo từng đợt MaxParallelDevice: ước lượng = ceil(số thiết bị / MaxParallelDevice) x DeviceTimeoutSeconds + dự phòng.",
+    "VmsTelemetryTimeoutSeconds": 20,
+    "VdsLocal": true
+  }
+}

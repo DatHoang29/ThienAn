@@ -1,0 +1,463 @@
+<UserControl x:Class="Module.VideoWall.WPF.Views.ScenarioTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:interaction="clr-namespace:Module.VideoWall.WPF.Interaction"
+             mc:Ignorable="d" 
+             d:DesignHeight="650" d:DesignWidth="1100">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <interaction:StatusColorConverter x:Key="StatusColorConverter" />
+
+        <!-- Style badge phương thức HTTP -->
+        <Style x:Key="ScenarioMethodBadge" TargetType="Border">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="5,1" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="MinWidth" Value="48" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Preset.Method}" Value="GET">
+                    <Setter Property="Background" Value="#EBF8FF" />
+                    <Setter Property="BorderBrush" Value="#3182CE" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Preset.Method}" Value="POST">
+                    <Setter Property="Background" Value="#F0FFF4" />
+                    <Setter Property="BorderBrush" Value="#38A169" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Preset.Method}" Value="PUT">
+                    <Setter Property="Background" Value="#FFFAF0" />
+                    <Setter Property="BorderBrush" Value="#DD6B20" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Preset.Method}" Value="DELETE">
+                    <Setter Property="Background" Value="#FFF5F5" />
+                    <Setter Property="BorderBrush" Value="#E53E3E" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Method Badge cho catalog list/dropdown -->
+        <Style x:Key="CatalogMethodBadge" TargetType="Border">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="4,1" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="MinWidth" Value="42" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Method}" Value="GET">
+                    <Setter Property="Background" Value="#EBF8FF" />
+                    <Setter Property="BorderBrush" Value="#3182CE" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Method}" Value="POST">
+                    <Setter Property="Background" Value="#F0FFF4" />
+                    <Setter Property="BorderBrush" Value="#38A169" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Method}" Value="PUT">
+                    <Setter Property="Background" Value="#FFFAF0" />
+                    <Setter Property="BorderBrush" Value="#DD6B20" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Method}" Value="DELETE">
+                    <Setter Property="Background" Value="#FFF5F5" />
+                    <Setter Property="BorderBrush" Value="#E53E3E" />
+                    <Setter Property="BorderThickness" Value="1" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Template hiển thị từng trường PathParameter -->
+        <DataTemplate x:Key="PathFieldTemplate">
+            <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                <StackPanel Orientation="Horizontal" Margin="0,0,4,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Definition.Label, StringFormat='{}{0}:'}" FontWeight="Medium" Foreground="#2D3748" VerticalAlignment="Center" />
+                    <TextBlock Text=" *" Foreground="#E53E3E" FontWeight="Bold" VerticalAlignment="Center"
+                               Visibility="{Binding Definition.Required, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+                <ComboBox ItemsSource="{Binding Definition.Options}"
+                          SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                          IsEditable="True"
+                          Width="90" Height="22" Padding="3,1"
+                          Visibility="{Binding HasOptions, Converter={StaticResource BoolToVisibility}}" />
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                         IsReadOnly="{Binding Definition.ReadOnly}"
+                         Width="90" Height="22" Padding="3,1"
+                         Visibility="{Binding HasNoOptions, Converter={StaticResource BoolToVisibility}}" />
+                <TextBlock Text="{Binding ErrorMessage}" Foreground="#E53E3E" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"
+                           Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="6">
+        <Grid.ColumnDefinitions>
+            <!-- Cột 1: Danh sách kịch bản đã lưu -->
+            <ColumnDefinition Width="220" MinWidth="180" />
+            <ColumnDefinition Width="3" />
+            <!-- Cột 2: Các bước trong kịch bản & Chạy kịch bản -->
+            <ColumnDefinition Width="*" MinWidth="400" />
+        </Grid.ColumnDefinitions>
+
+        <!-- CỘT 1: DANH SÁCH KỊCH BẢN (GỘP BUILT-IN VÀ ĐÃ LƯU) -->
+        <Border Grid.Column="0"
+                BorderThickness="1,1,0,1"
+                BorderBrush="#D2D6DC"
+                Background="#FFFFFF"
+                CornerRadius="4,0,0,4"
+                Padding="6">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="1. Danh sách Scenario (Kịch bản kiểm thử)" FontWeight="Bold" Foreground="#2D3748" FontSize="13" Margin="0,0,0,4" />
+
+                <!-- Danh sách kịch bản gộp (Chọn là tự động nạp) -->
+                <ListBox Grid.Row="1"
+                         ItemsSource="{Binding ScenarioList}"
+                         SelectedItem="{Binding SelectedScenarioItem}"
+                         DisplayMemberPath="DisplayName"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         Margin="0,0,0,6"
+                         BorderBrush="#E2E8F0"
+                         BorderThickness="1" />
+
+                <!-- Các nút Tạo mới & Xoá -->
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0"
+                            Content="+ Tạo mới"
+                            Style="{StaticResource ToolbarButton}"
+                            Command="{Binding NewScenarioCommand}"
+                            Margin="0,0,4,0"
+                            ToolTip="Tạo một kịch bản mới trống" />
+                    <Button Grid.Column="1"
+                            Content="Xoá"
+                            Style="{StaticResource ToolbarButton}"
+                            Command="{Binding DeleteScenarioCommand}"
+                            ToolTip="Xoá kịch bản đang chọn (chỉ khả dụng với kịch bản tự lưu)" />
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- Splitter giữa 2 cột -->
+        <GridSplitter Grid.Column="1"
+                      Width="2"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Stretch"
+                      Background="#D2D6DC"
+                      Cursor="SizeWE"
+                      ResizeDirection="Columns"
+                      ResizeBehavior="PreviousAndNext"
+                      ShowsPreview="False" />
+
+        <!-- CỘT 2: CÁC BƯỚC TRONG KỊCH BẢN & CHẠY -->
+        <Border Grid.Column="2"
+                BorderThickness="0,1,1,1"
+                BorderBrush="#D2D6DC"
+                Background="#FFFFFF"
+                CornerRadius="0,4,4,0"
+                Padding="6">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <!-- Hàng 0: Header Tên kịch bản + Lưu + Chạy -->
+                    <RowDefinition Height="Auto" />
+                    <!-- Hàng 1: Thanh chọn & Thêm API -->
+                    <RowDefinition Height="Auto" />
+                    <!-- Hàng 2: Danh sách các bước trong kịch bản -->
+                    <RowDefinition Height="*" />
+                    <!-- Hàng 3: Dòng trạng thái -->
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Hàng 0: Header Bar: Tên kịch bản + Delay + Lưu + Chạy + Chạy tiếp (WrapPanel co giãn tốt trên màn hình nhỏ) -->
+                <Border Grid.Row="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2,12,2">
+                            <TextBlock Text="Tên Scenario:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBox Text="{Binding ScenarioName, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="160" Height="24" Padding="4,2"
+                                     VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2,12,2">
+                            <TextBlock Text="Chờ (ms):" VerticalAlignment="Center" Margin="0,0,4,0" FontWeight="Medium" ToolTip="Thời gian chờ giữa các bước (mặc định 400ms theo DS-C30S-S11)" />
+                            <TextBox Width="45" Height="24" Padding="3,1" Text="{Binding DelayBetweenStepsMs, UpdateSourceTrigger=PropertyChanged}" ToolTip="Delay (ms) giữa các bước (0..60000)" />
+                        </StackPanel>
+
+                        <Button Content="💾 Lưu"
+                                Style="{StaticResource ToolbarButton}"
+                                Command="{Binding SaveScenarioCommand}"
+                                Margin="0,2,6,2"
+                                Padding="8,3"
+                                ToolTip="Lưu Scenario (chuỗi API) vào danh sách file bên trái" />
+
+                        <Button Content="{Binding ResumeButtonText}"
+                                Style="{StaticResource AccentButton}"
+                                Command="{Binding ResumeScenarioCommand}"
+                                Margin="0,2,6,2"
+                                Padding="10,3"
+                                ToolTip="Chạy tiếp từ bước bị lỗi do mất kết nối hoặc timeout" />
+
+                        <Button Content="▶ CHẠY SCENARIO"
+                                Style="{StaticResource PrimaryButton}"
+                                Command="{Binding RunSelectedScenarioCommand}"
+                                Margin="0,2,0,2"
+                                Padding="12,4"
+                                FontWeight="Bold"
+                                ToolTip="Chạy tuần tự từng bước trong Scenario (kịch bản kiểm thử API) từ bước đầu tiên" />
+                    </WrapPanel>
+                </Border>
+
+                <!-- Hàng 1: Thanh công cụ chọn & thêm API vào kịch bản -->
+                <Border Grid.Row="1" Background="#EDF2F7" BorderBrush="#CBD5E0" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="Nhóm:" FontWeight="Medium" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding ApiGroups}"
+                                  SelectedItem="{Binding SelectedApiGroup}"
+                                  Height="24" Padding="3,1" Margin="0,0,6,0" />
+
+                        <TextBlock Grid.Column="2" Text="Tìm:" FontWeight="Medium" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding ApiSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Height="24" Padding="3,1" Margin="0,0,6,0"
+                                 VerticalAlignment="Center" />
+
+                        <Grid Grid.Column="5" Margin="0,0,6,0">
+                            <ComboBox ItemsSource="{Binding FilteredPresets}"
+                                      SelectedItem="{Binding SelectedPresetInCatalog}"
+                                      Height="24">
+                                 <ComboBox.ItemTemplate>
+                                     <DataTemplate>
+                                         <StackPanel Orientation="Horizontal">
+                                             <Border Style="{StaticResource CatalogMethodBadge}">
+                                                 <TextBlock Text="{Binding Method}" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" />
+                                             </Border>
+                                             <TextBlock Text="{Binding Section, StringFormat='{}{0} — '}" FontWeight="Bold" Foreground="#2B6CB0" FontSize="11" VerticalAlignment="Center" />
+                                             <TextBlock Text="{Binding Name}" FontSize="11" Foreground="#2D3748" VerticalAlignment="Center" />
+                                         </StackPanel>
+                                     </DataTemplate>
+                                 </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="(Không tìm thấy API phù hợp)"
+                                       FontStyle="Italic"
+                                       Foreground="#A0AEC0"
+                                       FontSize="11"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,24,0"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding HasFilteredPresets, Converter={StaticResource InverseBoolToVisibility}}" />
+                        </Grid>
+
+                        <Button Grid.Column="6"
+                                Content="➕ Thêm bước"
+                                Style="{StaticResource ToolbarButton}"
+                                Command="{Binding AddStepCommand}"
+                                CommandParameter="{Binding SelectedPresetInCatalog}"
+                                FontWeight="Bold"
+                                Padding="8,2"
+                                Margin="0"
+                                ToolTip="Thêm API đã chọn vào danh sách bước của kịch bản" />
+                    </Grid>
+                </Border>
+
+                <!-- Hàng 2: Danh sách các bước dạng thẻ + Các kịch bản mẫu mở rộng -->
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <!-- KHỐI CÁC BƯỚC TRONG KỊCH BẢN -->
+                        <StackPanel>
+                            <!-- Thông báo khi kịch bản trống -->
+                            <Border Background="#F7FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,0,0,6">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Steps.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="📋 Kịch bản chưa có bước nào" FontWeight="Bold" FontSize="13" Foreground="#4A5568" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                                    <TextBlock Text="Chọn API ở thanh trên rồi bấm '➕ Thêm bước', hoặc chọn kịch bản ở danh sách bên trái." Foreground="#718096" TextWrapping="Wrap" HorizontalAlignment="Center" TextAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Từng thẻ bước -->
+                            <ItemsControl ItemsSource="{Binding Steps}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#FFFFFF" BorderBrush="#CBD5E0" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <!-- Tiêu đề bước: Nút điều khiển bên phải + Badge + Section/Name/Url ở giữa -->
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <!-- Nút Lên, Xuống, Xoá cố định bên phải -->
+                                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,0,0,0">
+                                                        <Button Content="▲"
+                                                                Style="{StaticResource ToolbarButton}"
+                                                                Padding="6,1" Margin="0,0,3,0"
+                                                                Command="{Binding DataContext.MoveStepUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip="Di chuyển bước này lên trước" />
+                                                        <Button Content="▼"
+                                                                Style="{StaticResource ToolbarButton}"
+                                                                Padding="6,1" Margin="0,0,6,0"
+                                                                Command="{Binding DataContext.MoveStepDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip="Di chuyển bước này xuống sau" />
+                                                        <Button Content="Xoá"
+                                                                Style="{StaticResource ToolbarButton}"
+                                                                Padding="6,1"
+                                                                Command="{Binding DataContext.RemoveStepCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip="Xoá bước này khỏi kịch bản" />
+                                                    </StackPanel>
+
+                                                    <!-- Method badge bên trái -->
+                                                    <Border DockPanel.Dock="Left" Style="{StaticResource ScenarioMethodBadge}" VerticalAlignment="Top">
+                                                        <TextBlock Text="{Binding Preset.Method}" FontWeight="Bold" FontSize="11" />
+                                                    </Border>
+
+                                                    <!-- Section & Name & URL ở giữa -->
+                                                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Preset.Section, StringFormat='{}{0} — '}" FontWeight="Bold" Foreground="#2D3748" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Preset.Name}" FontWeight="SemiBold" Foreground="#2D3748" Margin="0,0,6,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Preset.Url, StringFormat='({0})'}" Foreground="#718096" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center" />
+                                                    </WrapPanel>
+                                                </DockPanel>
+
+                                                <!-- Path Parameters (nếu có) -->
+                                                <WrapPanel Orientation="Horizontal" Margin="0,2,0,4"
+                                                           Visibility="{Binding HasPathFields, Converter={StaticResource BoolToVisibility}}">
+                                                    <ItemsControl ItemsSource="{Binding Form.PathFields}" ItemTemplate="{StaticResource PathFieldTemplate}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel Orientation="Horizontal" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                    </ItemsControl>
+                                                </WrapPanel>
+
+                                                <!-- Body (JSON/XML thô) nếu API cần body -->
+                                                <StackPanel Visibility="{Binding NeedsBody, Converter={StaticResource BoolToVisibility}}" Margin="0,2,0,0">
+                                                    <TextBlock Text="Body (JSON/XML):" Style="{StaticResource FieldLabel}" Margin="0,0,0,2" />
+                                                    <RichTextBox interaction:XmlHighlightingBehavior.XmlText="{Binding RawBody, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 interaction:XmlHighlightingBehavior.EnableTwoWay="True"
+                                                                 AcceptsReturn="True"
+                                                                 Height="75"
+                                                                 VerticalScrollBarVisibility="Auto"
+                                                                 HorizontalScrollBarVisibility="Auto"
+                                                                 Background="#F8FAFC"
+                                                                 BorderBrush="#E2E8F0"
+                                                                 BorderThickness="1"
+                                                                 FontFamily="Consolas"
+                                                                 FontSize="11"
+                                                                 Padding="4" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <!-- PHẦN 2: 2 NGUỒN TRANH VÙNG — CANH KÍCH THƯỚC -->
+                        <Border Background="#FDF4FF" BorderBrush="#F0ABFC" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,6">
+                            <StackPanel>
+                                <TextBlock Text="📐 Kịch bản: 2 nguồn tranh vùng — Canh kích thước &amp; Thứ tự xếp lớp" FontWeight="Bold" Foreground="#86198F" Margin="0,0,0,6" />
+                                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,4" VerticalAlignment="Center">
+                                        <TextBlock Text="Nguồn Lớn (Z=1):" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                        <TextBox Width="45" Height="22" Padding="3,1" Text="{Binding OverlapSourceIdA, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,4" VerticalAlignment="Center">
+                                        <TextBlock Text="Nguồn Nhỏ (Z=2):" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                        <TextBox Width="45" Height="22" Padding="3,1" Text="{Binding OverlapSourceIdB, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,4" VerticalAlignment="Center">
+                                        <TextBlock Text="SID:" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                        <TextBox Width="35" Height="22" Padding="3,1" Text="{Binding OverlapSceneId, UpdateSourceTrigger=PropertyChanged}" ToolTip="SceneId dùng để test tranh vùng (mặc định 1)" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,4" VerticalAlignment="Center">
+                                        <TextBlock Text="W:" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                        <TextBox Width="45" Height="22" Padding="3,1" Text="{Binding OverlapTargetWidth, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,4" VerticalAlignment="Center">
+                                        <TextBlock Text="H:" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                        <TextBox Width="45" Height="22" Padding="3,1" Text="{Binding OverlapTargetHeight, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+
+                                    <Button Content="▶ Chạy kiểm thử tranh vùng"
+                                            Style="{StaticResource ToolbarButton}"
+                                            Command="{Binding RunOverlappingSizeTestCommand}"
+                                            FontWeight="Bold"
+                                            Margin="0,0,0,4"
+                                            ToolTip="Dựng 2 cửa sổ tranh vùng để quan sát thiết bị tự xếp lớp và kiểm tra vùng hoạt động." />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- PHẦN 3: BỘ KIỂM THỬ LỖI -->
+                        <Border Background="#FEF2F2" BorderBrush="#FECACA" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,4">
+                            <StackPanel>
+                                <TextBlock Text="🧪 Bộ kiểm thử lỗi (3 trường hợp biên)" FontWeight="Bold" Foreground="#991B1B" Margin="0,0,0,4" />
+                                <TextBlock Text="Kiểm thử: 999 cửa sổ vượt maxWindowNums, 1 nguồn gán 3 cửa sổ, SceneId 99999 ngoài dải." FontSize="11" Foreground="#7F1D1D" Margin="0,0,6,6" TextWrapping="Wrap" />
+                                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="Chạy bộ kiểm thử lỗi"
+                                            Style="{StaticResource ToolbarButton}"
+                                            Command="{Binding RunErrorValidationSuiteCommand}"
+                                            FontWeight="Bold"
+                                            Height="24"
+                                            Margin="0,0,12,0"
+                                            ToolTip="Chạy 3 ca kiểm thử biên âm bản và ghi nhận kết quả." />
+                                    <CheckBox Content="Gửi thật để xem mã lỗi thiết bị"
+                                              IsChecked="{Binding ErrorSuiteSendReal}"
+                                              Foreground="#991B1B"
+                                              FontWeight="SemiBold"
+                                              VerticalAlignment="Center"
+                                              ToolTip="BẬT: bỏ qua chặn sớm phía client, gửi request thật xuống thiết bị — Case B sẽ tạo thật 3 cửa sổ trên tường, Case A/C dự kiến bị thiết bị từ chối. TẮT (mặc định): chỉ so sánh số cục bộ, an toàn, không đụng thiết bị." />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Hàng 3: Dòng trạng thái ở dưới cùng -->
+                <TextBlock Grid.Row="3"
+                           Text="{Binding StatusMessage}"
+                           Foreground="{Binding StatusMessage, Converter={StaticResource StatusColorConverter}}"
+                           FontStyle="Italic"
+                           FontWeight="Medium"
+                           Margin="0,4,0,0" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,346 @@
+<Window x:Class="ITS.VMS.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:ITS.VMS.Wpf.Views"
+        Title="VMS — Công cụ test dịch vụ điều khiển &amp; telemetry" Height="880" Width="1320"
+        FontFamily="Segoe UI" FontSize="12">
+
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="3,0" />
+            <Setter Property="Padding" Value="12,0" />
+        </Style>
+
+        <!-- Một dòng nhật ký: giờ + nội dung, tô màu theo mức -->
+        <DataTemplate x:Key="LogRow">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding TimeText}" Foreground="#616161" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Level}" Value="Warning">
+                                    <Setter Property="Foreground" Value="#E65100" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Level}" Value="Error">
+                                    <Setter Property="Foreground" Value="#B71C1C" />
+                                    <Setter Property="FontWeight" Value="Bold" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Level}" Value="Success">
+                                    <Setter Property="Foreground" Value="#1B5E20" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Một dòng gói tin: request tô xanh, result tô tím để nhìn ra 2 chiều -->
+        <DataTemplate x:Key="PacketRow">
+            <TextBlock Text="{Binding Title}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="#0D47A1" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Type}" Value="result">
+                                <Setter Property="Foreground" Value="#4A148C" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </DataTemplate>
+    </Window.Resources>
+
+    <TabControl Margin="6">
+
+    <!-- ============================================================================
+         TAB 1 — ĐIỀU KHIỂN: BE ra lệnh gửi nội dung ra bảng (kênh ta.its.control.vms)
+         ============================================================================ -->
+    <TabItem Header="Điều khiển thiết bị">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="1.1*" />
+            <RowDefinition Height="1.1*" />
+            <RowDefinition Height="0.9*" />
+        </Grid.RowDefinitions>
+
+        <!-- ============ HÀNG 1: CẤU HÌNH KÊNH (chỉ đọc, sửa trong appsettings.json) ============ -->
+        <Border Grid.Row="0" BorderBrush="#DDD" BorderThickness="1" Padding="10" CornerRadius="4">
+            <WrapPanel>
+                <TextBlock Text="NATS:" VerticalAlignment="Center" FontWeight="Bold" />
+                <TextBox Width="230" Margin="6,0,16,0" VerticalAlignment="Center" IsReadOnly="True"
+                         Text="{Binding NatsUrl, Mode=OneWay}"
+                         ToolTip="Sửa trong appsettings.json (Nats:Url) rồi mở lại form" />
+
+                <TextBlock Text="Kênh:" VerticalAlignment="Center" FontWeight="Bold" />
+                <TextBox Width="160" Margin="6,0,16,0" VerticalAlignment="Center" IsReadOnly="True"
+                         Text="{Binding Subject, Mode=OneWay}" />
+
+                <TextBlock Text="Xác thực:" VerticalAlignment="Center" FontWeight="Bold" />
+                <TextBox Width="80" Margin="6,0,16,0" VerticalAlignment="Center" IsReadOnly="True"
+                         Text="{Binding AuthMode, Mode=OneWay}" />
+
+                <TextBlock Text="Timeout thiết bị (giây):" VerticalAlignment="Center" FontWeight="Bold" />
+                <TextBox Width="45" Margin="6,0,16,0" VerticalAlignment="Center" IsReadOnly="True"
+                         Text="{Binding DeviceTimeoutSeconds, Mode=OneWay}" />
+
+                <TextBlock Text="StorageBasePath:" VerticalAlignment="Center" FontWeight="Bold" />
+                <TextBox Width="280" Margin="6,0,0,0" VerticalAlignment="Center" IsReadOnly="True"
+                         Text="{Binding StorageBasePath, Mode=OneWay}"
+                         ToolTip="Thư mục gốc để map đường dẫn ảnh tương đối. Trống thì phải gửi HTTP URL." />
+            </WrapPanel>
+        </Border>
+
+        <!-- ============ HÀNG 2: BẬT/TẮT 2 VAI + TRẠNG THÁI ============ -->
+        <Border Grid.Row="1" Margin="0,8,0,0" BorderBrush="#DDD" BorderThickness="1" Padding="10" CornerRadius="4"
+                Background="#FAFAFA">
+            <StackPanel>
+                <WrapPanel>
+                    <TextBlock Text="Vai DỊCH VỤ (thay ITS.VMS.Worker):" VerticalAlignment="Center" FontWeight="Bold" />
+                    <Button Width="130" Margin="6,0,20,0" Command="{Binding ToggleServiceCommand}"
+                            Background="#C8E6C9"
+                            ToolTip="Nhận gói Type=request trên kênh, gọi SDK ra thiết bị rồi phát Type=result">
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Bật dịch vụ" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ServiceRunning}" Value="True">
+                                            <Setter Property="Text" Value="Tắt dịch vụ" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
+
+                    <TextBlock Text="Vai GỬI LỆNH (thay BE):" VerticalAlignment="Center" FontWeight="Bold" />
+                    <Button Width="130" Margin="6,0,0,0" Command="{Binding ToggleSenderCommand}"
+                            Background="#B3E5FC"
+                            ToolTip="Phát gói Type=request và chờ Type=result theo RequestId">
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Kết nối" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SenderConnected}" Value="True">
+                                            <Setter Property="Text" Value="Ngắt kết nối" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
+                </WrapPanel>
+
+                <TextBlock Text="{Binding StatusText}" Margin="0,8,0,0" FontWeight="SemiBold" Foreground="#0D47A1" />
+                <TextBlock Margin="0,4,0,0" Foreground="#888" TextWrapping="Wrap"
+                           Text="Bật CẢ 2 vai để thử vòng kín ngay trên máy. Chỉ bật DỊCH VỤ khi muốn BE thật phát lệnh xuống form. Chỉ bật GỬI LỆNH khi đã có Worker thật chạy." />
+            </StackPanel>
+        </Border>
+
+        <!-- ============ HÀNG 3: THAM SỐ LỆNH ============ -->
+        <WrapPanel Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center">
+            <TextBlock Text="Lệnh (Action):" VerticalAlignment="Center" FontWeight="Bold" />
+            <ComboBox Width="150" Margin="6,0,16,0" VerticalAlignment="Center"
+                      ItemsSource="{Binding Actions}" SelectedItem="{Binding SelectedAction, Mode=TwoWay}" />
+
+            <CheckBox Content="Giả lập (không gọi thiết bị thật)" IsChecked="{Binding Simulate}"
+                      VerticalAlignment="Center" Margin="0,0,16,0" FontWeight="Bold" Foreground="#E65100"
+                      ToolTip="Bật: dịch vụ trả thành công ngay. Tắt: gọi SDK thật ra thiết bị." />
+
+            <CheckBox Content="Nhúng ảnh base64" IsChecked="{Binding AttachImageBase64}"
+                      VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold" Foreground="#1B5E20"
+                      ToolTip="Bật: đọc file ảnh rồi nhúng vào gói tin (giống BE) - dịch vụ không phải đi tìm file, chạy được ở máy khác. Tắt: chỉ gửi url." />
+
+            <TextBlock Text="{Binding MaxPayloadText}" VerticalAlignment="Center" Margin="0,0,16,0"
+                       Foreground="#4A148C" FontWeight="SemiBold"
+                       ToolTip="Trần payload do NATS server báo về. Ảnh base64 phải nhỏ hơn giá trị này." />
+
+            <TextBlock Text="Chờ kết quả (giây, 0 = tự tính):" VerticalAlignment="Center" FontWeight="Bold" />
+            <TextBox Width="45" Margin="6,0,16,0" VerticalAlignment="Center"
+                     Text="{Binding WaitSeconds, UpdateSourceTrigger=PropertyChanged}" />
+
+            <!-- CanSend = !IsSending: chặn bấm chồng lệnh khi đang chờ kết quả. -->
+            <Button Content="GỬI LỆNH" Command="{Binding SendCommand}" Width="120"
+                    Background="#FFE0B2" FontWeight="Bold"
+                    IsEnabled="{Binding CanSend}" />
+
+            <TextBlock Text="RequestId:" VerticalAlignment="Center" FontWeight="Bold" Margin="16,0,0,0" />
+            <TextBox Width="250" Margin="6,0,0,0" VerticalAlignment="Center" IsReadOnly="True"
+                     BorderThickness="0" Background="Transparent" FontFamily="Consolas"
+                     Text="{Binding LastRequestId, Mode=OneWay}" />
+        </WrapPanel>
+
+        <!-- ============ HÀNG 4: DANH SÁCH THIẾT BỊ TEST ============ -->
+        <GroupBox Grid.Row="3" Header="Thiết bị test (nhập/sửa trực tiếp — gửi theo dữ liệu trên form)" Margin="0,8,0,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2,2,2,4">
+                    <Button Content="Thêm thiết bị" Command="{Binding AddTargetCommand}" Width="110" Background="#DCEDC8" />
+                    <Button Content="Xóa dòng đang chọn" Command="{Binding RemoveTargetCommand}" Width="150" Background="#FFCDD2" />
+                    <Button Content="Lưu danh sách" Command="{Binding SaveTargetsCommand}" Width="120" Background="#DCEDC8"
+                            ToolTip="Lưu xuống VmsTestTargets.json cạnh exe, lần sau mở form là có sẵn" />
+                    <TextBlock Text="Config: Width/Height cho SDK, PortApi cho kênh API (Chainzone cần cả 3)."
+                               VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#888" />
+                </StackPanel>
+
+                <DataGrid ItemsSource="{Binding Targets}"
+                          SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                          AutoGenerateColumns="False" CanUserAddRows="False"
+                          SelectionMode="Single" SelectionUnit="FullRow"
+                          GotFocus="TargetGrid_GotFocus"
+                          HeadersVisibility="Column" GridLinesVisibility="All" Margin="2">
+                    <DataGrid.Columns>
+                        <!-- TemplateColumn + UpdateSourceTrigger=PropertyChanged: tick 1 lần là commit ngay
+                             (DataGridCheckBoxColumn mặc định phải click 2 lần -> dễ gửi sai thiết bị). -->
+                        <DataGridTemplateColumn Header="Bật" Width="45">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding Enabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="EquipmentId" Width="130">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding EquipmentId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Vendor" Width="90">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding Vendor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center"
+                                             ToolTip="chainzone | dysten" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Ip" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding Ip, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Port" Width="55">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding Port, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Config (JSON)" Width="230">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding Config, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center"
+                                             FontFamily="Consolas" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Url ảnh" Width="2*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center"
+                                             ToolTip="Đường dẫn tương đối (ghép StorageBasePath) hoặc http://..." />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Sáng" Width="55">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding Brightness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="KQ" Binding="{Binding LastState}" Width="75" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Lúc" Binding="{Binding LastAt}" Width="65" IsReadOnly="True" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </GroupBox>
+
+        <!-- ============ HÀNG 5: KẾT QUẢ + GÓI TIN ============ -->
+        <Grid Grid.Row="4" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.3*" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+
+            <GroupBox Grid.Column="0" Header="Kết quả theo thiết bị">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding LastResultSummary}" FontWeight="SemiBold"
+                               Margin="2,2,2,6" TextWrapping="Wrap" Foreground="#0D47A1" />
+                    <DataGrid ItemsSource="{Binding Results}" AutoGenerateColumns="False" CanUserAddRows="False"
+                              IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="All" Margin="2">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="EquipmentId" Binding="{Binding EquipmentId}" Width="130" />
+                            <DataGridTextColumn Header="KQ" Binding="{Binding State}" Width="55" />
+                            <DataGridTextColumn Header="Gửi ảnh" Binding="{Binding SendImage}" Width="65" />
+                            <DataGridTextColumn Header="Độ sáng" Binding="{Binding SetBrightness}" Width="65" />
+                            <DataGridTextColumn Header="Thông báo" Binding="{Binding Message}" Width="2*" />
+                            <DataGridTextColumn Header="Data" Binding="{Binding DataPreview}" Width="1.2*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </GroupBox>
+
+            <GroupBox Grid.Column="2" Header="Gói tin trên kênh (mới nhất ở trên)">
+                <DockPanel>
+                    <Button DockPanel.Dock="Top" Content="Xóa" Command="{Binding ClearPacketsCommand}"
+                            HorizontalAlignment="Right" Width="70" Margin="2" />
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="0.8*" />
+                            <RowDefinition Height="1.2*" />
+                        </Grid.RowDefinitions>
+                        <ListBox Grid.Row="0" ItemsSource="{Binding Packets}" ItemTemplate="{StaticResource PacketRow}"
+                                 SelectedItem="{Binding SelectedPacket, Mode=TwoWay}"
+                                 FontFamily="Consolas" Margin="2" />
+                        <TextBox Grid.Row="1" Text="{Binding SelectedPacket.Json, Mode=OneWay}" IsReadOnly="True"
+                                 FontFamily="Consolas" FontSize="11" Margin="2"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                 TextWrapping="NoWrap" AcceptsReturn="True" />
+                    </Grid>
+                </DockPanel>
+            </GroupBox>
+        </Grid>
+
+        <!-- ============ HÀNG 6: NHẬT KÝ ============ -->
+        <GroupBox Grid.Row="5" Header="Nhật ký (mới nhất ở trên)" Margin="0,8,0,0">
+            <DockPanel>
+                <Button DockPanel.Dock="Top" Content="Xóa nhật ký" Command="{Binding ClearLogCommand}"
+                        HorizontalAlignment="Right" Width="100" Margin="2" />
+                <ListBox ItemsSource="{Binding Logs}" ItemTemplate="{StaticResource LogRow}"
+                         FontFamily="Consolas" FontSize="12"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" Margin="2" />
+            </DockPanel>
+        </GroupBox>
+    </Grid>
+    </TabItem>
+
+    <!-- ============================================================================
+         TAB 2 — TELEMETRY: dịch vụ TỰ đồng bộ thiết bị và TỰ đọc thông số theo chu kỳ
+         (kênh ta.its.data.vms). DataContext gán trong MainWindow.xaml.cs.
+         ============================================================================ -->
+    <TabItem Header="Telemetry tự động">
+        <views:TelemetryView x:Name="TelemetryTab" />
+    </TabItem>
+
+    </TabControl>
+</Window>

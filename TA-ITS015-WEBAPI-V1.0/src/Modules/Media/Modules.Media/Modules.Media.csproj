@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Utility\Shared.Utility.csproj" />
+    <ProjectReference Include="..\..\CfgSystem\Modules.CfgSystem.Core\Modules.CfgSystem.Core.csproj" />
+    <ProjectReference Include="..\..\TMS\Modules.TMS.Core\Modules.TMS.Core.csproj" />
+    <ProjectReference Include="..\..\VMS\Modules.VMS.Core\Modules.VMS.Core.csproj" />
+    <ProjectReference Include="..\Modules.Media.Core\Modules.Media.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,7 @@
+{
+  "Upload": {
+    "Path": "Upload/{yyyy}/{MM}/{dd}", // Folder Path
+    "MaxSize": 51200, // Max size KB：1024*50
+    "ContentType": [ "application/octet-stream", "image/jpg", "image/png", "image/jpeg", "image/gif", "image/bmp", "text/plain", "application/pdf", "application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "video/mp4", "application/wps-office.docx", "application/wps-office.xlsx", "application/wps-office.pptx", "application/vnd.android.package-archive" ]
+  }
+}

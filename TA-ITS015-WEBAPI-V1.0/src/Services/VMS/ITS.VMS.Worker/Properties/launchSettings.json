@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ITS.VMS.Worker": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:57194;http://localhost:57195"
+    }
+  }
+}

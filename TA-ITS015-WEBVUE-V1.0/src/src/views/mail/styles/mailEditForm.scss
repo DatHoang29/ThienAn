@@ -1,0 +1,169 @@
+/* Shared dialog layout and form typography for mail templates and schedules. */
+
+/* ── Header dialog ── */
+.mail-dialog-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	color: #fff;
+}
+
+.mail-dialog-header__icon {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.18);
+}
+
+.mail-dialog-header__title {
+	font-size: 14px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ── Tiêu đề nhóm trong từng khung ── */
+.grp {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--el-text-color-primary);
+}
+
+.grp::before {
+	content: '';
+	width: 3px;
+	height: 14px;
+	border-radius: 2px;
+	background: var(--el-color-primary);
+}
+
+.divider {
+	margin: 8px 0 16px;
+	border-top-color: var(--el-border-color-lighter);
+}
+
+.divider :deep(.el-divider__text) {
+	padding: 0 10px 0 0;
+	background: var(--mail-pane-bg);
+}
+
+.divider :deep(.el-divider__text.is-left) {
+	left: 0;
+}
+
+.hint {
+	font-size: 12px;
+	color: var(--el-text-color-secondary);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+/* ── Bố cục các khung ── */
+.edit-layout {
+	height: max(360px, calc(100vh - 230px));
+}
+
+.edit-layout :deep(.el-splitter-panel) {
+	min-width: 0;
+	padding: 0 8px;
+}
+
+.edit-layout :deep(.el-splitter-bar__dragger) {
+	width: 12px;
+}
+
+.pane {
+	--mail-pane-bg: var(--el-bg-color);
+	height: 100%;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-right: 6px;
+}
+
+.edit-layout--stacked {
+	display: block;
+	height: auto;
+}
+
+.edit-layout--stacked :deep(.el-splitter-panel) {
+	width: 100% !important;
+	padding: 0;
+	margin-bottom: 16px;
+}
+
+.edit-layout--stacked :deep(.el-splitter-bar) {
+	display: none;
+}
+
+.edit-layout--stacked .pane {
+	height: auto;
+	max-height: max(360px, calc(100vh - 230px));
+}
+
+/* ── Form ── */
+.edit-form :deep(.el-form-item) {
+	margin-bottom: 14px;
+}
+
+.edit-form :deep(.el-form-item__label) {
+	margin-bottom: 2px;
+	line-height: 20px;
+	font-weight: 500;
+}
+
+.edit-form :deep(.el-form-item__error) {
+	position: static;
+	width: 100%;
+	padding-top: 2px;
+	line-height: 1.4;
+}
+
+/* ── Khung JoditEditor ──
+ * Toolbar dùng biến theme --jd-* có sẵn của Jodit (khai trên :root, khai lại ở đây thì kế thừa xuống editor),
+ * không ghi đè selector. Popup dropdown của Jodit gắn vào body nên vẫn giữ giao diện mặc định. */
+.mail-content-editor {
+	--jd-font-default: var(--el-font-family);
+	--jd-border-radius-default: 4px;
+	--jd-margin-v: 3px;
+	--jd-color-border: var(--el-border-color-lighter);
+	--jd-color-panel: var(--el-fill-color-light);
+	--jd-color-icon: var(--el-text-color-regular);
+	--jd-color-text-icons: var(--el-text-color-secondary);
+	--jd-color-button-background-hover: var(--el-color-primary-light-8);
+	--jd-color-button-background-hover-opacity40: var(--el-color-primary-light-8);
+	--jd-color-button-background-hover-opacity60: var(--el-color-primary-light-7);
+	--jd-color-background-active: var(--el-color-primary);
+	--jd-color-border-selected: var(--el-color-primary);
+	width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	border: 1px solid var(--el-border-color);
+	border-radius: 6px;
+	background: var(--el-bg-color);
+	transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.mail-content-editor:hover {
+	border-color: var(--el-border-color-hover);
+}
+
+.mail-content-editor:focus-within {
+	border-color: var(--el-color-primary);
+	box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
+}
+
+.el-form-item.is-error .mail-content-editor {
+	border-color: var(--el-color-danger);
+}
+
+/* Khung ngoài đã có viền (đổi màu khi focus/lỗi) nên bỏ viền riêng của Jodit để không bị viền đôi. */
+.mail-content-editor :deep(.jodit-container:not(.jodit_inline)) {
+	border: none;
+	border-radius: 0;
+}

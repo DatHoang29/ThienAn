@@ -1,0 +1,33 @@
+{
+  "Logging": {
+    // Thư mục gốc thay thế cho ${basedir} trong PathTemplate.
+    // "${basedir}" = thư mục chạy app (AppContext.BaseDirectory, thường là bin/Debug/net10.0-windows).
+    // Pin cứng: "C:\\TAC\\ITS015\\Logs\\SampleOperator"
+    "BaseDirectory": "${basedir}",
+
+    // Mặc định áp dụng cho mọi kind không khai báo trong "Kinds" bên dưới.
+    "Defaults": {
+      // PathTemplate hỗ trợ placeholder: ${basedir}, ${shortdate} (yyyy-MM-dd), ${kind} (viết thường),
+      // ${year}, ${month}, ${day}. Path relative nối vào BaseDirectory; absolute (có ':' hoặc bắt đầu '/'/'\') dùng nguyên.
+      "PathTemplate": "LogFile/${shortdate}/${kind}.log",
+      // Ngưỡng size file (KB) để roll sang file mới với suffix sequence (vd. *.1.log, *.2.log). 0 = không roll size.
+      "RollingSizeKB": 10240,
+      // Số file gần nhất giữ lại (cleanup chạy mỗi lần roll qua ngày mới). File cũ hơn bị xóa. 0 = không cleanup.
+      "KeepFileCount": 30,
+      // true = mở file với FileShare.Read (tool ngoài như tail/Notepad đọc được khi service đang chạy).
+      "FileShareRead": true
+    },
+
+    // Cấu hình per-kind. Key = tên kind (phải khớp const trong LogKind: Main/Error/Config/Data/Device/Nats).
+    // Kind không có ở đây dùng "Defaults". Chỉ cần Override field muốn đổi (thường chỉ PathTemplate).
+    // Lưu ý: kind "Error" dùng cho duplicate — mọi log level >= Error (bất kể kind gọi) cũng ghi thêm vào file này.
+    "Kinds": {
+      "Main":   { "PathTemplate": "LogFile/${shortdate}/TACMainLog.txt" },
+      "Error":  { "PathTemplate": "LogFile/${shortdate}/TACError.txt", "KeepFileCount": 90 },
+      "Config": { "PathTemplate": "LogFile/${shortdate}/TACConfigLog.txt" },
+      "Data":   { "PathTemplate": "LogFile/${shortdate}/TACDataLog.txt" },
+      "Device": { "PathTemplate": "LogFile/${shortdate}/TACDeviceLog.txt" },
+      "Nats":   { "PathTemplate": "LogFile/${shortdate}/TACNatsLog.txt" }
+    }
+  }
+}

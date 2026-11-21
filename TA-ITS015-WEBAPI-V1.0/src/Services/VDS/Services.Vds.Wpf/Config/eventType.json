@@ -1,0 +1,15 @@
+[
+  { "vds_EventType": "speed", "its_EventType": "17" },
+  { "vds_EventType": "abandonedobject", "its_EventType": "16" },
+  { "vds_EventType": "conflagration", "its_EventType": "3" },
+  { "vds_EventType": "congestion", "its_EventType": "15" },
+  { "vds_EventType": "construction", "its_EventType": "25" },
+  { "vds_EventType": "crosslane", "its_EventType": "18" },
+  { "vds_EventType": "illegalparking", "its_EventType": "12" },
+  { "vds_EventType": "lanechange", "its_EventType": "14" },
+  { "vds_EventType": "pedestrian", "its_EventType": "19" },
+  { "vds_EventType": "slowmoving", "its_EventType": "13" },
+  { "vds_EventType": "suddenspeeddrop", "its_EventType": "14" },
+  { "vds_EventType": "trafficaccident", "its_EventType": "2" },
+  { "vds_EventType": "wrongdirection", "its_EventType": "30" }
+]

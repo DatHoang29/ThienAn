@@ -1,0 +1,15 @@
+{
+  "// [NATS]": "Section Nats do TransportManager (Services.Shared.Runtime) đọc, cùng lược đồ với DataTransporter.json của WebAPI. Url RỖNG thì không kết nối: dịch vụ vẫn chạy và ghi DB, chỉ không phát bản tin.",
+  "// [Subject]": "KHÔNG khai ở đây: subject là hằng trong ITS.FA.Core/Messaging/FaSubjects.cs (ta.its.data.incident, ta.its.data.fa, ta.its.heartbeat.fa).",
+  "// [Creds]": "nats.creds được copy từ TAC_WebAPI/Configuration lúc build, không nhân bản vào source.",
+
+  "Nats": {
+    "Url": "tls://tacorp.vn:12211",
+    "InsecureSkipVerify": true,
+    "ClientName": "ITS_FA_SERVICE",
+    "AuthMode": "JWT",
+    "JwtFile": "Configuration/nats.creds",
+    "UserSeedFile": "Configuration/nats.creds",
+    "RetryIntervalSeconds": 5
+  }
+}

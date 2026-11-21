@@ -1,0 +1,15 @@
+{
+  "lz.login.label.capLockOn": "Caps Lock đang bật",
+  "lz.login.label.pleaseInput": "Vui lòng nhập {input}",
+  "lz.login.label.account": "Tài khoản",
+  "lz.login.label.password": "Mật khẩu",
+  "lz.login.label.otp": "Mã OTP",
+  "lz.login.button.signIn": "Đăng Nhập",
+  "lz.login.label.signInByAccount": "Đăng nhập bằng tài khoản",
+  "lz.login.validation.required": "{PropertyName} là bắt buộc.",
+  "lz.login.exception.noPermission": "Rất tiếc, bạn không có quyền đăng nhập.",
+  "lz.login.label.signInText": "Chào mừng trở lại!",
+  "lz.login.exception.errorOccurred": "Đã xảy ra lỗi. Vui lòng thử lại!",
+  "lz.login.label.forgotPassword": "Quên mật khẩu?",
+  "lz.login.label.systemName": "HỆ THỐNG GIÁM SÁT GIAO THÔNG"
+}

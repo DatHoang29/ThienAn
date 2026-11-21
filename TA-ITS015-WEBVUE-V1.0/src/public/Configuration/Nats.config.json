@@ -1,0 +1,11 @@
+{
+  "Nats": {
+    "Url": "wss://115.78.1.139:12212",
+    "ClientName": "ITS_FE_WEB_CLIENT",
+    "AuthMode": "JWT",
+    "CredsFile": "Configuration/nats.creds",
+    "AutoSubscribe": true,
+    "MaxReconnectAttempts": -1,
+    "ReconnectTimeWaitMs": 1000
+  }
+}

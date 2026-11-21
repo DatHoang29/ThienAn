@@ -1,0 +1,24 @@
+{
+  "Nats": {
+    "Enabled": true,
+    "Url": "wss://115.78.1.139:12212",
+    "InsecureSkipVerify": true,
+    "ClientName": "ITS_SYNC_WP_WORKER",
+    "RetryIntervalSeconds": 5,
+    "AuthMode": "JWT",
+    "CredsFile": "Configuration/camera.creds",
+    "HeartbeatEnabled": true,
+    "HeartbeatSubject": "ta.its.heartbeat.wpsync",
+    "HeartbeatIntervalSeconds": 30,
+    "AllowedTables": [],
+    "Subscriptions": [
+      {
+        "Subject": "ta.its.data.incident",
+        "Table": "TmsIncident",
+        "Mode": "pubsub",
+        "QueueGroup": "its-sync-wp",
+        "DebounceSeconds": 2
+      }
+    ]
+  }
+}

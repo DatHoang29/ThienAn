@@ -1,0 +1,18 @@
+{
+  "lz.button.trafficLight.red": "Đèn đỏ",
+  "lz.button.trafficLight.green": "Đèn xanh",
+  "lz.label.trafficLight.signalLight": "Đèn tín hiệu giao thông",
+  "lz.label.trafficLight.currentColor": "Màu đèn hiện tại",
+  "lz.label.trafficLight.red": "Đỏ",
+  "lz.label.trafficLight.green": "Xanh",
+  "lz.label.trafficLight.unknown": "Chưa xác định",
+  "lz.label.trafficLight.simulateHint": "Chế độ giả lập: lệnh chưa gửi xuống thiết bị thật, chỉ cập nhật trạng thái trên bản đồ.",
+  "lz.message.trafficLight.confirmCommand": "Xác nhận thực hiện \"{command}\" cho {name}?",
+  "lz.message.trafficLight.commandSuccess": "Đã thực hiện: {command}",
+  "lz.message.trafficLight.commandFailed": "Thực hiện thất bại: {command}",
+  "lz.label.trafficLight.equipmentList": "Danh sách đèn tín hiệu",
+  "lz.label.trafficLight.clickToToggle": "Bấm vào đèn để chọn / bỏ chọn; lệnh áp dụng cho các đèn đang chọn.",
+  "lz.label.trafficLight.otherLocation": "Khác",
+  "lz.message.trafficLight.multiTarget": "{count} đèn đã chọn",
+  "lz.message.trafficLight.commandPartial": "Đã thực hiện \"{command}\" cho {success}/{total} đèn. Thất bại: {names}"
+}

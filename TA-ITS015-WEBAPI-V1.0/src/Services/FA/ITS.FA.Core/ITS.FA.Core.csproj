@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ITS.FA.Core</RootNamespace>
+    <AssemblyName>ITS.FA.Core</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    ITS.FA.Core: Tầng lõi dịch vụ giám sát hệ thống báo cháy (Fire Alarm) qua Modbus TCP.
+    Chuyển từ Integrated2.0 (Its.FireAlarm.Bussiness) của ITS008, GIỮ NGUYÊN luồng và bảng FA:
+    - Integration : đọc tủ báo cháy bằng Modbus TCP (thanh ghi tổng + từng điểm).
+    - Persistence : thay 7 stored FaObjectData_* bằng SqlSugar trên các entity Fa*.
+    - Processing  : vòng quét phát hiện báo cháy / cửa, tạo sự cố, phát event.
+    - Messaging   : phát sự cố, trạng thái điểm/cửa và heartbeat qua NATS (TransportManager).
+    Author: ChuongLP
+    Date: 29/10/2026
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Modules\FA\Module.FA.Core\Module.FA.Core.csproj" />
+    <ProjectReference Include="..\..\..\Modules\TMS\Modules.TMS.Core\Modules.TMS.Core.csproj" />
+    <!-- SysConfigData/SysConfigType: tra tên tuyến, hướng để đặt tên sự cố như VDS. -->
+    <ProjectReference Include="..\..\..\Modules\CfgSystem\Modules.CfgSystem.Core\Modules.CfgSystem.Core.csproj" />
+    <ProjectReference Include="..\..\Shared\Services.Shared.Runtime\Services.Shared.Runtime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EntityTenant nằm trong DLL biên dịch sẵn; thiếu reference thì .ID/.IsDelete báo CS0012. -->
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Cùng gói với Modules.Integration.TrafficLight.Modbus. -->
+    <PackageReference Include="NModbus" Version="3.0.83" />
+  </ItemGroup>
+
+</Project>

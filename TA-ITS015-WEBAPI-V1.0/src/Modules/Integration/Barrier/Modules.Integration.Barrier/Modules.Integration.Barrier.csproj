@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    Tầng điều phối tích hợp Barrier (IntgBarrierManager): chọn driver theo hãng (Vendor).
+    Dùng chung bởi TAC_WebAPI và ITS.Barrier.Core -> ITS.Barrier.Worker / ITS.Barrier.Wpf.
+
+    QUAN TRỌNG — KHÔNG THÊM Shared.Reference / Shared.Utility VÀO ĐÂY (kéo Furion vào dịch vụ).
+
+    Khác VMS: driver được THAM CHIẾU TRỰC TIẾP thay vì nạp DLL bằng reflection,
+    vì driver Barrier là code managed thuần (S7netplus), không có SDK native cần cô lập.
+    Thêm hãng mới = thêm 1 ProjectReference + 1 dòng đăng ký trong IntgBarrierManager.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\Modules.Integration.Barrier.Base\Modules.Integration.Barrier.Base.csproj" />
+    <ProjectReference Include="..\Modules.Integration.Barrier.Siemens\Modules.Integration.Barrier.Siemens.csproj" />
+  </ItemGroup>
+
+</Project>

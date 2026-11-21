@@ -1,0 +1,17 @@
+{
+  "// [NATS]": "Section Nats do TransportManager (Services.Shared.Runtime) đọc — cùng lược đồ với DataTransporter.json của WebAPI. Url RỖNG ⇒ không kết nối, service vẫn chạy bình thường, chỉ mất khả năng nhận cấu hình từ xa và publish dữ liệu.",
+  "// [Subject]": "KHÔNG khai ở đây: NATS core pub/sub không cần đăng ký subject trước khi publish. Subject là hằng trong Services.Vds/Shared/Messaging/VdsSubjects.cs.",
+  "// [Subject] ta.its.refresh": "INBOUND — nhận MÃ nạp lại danh mục/cấu hình (không nhận giá trị tham số). Sửa cấu hình trên web (SysOpConfig/SysConfig) rồi bắn mã này, service tự đọc lại từ DB — xem VdsRefreshSubscriber.PartsOf. Đường cũ 'ta.its.vds.config.param' (đẩy trực tiếp giá trị tham số) ĐÃ BỎ 04/09/2026.",
+
+  "Nats": {
+    "Url": "nats://115.78.1.139:12218",
+    "ClientName": "VDS-WORKER",
+    "AuthMode": "JWT",
+    "Token": "",
+    "Username": "",
+    "Password": "",
+    "JwtFile": "Configuration/camera.creds",
+    "UserSeedFile": "Configuration/camera.creds",
+    "RetryIntervalSeconds": 5
+  }
+}

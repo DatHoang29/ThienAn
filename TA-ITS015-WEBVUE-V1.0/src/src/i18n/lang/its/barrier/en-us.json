@@ -1,0 +1,21 @@
+{
+  "lz.button.barrier.closeRed": "Close barrier + signal light (red)",
+  "lz.button.barrier.red": "Barrier signal light (red)",
+  "lz.button.barrier.openGreen": "Open barrier + signal light (green)",
+  "lz.button.barrier.green": "Barrier signal light (green)",
+  "lz.button.barrier.open": "Open barrier",
+  "lz.button.barrier.close": "Close barrier",
+  "lz.label.barrier.barrier": "Barrier",
+  "lz.label.barrier.signalLight": "Signal light",
+  "lz.label.barrier.integratedLight": "Built-in barrier light",
+  "lz.label.barrier.armOpen": "Open",
+  "lz.label.barrier.armClosed": "Closed",
+  "lz.label.barrier.lightGreen": "Green",
+  "lz.label.barrier.lightRed": "Red",
+  "lz.label.barrier.unknown": "Unknown",
+  "lz.label.barrier.notAvailable": "No barrier",
+  "lz.label.barrier.simulateHint": "Simulation mode: commands are not sent to real devices, only the map status is updated.",
+  "lz.message.barrier.confirmCommand": "Confirm \"{command}\" for {name}?",
+  "lz.message.barrier.commandSuccess": "Done: {command}",
+  "lz.message.barrier.commandFailed": "Failed: {command}"
+}

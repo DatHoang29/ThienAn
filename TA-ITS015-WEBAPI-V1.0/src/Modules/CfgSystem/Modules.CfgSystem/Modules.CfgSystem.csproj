@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Controllers\ConfigData\Dto\**" />
+    <Compile Remove="Controllers\ConfigType\Dto\**" />
+    <Compile Remove="Controllers\OpConfig\Dto\**" />
+    <Compile Remove="Controllers\Share\Dto\**" />
+    <Compile Remove="Controllers\Terminology\Dto\**" />
+    <Compile Remove="Core\**" />
+    <EmbeddedResource Remove="Controllers\ConfigData\Dto\**" />
+    <EmbeddedResource Remove="Controllers\ConfigType\Dto\**" />
+    <EmbeddedResource Remove="Controllers\OpConfig\Dto\**" />
+    <EmbeddedResource Remove="Controllers\Share\Dto\**" />
+    <EmbeddedResource Remove="Controllers\Terminology\Dto\**" />
+    <EmbeddedResource Remove="Core\**" />
+    <None Remove="Controllers\ConfigData\Dto\**" />
+    <None Remove="Controllers\ConfigType\Dto\**" />
+    <None Remove="Controllers\OpConfig\Dto\**" />
+    <None Remove="Controllers\Share\Dto\**" />
+    <None Remove="Controllers\Terminology\Dto\**" />
+    <None Remove="Core\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Utility\Shared.Utility.csproj" />
+    <ProjectReference Include="..\Modules.CfgSystem.Core\Modules.CfgSystem.Core.csproj" />
+    <ProjectReference Include="..\..\DataTransporter\Modules.DataTransporter.ITS\Modules.DataTransporter.ITS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

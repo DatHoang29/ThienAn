@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Controllers\IVMSChanzoneAdapter.cs" />
+    <Compile Remove="Controllers\VMSChainzoneController.cs" />
+    <Compile Remove="Controllers\VMSChainzonesAdapter.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="czVMSII">
+      <HintPath>..\..\..\..\..\..\ITS\source\HNV\Integrated2.0\Its.VMS.Control.Controller\DLLs\czVMSII.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Infrastructure\Services\" />
+  </ItemGroup>
+
+</Project>

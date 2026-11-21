@@ -1,0 +1,25 @@
+{
+  "Logging": {
+    "// [Thư mục gốc]": "Thay cho ${basedir} trong PathTemplate. ${basedir} = thư mục chứa file thực thi. Pin cứng được, ví dụ: C:\\\\TAC\\\\ITS015\\\\Logs\\\\VdsWorker",
+    "BaseDirectory": "${basedir}",
+
+    "// [Mặc định]": "Áp cho mọi loại không khai trong Kinds. Placeholder: ${basedir} ${shortdate} ${kind} ${year} ${month} ${day}",
+    "Defaults": {
+      "PathTemplate": "LogFile/${shortdate}/${kind}.log",
+      "RollingSizeKB": 10240,
+      "KeepFileCount": 30,
+      "FileShareRead": true
+    },
+
+    "// [Loại log]": "Key phải khớp const trong LogKind (Main/Error/Config/Data/Device/Nats). Log gọi qua ILogger<T> có category là TÊN TYPE nên không khớp loại nào ⇒ rơi về file Main; mọi log từ mức Error trở lên được nhân bản thêm vào file Error.",
+    "// [Ý nghĩa từng loại ở VDS]": "Main = vòng đời service + mọi ILogger<T>; Config = nạp cấu hình và danh mục; Data = dữ liệu thô/thống kê/đếm/hành trình/trạng thái vùng; Device = camera, media, kết nối SSE; Nats = phát và nhận bản tin.",
+    "Kinds": {
+      "Main": { "PathTemplate": "LogFile/${shortdate}/VdsMainLog.txt" },
+      "Error": { "PathTemplate": "LogFile/${shortdate}/VdsError.txt", "KeepFileCount": 90 },
+      "Config": { "PathTemplate": "LogFile/${shortdate}/VdsConfigLog.txt" },
+      "Data": { "PathTemplate": "LogFile/${shortdate}/VdsDataLog.txt" },
+      "Device": { "PathTemplate": "LogFile/${shortdate}/VdsDeviceLog.txt" },
+      "Nats": { "PathTemplate": "LogFile/${shortdate}/VdsNatsLog.txt" }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="Controllers\DoanhThu\DoanhThuTheoGio\NewFolder\**" />
+	  <EmbeddedResource Remove="Controllers\DoanhThu\DoanhThuTheoGio\NewFolder\**" />
+	  <None Remove="Controllers\DoanhThu\DoanhThuTheoGio\NewFolder\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- KHÔNG tham chiếu Modules.Mail: việc gửi báo cáo qua email đã chuyển hẳn sang phân hệ
+		     Mail (job rpt-email-scan). Chiều tham chiếu bây giờ là Mail -> Module.TOLL.Core,
+		     thêm ref ngược lại ở đây sẽ thành vòng lặp. -->
+		<ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+		<ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+		<ProjectReference Include="..\..\Report\Modules.Report.Core\Modules.Report.Core.csproj" />
+		<ProjectReference Include="..\Module.TOLL.Core\Module.TOLL.Core.csproj" />
+		<ProjectReference Include="..\Module.Toll\Module.TOLL.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="Modules.Report.Base">
+			<HintPath>..\..\..\DLLs\Modules.Report.Base.dll</HintPath>
+		</Reference>
+		<Reference Include="Modules.System">
+			<HintPath>..\..\..\DLLs\Modules.System.dll</HintPath>
+		</Reference>
+		<Reference Include="Shared.Core">
+			<HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+		</Reference>
+		<Reference Include="Shared.Core.Security">
+		  <HintPath>..\..\..\DLLs\Shared.Core.Security.dll</HintPath>
+		</Reference>
+		<Reference Include="Shared.Infrastructure">
+		  <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Controllers\LuuLuong\LuuLuongTheoLoTrinh\" />
+	  <Folder Include="Controllers\LuuLuong\LuuLuongTheoNam\" />
+	  <Folder Include="Controllers\LuuLuong\LuuLuongTheoCa\" />
+	  <Folder Include="Controllers\LuuLuong\LuuLuongTheoQuy\" />
+	  <Folder Include="Controllers\LuuLuong\LuuLuongTheoThang\" />
+	</ItemGroup>
+
+</Project>

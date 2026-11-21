@@ -1,0 +1,45 @@
+@import './index.scss';
+
+/* Page width less than 768px
+------------------------------- */
+@media screen and (max-width: $sm) {
+	.error {
+		.error-flex {
+			flex-direction: column-reverse !important;
+			height: auto !important;
+			width: 100% !important;
+		}
+		.right,
+		.left {
+			flex: unset !important;
+			display: flex !important;
+		}
+		.left-item {
+			margin: auto !important;
+		}
+		.right img {
+			max-width: 450px !important;
+			@extend .left-item;
+		}
+	}
+}
+
+/* Page width greater than 768px and less than 992px
+------------------------------- */
+@media screen and (min-width: $sm) and (max-width: $md) {
+	.error {
+		.error-flex {
+			padding-left: 30px !important;
+		}
+	}
+}
+
+/* Page width less than 1200px
+------------------------------- */
+@media screen and (max-width: $lg) {
+	.error {
+		.error-flex {
+			padding: 0 30px;
+		}
+	}
+}

@@ -1,0 +1,110 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Controllers\**" />
+    <Content Remove="Controllers\**" />
+    <EmbeddedResource Remove="Controllers\**" />
+    <None Remove="Controllers\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Remove="Configuration\Database _Sharedata.json" />
+    <Content Remove="Configuration\Database_Vds.json" />
+    <Content Remove="Configuration\Database_QuestHa.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Modules\CCTV\Module.CCTV\Module.CCTV.csproj" />
+    <ProjectReference Include="..\Modules\CfgSystem\Modules.CfgSystem\Modules.CfgSystem.csproj" />
+    <ProjectReference Include="..\Modules\DataTransporter\Modules.DataTransporter.ITS\Modules.DataTransporter.ITS.csproj" />
+    <!-- FA, PA: chỉ chứa entity. Khai ở đây để Furion quét được [SugarTable] khi bật EnableInitTable (không cần đăng ký trong Startup). -->
+    <ProjectReference Include="..\Modules\FA\Module.FA.Core\Module.FA.Core.csproj" />
+    <ProjectReference Include="..\Modules\PA\Module.PA.Core\Module.PA.Core.csproj" />
+    <ProjectReference Include="..\Modules\FMS\Modules.FMS.Report\Modules.FMS.Report.csproj" />
+    <ProjectReference Include="..\Modules\FMS\Modules.FMS\Modules.FMS.csproj" />
+    <ProjectReference Include="..\Modules\Integration\Modules.Integration.VMS\Modules.Integration.VMS.csproj" />
+    <!-- Trước đây vào được nhờ đi ké Module.TOLL.Report. Đã bỏ ref đó khi dọn đường gửi mail cũ,
+         nên phân hệ Mail phải khai trực tiếp ở đây — Startup có đăng ký AddMailModule và job quét. -->
+    <ProjectReference Include="..\Modules\Mail\Module.Mail\Modules.Mail.csproj" />
+    <!-- Phân hệ Media: ITS-Media (nguồn ảnh) + WP-MediaPublic (cổng ảnh Web Portal) - 08/10/2026 -->
+    <ProjectReference Include="..\Modules\Media\Modules.Media\Modules.Media.csproj" />
+    <!-- Phân hệ Notification — Startup sử dụng AddNotificationModule, NotiConfigService, NotiRetentionService, NotiConst -->
+    <ProjectReference Include="..\Modules\Notification\Module.Notification\Module.Notification.csproj" />
+    <ProjectReference Include="..\Modules\Report\Modules.Report.Core\Modules.Report.Core.csproj" />
+    <ProjectReference Include="..\Modules\Report\Modules.Report\Modules.Report.csproj" />
+    <ProjectReference Include="..\Modules\ShareData\Module.ShareData.Core\Module.ShareData.Core.csproj" />
+    <ProjectReference Include="..\Modules\ShareData\Module.ShareData\Module.ShareData.csproj" />
+    <ProjectReference Include="..\Modules\TMS\Modules.TMS.Report\Modules.TMS.Report.csproj" />
+    <ProjectReference Include="..\Modules\TMS\Modules.TMS\Modules.TMS.csproj" />
+    <ProjectReference Include="..\Modules\TOLL\Module.TOLL.Core\Module.TOLL.Core.csproj" />
+    <ProjectReference Include="..\Modules\TOLL\Module.TOLL.Report\Module.TOLL.Report.csproj" />
+    <ProjectReference Include="..\Modules\TOLL\Module.Toll\Module.TOLL.csproj" />
+    <ProjectReference Include="..\Modules\VideoWall\Module.VideoWall\Module.VideoWall.csproj" />
+    <ProjectReference Include="..\Modules\VMS\Modules.VMS\Modules.VMS.csproj" />
+    <ProjectReference Include="..\Modules\VMS\Modules.VMS.Report\Modules.VMS.Report.csproj" />
+    <ProjectReference Include="..\Modules\VDS\Modules.VDS\Modules.VDS.csproj" />
+    <ProjectReference Include="..\Modules\WP\Modules.WP.Report\Modules.WP.Report.csproj" />
+    <ProjectReference Include="..\Modules\WP\Modules.WP\Modules.WP.csproj" />
+    <ProjectReference Include="..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\Shared\Shared.Reference\Shared.Reference.csproj" />
+    <ProjectReference Include="..\Shared\Shared.Utility\Shared.Utility.csproj" />
+  </ItemGroup>
+  <PropertyGroup>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <UserSecretsId>3c80f767-0b3e-489d-a427-011b8b63f79c</UserSecretsId>
+    <StartupObject>TAC_WebAPI.Program</StartupObject>
+    <PublishAot>False</PublishAot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="FastReport">
+      <HintPath>..\DLLs\FastReport.dll</HintPath>
+    </Reference>
+    <Reference Include="FastReport.Compat">
+      <HintPath>..\DLLs\FastReport.Compat.dll</HintPath>
+    </Reference>
+    <Reference Include="FastReport.DataVisualization">
+      <HintPath>..\DLLs\FastReport.DataVisualization.dll</HintPath>
+    </Reference>
+    <Reference Include="FastReport.Web">
+      <HintPath>..\DLLs\FastReport.Web.dll</HintPath>
+    </Reference>
+    <Reference Include="Modules.Report.Base">
+      <HintPath>..\DLLs\Modules.Report.Base.dll</HintPath>
+    </Reference>
+    <Reference Include="Modules.Report.Carbone">
+      <HintPath>..\DLLs\Modules.Report.Carbone.dll</HintPath>
+    </Reference>
+    <Reference Include="Modules.Report.FastReportLicense">
+      <HintPath>..\DLLs\Modules.Report.FastReportLicense.dll</HintPath>
+    </Reference>
+    <Reference Include="Modules.System">
+      <HintPath>..\DLLs\Modules.System.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Core">
+      <HintPath>..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Core.Security">
+      <HintPath>..\DLLs\Shared.Core.Security.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Configuration\ca.pem">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Configuration\nats.creds">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="TAKey.key">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="TAKeyData.key">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ProjectExtensions><VisualStudio><UserProperties properties_4launchsettings_1json__JsonSchema="" /></VisualStudio></ProjectExtensions>
+	
+</Project>

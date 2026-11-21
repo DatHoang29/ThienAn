@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Tầng ứng dụng dùng Abstractions/Models (Core) và Persistence (Infrastructure). -->
+	  <ProjectReference Include="..\..\..\Modules\TMS\Modules.TMS.Core\Modules.TMS.Core.csproj" />
+	  <ProjectReference Include="..\..\..\Modules\VMS\Modules.VMS.Core\Modules.VMS.Core.csproj" />
+	  <ProjectReference Include="..\..\..\Modules\VDS\Modules.VDS.Core\Modules.VDS.Core.csproj" />
+	  <ProjectReference Include="..\ITS.Sync.Core\ITS.Sync.Core.csproj" />
+    <ProjectReference Include="..\ITS.Sync.Infrastructure\ITS.Sync.Infrastructure.csproj" />
+    <!-- Entity TollMasterData/TollStation/TollRoad/TollPriceList/TollPriceListDetail : EntityTenant -->
+	  <ProjectReference Include="..\..\..\Modules\TOLL\Module.TOLL.Core\Module.TOLL.Core.csproj" />
+    <!-- Entity SysConfigType/SysConfigData/SysOpConfig : EntityTenant -->
+	  <ProjectReference Include="..\..\..\Modules\CfgSystem\Modules.CfgSystem.Core\Modules.CfgSystem.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EntityTenant (ID, IsDelete, audit...) nằm trong Shared.Core.dll -->
+    <Reference Include="Modules.System">
+      <HintPath>..\..\..\DLLs\Modules.System.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.216" />
+  </ItemGroup>
+
+</Project>

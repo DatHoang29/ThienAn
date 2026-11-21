@@ -1,0 +1,14 @@
+name: Test runner
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows
+    steps:
+      - name: Hello
+        shell: powershell
+        run: |
+          Write-Output "Runner OK tren may: $env:COMPUTERNAME"
+          Get-Date

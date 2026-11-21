@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ITS.PA.Worker</RootNamespace>
+    <AssemblyName>ITS.PA.Worker</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    ITS.PA.Worker: host chạy nền cho dịch vụ điều khiển hệ thống phát thanh PA. Chạy console hoặc Windows Service.
+    Thay Its.PA.Control.Controller (ITS008, vốn là thư viện được web gọi trực tiếp).
+    Nhận lệnh qua NATS (ta.its.control.pa), phát heartbeat ta.its.heartbeat.pa.
+    Author: ChuongLP
+    Date: 31/10/2026
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\ITS.PA.Core\ITS.PA.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Configuration\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <!-- File creds NATS: không nhân bản vào source, chỉ copy từ bản của TAC_WebAPI lúc build. -->
+    <None Include="..\..\..\TAC_WebAPI\Configuration\nats.creds" Link="Configuration\nats.creds"
+          Condition="Exists('..\..\..\TAC_WebAPI\Configuration\nats.creds')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

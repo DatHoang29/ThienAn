@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ITS.Barrier.Wpf</RootNamespace>
+    <AssemblyName>ITS.Barrier.Wpf</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    ITS.Barrier.Wpf: Công cụ kiểm thử trực tiếp và theo dõi điều khiển Barrier (Siemens S7-1200 PLC).
+    - Kiểm thử độc lập trực tiếp ra thiết bị thực địa (Ping, Test S7 Connection, Kích Mở/Đóng, Đọc trạng thái).
+    - Hỗ trợ lưu danh sách thiết bị kiểm thử vào file BarrierTestTargets.json ngay cạnh file exe.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Modules\Integration\Barrier\Modules.Integration.Barrier.Base\Modules.Integration.Barrier.Base.csproj" />
+    <ProjectReference Include="..\..\..\Modules\Integration\Barrier\Modules.Integration.Barrier\Modules.Integration.Barrier.csproj" />
+    <ProjectReference Include="..\..\..\Modules\Integration\Barrier\Modules.Integration.Barrier.Siemens\Modules.Integration.Barrier.Siemens.csproj" />
+    <ProjectReference Include="..\ITS.Barrier.Core\ITS.Barrier.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="BarrierTestTargets.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

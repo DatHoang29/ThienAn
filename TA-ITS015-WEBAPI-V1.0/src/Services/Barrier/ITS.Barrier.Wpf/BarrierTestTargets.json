@@ -1,0 +1,32 @@
+[
+  {
+    "Code": "BR-01",
+    "Name": "Barrier Cửa Hầm Phía Bắc (Km1+644)",
+    "IpAddress": "192.168.0.6",
+    "Port": 102,
+    "Rack": 0,
+    "Slot": 0,
+    "OpenBit": "DB1.DBX0.1",
+    "CloseBit": "DB1.DBX0.2",
+    "StatusBit": "DB1.DBX0.4",
+    "LoopBarrierBit": "DB1.DBX1.0",
+    "TimeoutMs": 5000,
+    "PingBeforeConnect": true,
+    "PulseResetMs": 0
+  },
+  {
+    "Code": "BR-02",
+    "Name": "Barrier Cửa Hầm Phía Nam (Km7+984)",
+    "IpAddress": "192.168.0.7",
+    "Port": 102,
+    "Rack": 0,
+    "Slot": 0,
+    "OpenBit": "DB1.DBX0.1",
+    "CloseBit": "DB1.DBX0.2",
+    "StatusBit": "DB1.DBX0.4",
+    "LoopBarrierBit": "DB1.DBX1.0",
+    "TimeoutMs": 5000,
+    "PingBeforeConnect": true,
+    "PulseResetMs": 0
+  }
+]

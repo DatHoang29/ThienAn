@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    Tầng điều phối tích hợp thiết bị VMS (IntgVmsManager): chọn driver theo hãng, nạp DLL,
+    xử lý khác biệt giữa các hãng (Chainzone đăng ký/gửi qua cả Sdk lẫn Api, khác biệt khóa Metadata,
+    ánh xạ mã thông số).
+
+    QUAN TRỌNG — KHÔNG THÊM LẠI Shared.Reference / Shared.Utility VÀO ĐÂY.
+    Project này được dùng chung bởi:
+      - TAC_WebAPI  (có runtime Furion)
+      - ITS.VMS.Core -> ITS.VMS.Worker / ITS.VMS.Wpf  (KHÔNG có Furion)
+    Thêm lại 2 tham chiếu trên sẽ kéo Furion + SqlSugar vào dịch vụ và làm hỏng đúng mục tiêu
+    dùng chung tầng Integration. Cần helper gì thì bổ sung vào Modules.Integration.VMS.Base
+    (project đó chỉ tham chiếu Shared.DTO) — xem IntgVmsNetHelper làm mẫu.
+  -->
+
+  <ItemGroup>
+    <Compile Remove="Infrastructure\Services\IntegrationVms.cs" />
+    <Compile Remove="Infrastructure\Services\IntgVmsParam.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VMS\Modules.Integration.VMS.Base\Modules.Integration.VMS.Base.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,205 @@
+<Window x:Class="ITS.Barrier.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:ITS.Barrier.Wpf.ViewModels"
+        mc:Ignorable="d"
+        Title="ITS BARRIER CONTROL - CÔNG CỤ KIỂM THỬ THIẾT BỊ VÀ GIẢ LẬP (.NET 10)"
+        Height="820" Width="1180" WindowStartupLocation="CenterScreen">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="3*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="2*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tiêu đề Header & Thanh Toggle Giả lập + NATS -->
+        <Border Grid.Row="0" Background="#1E293B" CornerRadius="6" Padding="14,10" Margin="0,0,0,12">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="🚦 ITS BARRIER TEST TOOL" Foreground="White" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <TextBlock Text=" - Hỗ trợ PLC Siemens S7-1200 (Kích xung DB1.DBX0.1 / DB1.DBX0.2)" Foreground="#94A3B8" FontSize="13" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Cụm bật tắt chế độ Giả lập (Simulate) -->
+                <Border DockPanel.Dock="Right" Background="#0F172A" CornerRadius="4" Padding="10,6" Margin="10,0,0,0">
+                    <CheckBox IsChecked="{Binding Simulate}" VerticalAlignment="Center" Cursor="Hand">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚡ CHẾ ĐỘ GIẢ LẬP (SIMULATE)" Foreground="#F59E0B" FontWeight="Bold" FontSize="13"/>
+                            <TextBlock Text="(Không cần phần cứng PLC)" Foreground="#94A3B8" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </CheckBox>
+                </Border>
+            </DockPanel>
+        </Border>
+
+        <!-- Nội dung chính: Cột trái (Danh sách + Cấu hình) / Cột phải (Bảng điều khiển & Giả lập) -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Khung danh sách thiết bị -->
+            <GroupBox Grid.Column="0" Header=" Danh sách thiết bị kiểm thử " Margin="0,0,8,0" FontWeight="SemiBold">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                        <Button Content="💾 Lưu cấu hình" Command="{Binding SaveTargetsCommand}" Padding="12,6" Margin="4,0" FontWeight="Normal"/>
+                    </StackPanel>
+
+                    <DataGrid ItemsSource="{Binding Targets}" 
+                              SelectedItem="{Binding SelectedTarget}" 
+                              AutoGenerateColumns="False" 
+                              CanUserAddRows="True" 
+                              CanUserDeleteRows="True" 
+                              FontWeight="Normal" 
+                              RowHeaderWidth="0" 
+                              SelectionMode="Single" 
+                              BorderThickness="1" 
+                              BorderBrush="#CBD5E1">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Mã" Binding="{Binding Code}" Width="65"/>
+                            <DataGridTextColumn Header="Tên thiết bị" Binding="{Binding Name}" Width="160"/>
+                            <DataGridTextColumn Header="Địa chỉ IP" Binding="{Binding IpAddress}" Width="105"/>
+                            <DataGridTextColumn Header="Cổng" Binding="{Binding Port}" Width="45"/>
+                            <DataGridTextColumn Header="Trạng thái cần" Binding="{Binding CurrentStatus}" Width="95"/>
+                            <DataGridCheckBoxColumn Header="Vòng từ" Binding="{Binding HasVehicleOnLoop}" Width="60"/>
+                            <DataGridTextColumn Header="Kết quả gần nhất" Binding="{Binding LastResult}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </GroupBox>
+
+            <!-- Khung thao tác điều khiển & Giả lập -->
+            <GroupBox Grid.Column="1" Header=" Bảng điều khiển thiết bị " Margin="8,0,0,0" FontWeight="SemiBold">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="6">
+                        <TextBlock Text="{Binding SelectedTarget.Name, FallbackValue='(Chưa chọn thiết bị)'}" 
+                                   FontSize="15" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,2"/>
+                        <TextBlock Text="{Binding SelectedTarget.IpAddress, StringFormat='IP: {0}'}" 
+                                   FontSize="13" Foreground="#475569" Margin="0,0,0,8"/>
+
+                        <!-- Hiển thị Trạng thái trực quan của Barrier đang chọn -->
+                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Cần Barie:" FontSize="11" Foreground="#64748B"/>
+                                    <TextBlock Text="{Binding SelectedTarget.CurrentStatus, StringFormat='Trạng thái: {0}'}" FontSize="13" FontWeight="Bold" Foreground="#1E293B"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Vòng từ (Loop):" FontSize="11" Foreground="#64748B"/>
+                                    <TextBlock Text="{Binding SelectedTarget.HasVehicleOnLoop, Converter={x:Null}, StringFormat='Có xe: {0}'}" FontSize="13" FontWeight="Bold" Foreground="#0284C7"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Cụm 1: Kiểm tra kết nối mạng -->
+                        <TextBlock Text="1. Kiểm tra kết nối:" FontWeight="Bold" Margin="0,2,0,4"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="📡 Ping ICMP" Command="{Binding PingCommand}" 
+                                    Margin="0,0,4,0" Padding="0,7" Background="#F1F5F9"/>
+                            <Button Grid.Column="1" Content="🔌 Test S7 (Port 102)" Command="{Binding CheckConnectCommand}" 
+                                    Margin="4,0,0,0" Padding="0,7" Background="#F1F5F9"/>
+                        </Grid>
+
+                        <!-- Cụm 2: Thao tác điều khiển trực tiếp -->
+                        <TextBlock Text="2. Thao tác điều khiển Barie:" FontWeight="Bold" Margin="0,2,0,4"/>
+                        <Grid Margin="0,2,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="🟢 MỞ BARIE" Command="{Binding OpenBarrierCommand}" 
+                                    Margin="0,0,4,0" Padding="0,12" Background="#16A34A" Foreground="White" FontSize="13" FontWeight="Bold"/>
+                            <Button Grid.Column="1" Content="🔴 ĐÓNG BARIE" Command="{Binding CloseBarrierCommand}" 
+                                    Margin="4,0,0,0" Padding="0,12" Background="#DC2626" Foreground="White" FontSize="13" FontWeight="Bold"/>
+                        </Grid>
+
+                        <!-- Cụm 3: Đọc trạng thái & Giả lập vòng từ -->
+                        <TextBlock Text="3. Trạng thái hành trình / Vòng từ:" FontWeight="Bold" Margin="0,2,0,4"/>
+                        <Grid Margin="0,2,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="🔍 Đọc từ PLC" Command="{Binding ReadStatusCommand}" 
+                                    Margin="0,0,4,0" Padding="0,7" Background="#F8FAFC"/>
+                            <Button Grid.Column="1" Content="🚗 Giả lập xe đè Loop" Command="{Binding ToggleVehicleLoopCommand}" 
+                                    Margin="4,0,0,0" Padding="0,7" Background="#E0F2FE" Foreground="#0369A1" FontWeight="SemiBold"/>
+                        </Grid>
+
+                        <!-- Cụm 4: Kiểm thử qua kênh NATS (với Worker) -->
+                        <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBlock Text="4. Kiểm thử qua kênh NATS (với Worker):" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Text="{Binding NatsUrl, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center" Padding="4,2"/>
+                                    <Button Grid.Column="1" Content="{Binding IsNatsConnected, Converter={x:Null}, FallbackValue='Kết nối NATS'}" 
+                                            Command="{Binding ToggleNatsConnectionCommand}" Margin="6,0,0,0" Padding="8,4" Background="#3B82F6" Foreground="White"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="📤 NATS: Mở" Command="{Binding SendNatsCommandCommand}" CommandParameter="open"
+                                            Margin="0,0,3,0" Padding="0,6" Background="#2563EB" Foreground="White" FontWeight="SemiBold"/>
+                                    <Button Grid.Column="1" Content="📥 NATS: Đóng" Command="{Binding SendNatsCommandCommand}" CommandParameter="close"
+                                            Margin="3,0,0,0" Padding="0,6" Background="#1D4ED8" Foreground="White" FontWeight="SemiBold"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </GroupBox>
+        </Grid>
+
+        <!-- Thanh tiêu đề Log & Gói tin -->
+        <DockPanel Grid.Row="2" Margin="0,10,0,4">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Xóa gói tin" Command="{Binding ClearPacketsCommand}" Padding="8,2" FontSize="11" Margin="0,0,6,0"/>
+                <Button Content="Xóa nhật ký" Command="{Binding ClearLogCommand}" Padding="8,2" FontSize="11"/>
+            </StackPanel>
+            <TextBlock Text="Nhật ký điều khiển &amp; Bản tin NATS thời gian thực" FontWeight="Bold" VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <!-- Khung Tab: Nhật ký Log / Bản tin NATS JSON -->
+        <TabControl Grid.Row="3" Background="#0F172A">
+            <TabItem Header=" 📋 Nhật ký Log ">
+                <ListBox ItemsSource="{Binding Logs}" 
+                         Background="#0F172A" 
+                         BorderThickness="0" 
+                         Foreground="#38BDF8" 
+                         FontFamily="Consolas" 
+                         FontSize="12"/>
+            </TabItem>
+            <TabItem Header=" 📨 Bản tin NATS (JSON) ">
+                <ListBox ItemsSource="{Binding Packets}" 
+                         Background="#0F172A" 
+                         BorderThickness="0" 
+                         Foreground="#A7F3D0" 
+                         FontFamily="Consolas" 
+                         FontSize="12"/>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

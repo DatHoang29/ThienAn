@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+    <ProjectReference Include="..\Modules.DataTransporter.SocketCluster\Modules.DataTransporter.SocketCluster.csproj" />
+    <ProjectReference Include="..\Modules.DataTransporter.Natsio\Modules.DataTransporter.Natsio.csproj" />
+  </ItemGroup>
+
+</Project>

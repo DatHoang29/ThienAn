@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Modules.Integration.TrafficLight.Base\Modules.Integration.TrafficLight.Base.csproj" />
+    <ProjectReference Include="..\Modules.Integration.TrafficLight.Siemens\Modules.Integration.TrafficLight.Siemens.csproj" />
+    <ProjectReference Include="..\Modules.Integration.TrafficLight.Modbus\Modules.Integration.TrafficLight.Modbus.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

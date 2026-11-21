@@ -1,0 +1,176 @@
+﻿<Window x:Class="Module.VideoWall.WPF.Views.SourceManagementDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModels="clr-namespace:Module.VideoWall.WPF.ViewModels"
+        mc:Ignorable="d"
+        Title="Quản lý Nguồn Tín Hiệu &amp; Luồng IP Stream"
+        Width="920"
+        Height="620"
+        MinWidth="800"
+        MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        d:DataContext="{d:DesignInstance viewModels:SourceManagementViewModel}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Margin="0,0,0,12" Padding="12,8" Background="#F1F5F9" CornerRadius="6" BorderBrush="#CBD5E1" BorderThickness="1">
+            <StackPanel>
+                <TextBlock Text="🌐 Quản lý Nguồn Camera IP Stream (RTSP / ONVIF) &amp; Tín hiệu Cục bộ"
+                           FontSize="14" FontWeight="Bold" Foreground="#1E293B" />
+                <TextBlock Text="Cấu hình nguồn luồng IP stream được lưu trữ cục bộ theo thiết bị điều khiển. Các nguồn này tự động gộp với danh sách kênh HDMI vật lý từ khảo sát phần cứng."
+                           FontSize="11" Foreground="#64748B" Margin="0,3,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content (2 Columns: Left = Table, Right = Form) -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.2*" MinWidth="360" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" MinWidth="340" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Table of Sources -->
+            <GroupBox Grid.Column="0" Header="Danh sách Nguồn hiện có">
+                <Grid Margin="0,4,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <DataGrid ItemsSource="{Binding Sources}"
+                              SelectedItem="{Binding SelectedSource}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              GridLinesVisibility="Horizontal"
+                              RowHeight="26"
+                              FontSize="11">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Phân loại" Binding="{Binding DisplayName}" Width="*" />
+                            <DataGridTextColumn Header="Mã" Binding="{Binding Code}" Width="70" />
+                            <DataGridTextColumn Header="Giao thức" Binding="{Binding SignalType}" Width="70" />
+                            <DataGridTemplateColumn Header="Thao tác" Width="60">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Xoá"
+                                                Height="20"
+                                                Padding="4,0"
+                                                FontSize="10"
+                                                Command="{Binding DataContext.DeleteSourceCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                ToolTip="Xoá nguồn IP này" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Grid.Row="1" Margin="4,4,0,0" FontSize="11" Foreground="#64748B"
+                               Text="{Binding Sources.Count, StringFormat='Tổng số nguồn: {0}'}" />
+                </Grid>
+            </GroupBox>
+
+            <!-- Right: Edit / Add Form -->
+            <GroupBox Grid.Column="2" Header="Thêm mới / Cập nhật Nguồn IP Stream">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="8,8,8,8">
+                        <!-- Code -->
+                        <TextBlock Text="Mã nguồn (bắt buộc):" FontSize="11" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,2" />
+                        <TextBox Text="{Binding FormCode, UpdateSourceTrigger=PropertyChanged}" Height="24" Padding="4,2" Margin="0,0,0,8" ToolTip="Ví dụ: CAM_01, RTSP_01" />
+
+                        <!-- Name -->
+                        <TextBlock Text="Tên nguồn hiển thị (bắt buộc):" FontSize="11" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,2" />
+                        <TextBox Text="{Binding FormName, UpdateSourceTrigger=PropertyChanged}" Height="24" Padding="4,2" Margin="0,0,0,8" ToolTip="Ví dụ: Camera Km10 Hướng Lạng Sơn" />
+
+                        <!-- SignalType & AspectRatio -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Giao thức:" FontSize="11" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,2" />
+                                <ComboBox ItemsSource="{x:Static viewModels:SourceManagementViewModel.AvailableSignalTypes}"
+                                          SelectedItem="{Binding FormSignalType}"
+                                          Height="24" Padding="4,2" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Tỉ lệ khung hình:" FontSize="11" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,2" />
+                                <ComboBox ItemsSource="{x:Static viewModels:SourceManagementViewModel.AvailableAspectRatios}"
+                                          SelectedItem="{Binding FormAspectRatio}"
+                                          Height="24" Padding="4,2" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- URL (max 256 chars) -->
+                        <TextBlock Text="Địa chỉ URL luồng (RTSP / ONVIF / HTTP Stream, tối đa 256 ký tự):" FontSize="11" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,2" />
+                        <TextBox Text="{Binding FormUrl, UpdateSourceTrigger=PropertyChanged}"
+                                 MaxLength="256"
+                                 Height="50"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="False"
+                                 Padding="4,2"
+                                 Margin="0,0,0,4"
+                                 ToolTip="Ví dụ: rtsp://admin:12345@172.25.0.100:554/Streaming/Channels/101" />
+                        <TextBlock Text="{Binding FormUrl.Length, StringFormat='Độ dài: {0}/256 ký tự'}"
+                                   FontSize="10" Foreground="#64748B" HorizontalAlignment="Right" Margin="0,0,0,8" />
+
+                        <!-- Remark -->
+                        <TextBlock Text="Ghi chú (tuỳ chọn):" FontSize="11" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,2" />
+                        <TextBox Text="{Binding FormRemark, UpdateSourceTrigger=PropertyChanged}" Height="24" Padding="4,2" Margin="0,0,0,12" />
+
+                        <!-- Action Buttons -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
+                            <Button Content="🔄 Làm mới form"
+                                    Command="{Binding ResetFormCommand}"
+                                    Style="{StaticResource ToolbarButton}"
+                                    Height="25" Padding="8,2" Margin="0,0,8,0" />
+                            <Button Content="💾 Lưu nguồn IP"
+                                    Command="{Binding SaveSourceCommand}"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Height="25" Padding="12,2" />
+                        </StackPanel>
+
+                        <!-- Error message -->
+                        <Border Background="#FEE2E2" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,4,0,0"
+                                Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibility}}">
+                            <TextBlock Text="{Binding ErrorMessage}" Foreground="#991B1B" FontSize="11" TextWrapping="Wrap" FontWeight="SemiBold" />
+                        </Border>
+
+                        <!-- Success message -->
+                        <Border Background="#DCFCE7" BorderBrush="#22C55E" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,4,0,0"
+                                Visibility="{Binding StatusMessage, Converter={StaticResource NullToVisibility}}">
+                            <TextBlock Text="{Binding StatusMessage}" Foreground="#166534" FontSize="11" TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </GroupBox>
+        </Grid>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" Margin="0,12,0,0" Padding="0,8,0,0" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+            <Grid>
+                <TextBlock Text="💡 Gợi ý: Sau khi lưu nguồn IP, các ô cửa sổ trong kịch bản có thể chọn nguồn này từ danh sách Camera."
+                           FontSize="11" Foreground="#475569" VerticalAlignment="Center" />
+                <Button Content="Đóng"
+                        IsCancel="True"
+                        HorizontalAlignment="Right"
+                        Width="80"
+                        Height="26"
+                        Style="{StaticResource ToolbarButton}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

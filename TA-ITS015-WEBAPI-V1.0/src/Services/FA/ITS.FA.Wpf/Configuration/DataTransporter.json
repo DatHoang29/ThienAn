@@ -1,0 +1,20 @@
+{
+  "// [NATS]": "Url để TRỐNG có chủ đích: báo cháy giả phát lên NATS thật sẽ hiện cảnh báo cho người trực. Khi cần test NATS thì trỏ Url tới NATS test.",
+  "Nats": {
+    //"Url": "",
+    "Url": "nats://127.0.0.1:4222",
+    "AuthMode": "NONE",
+    //"InsecureSkipVerify": true,
+    "InsecureSkipVerify": false,
+    "ClientName": "ITS_FA_TEST",
+    //"AuthMode": "JWT",
+    "JwtFile": "Configuration/nats.creds",
+    "UserSeedFile": "Configuration/nats.creds",
+    "RetryIntervalSeconds": 5
+  },
+
+  "// [Heartbeat]": "Form test không báo FA Online thay cho dịch vụ thật.",
+  "Heartbeat": {
+    "Enabled": false
+  }
+}

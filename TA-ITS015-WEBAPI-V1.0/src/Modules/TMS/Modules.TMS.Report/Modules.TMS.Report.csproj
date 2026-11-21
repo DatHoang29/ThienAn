@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+    <ProjectReference Include="..\Modules.TMS\Modules.TMS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Modules.Report.Base">
+      <HintPath>..\..\..\DLLs\Modules.Report.Base.dll</HintPath>
+    </Reference>
+    <Reference Include="Modules.System">
+      <HintPath>..\..\..\DLLs\Modules.System.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Chi de doc entity VdsConfig (bang tham so van hanh VDS tren SQL Server). Truoc 23/09/2026 con
+         can VdsConfigRules va tang dem Counting; ca hai da chuyen di (luat sang Modules.VDS, tang dem va
+         DurationHelper sang Shared.Utility) nen phu thuoc nay chi con mot ly do duy nhat. -->
+    <ProjectReference Include="../../VDS/Modules.VDS.Core/Modules.VDS.Core.csproj" />
+  </ItemGroup>
+</Project>

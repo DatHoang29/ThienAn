@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- false = giữ CultureInfo thật của máy. VDS parse/format thời gian theo giờ VN nên không
+         được để runtime rơi về invariant culture. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Services.Vds\Services.Vds.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hạ tầng tách file theo khuôn service: Database.json (kết nối CSDL),
+         DataTransporter.json (NATS), Logging.json. Copy ra output để chạy được ngay. -->
+    <None Update="Configuration\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <!-- File creds NATS (JWT + seed) nằm CÙNG project, cạnh DataTransporter.json đang trỏ tới nó.
+         Là BÍ MẬT nên .gitignore chặn *.creds — file phải được đặt tay lên từng máy chạy.
+
+         Bản trước link sang ..\..\..\TAC_WebAPI\Configuration\camera.creds kèm Condition="Exists", nhưng ở
+         TAC_WebAPI file đó tên là nats.creds. Điều kiện không khớp nên rule bị bỏ qua KHÔNG một lời cảnh báo,
+         và worker chạy với DataTransporter.json khai AuthMode=JWT nhưng không có file: mỗi 5 giây một
+         FileNotFoundException "JWT file not found", không nhận được lệnh refresh và không publish được gì. -->
+    <None Update="Configuration\*.creds">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

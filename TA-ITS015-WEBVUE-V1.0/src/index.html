@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="vi-VN">
+
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<link rel="stylesheet" type="text/css" media="print" href="/print-lock.css" />
+	<link rel="icon" id="favicon" href="data:;base64,=" />
+	<title>TAC</title>
+</head>
+
+<body>
+	<div id="app"
+		style="border: 3px solid var(--border-tac-color); border-image: linear-gradient(135deg, var(--border-tac-color) 0%, color-mix(in srgb, var(--border-tac-color) 25%, transparent) 45%, color-mix(in srgb, var(--border-tac-color) 25%, transparent) 55%, var(--border-tac-color) 100%) 1;">
+	</div>
+	<script>
+		const randomValue = Math.random();
+		document.write(`<script src="/config.js?t=${randomValue}"><\/script>`);
+	</script>
+	<!-- <script src="/config.js?t=${randomValue}"></script> -->
+	<script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

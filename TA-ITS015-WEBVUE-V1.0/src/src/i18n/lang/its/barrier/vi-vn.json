@@ -1,0 +1,21 @@
+{
+  "lz.button.barrier.closeRed": "Đóng barrier và đèn tín hiệu (đỏ)",
+  "lz.button.barrier.red": "Đèn tín hiệu barrier (đỏ)",
+  "lz.button.barrier.openGreen": "Mở barrier và đèn tín hiệu (xanh)",
+  "lz.button.barrier.green": "Đèn tín hiệu barrier (xanh)",
+  "lz.button.barrier.open": "Mở barrier",
+  "lz.button.barrier.close": "Đóng barrier",
+  "lz.label.barrier.barrier": "Barrier",
+  "lz.label.barrier.signalLight": "Đèn tín hiệu",
+  "lz.label.barrier.integratedLight": "Đèn tích hợp trên barrier",
+  "lz.label.barrier.armOpen": "Đang mở",
+  "lz.label.barrier.armClosed": "Đang đóng",
+  "lz.label.barrier.lightGreen": "Xanh",
+  "lz.label.barrier.lightRed": "Đỏ",
+  "lz.label.barrier.unknown": "Chưa xác định",
+  "lz.label.barrier.notAvailable": "Không có barrier",
+  "lz.label.barrier.simulateHint": "Chế độ giả lập: lệnh chưa gửi xuống thiết bị thật, chỉ cập nhật trạng thái trên bản đồ.",
+  "lz.message.barrier.confirmCommand": "Xác nhận thực hiện \"{command}\" cho {name}?",
+  "lz.message.barrier.commandSuccess": "Đã thực hiện: {command}",
+  "lz.message.barrier.commandFailed": "Thực hiện thất bại: {command}"
+}

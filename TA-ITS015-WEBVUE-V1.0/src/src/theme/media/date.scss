@@ -1,0 +1,25 @@
+@import './index.scss';
+
+/* Page width less than 768px
+------------------------------- */
+@media screen and (max-width: $sm) {
+	// Date picker adaptation
+	.el-date-range-picker {
+		width: 100vw;
+		.el-picker-panel__body {
+			min-width: 100%;
+			.el-date-range-picker__content {
+				.el-date-range-picker__header div {
+					margin-left: 22px;
+					margin-right: 0px;
+				}
+				& + .el-date-range-picker__content {
+					.el-date-range-picker__header div {
+						margin-left: 0px;
+						margin-right: 22px;
+					}
+				}
+			}
+		}
+	}
+}

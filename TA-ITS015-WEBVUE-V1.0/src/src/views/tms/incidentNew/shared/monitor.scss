@@ -1,0 +1,380 @@
+.traffic-monitor {
+	--monitor-primary: var(--workspace-primary);
+	--monitor-primary-soft: var(--workspace-primary-soft);
+	--monitor-primary-dark: var(--workspace-primary-dark);
+	--monitor-bg: var(--workspace-bg);
+	--monitor-surface: var(--workspace-surface);
+	--monitor-subtle: var(--workspace-subtle);
+	--monitor-border: var(--workspace-border);
+	--monitor-border-strong: var(--workspace-border-strong);
+	--monitor-heading-bg: var(--workspace-heading-bg);
+	--monitor-text: var(--workspace-text);
+	--monitor-muted: var(--workspace-muted);
+	--monitor-success: var(--workspace-success);
+	--monitor-success-soft: var(--workspace-success-soft);
+	--monitor-warning: var(--workspace-warning);
+	--monitor-warning-soft: var(--workspace-warning-soft);
+	--monitor-danger: var(--workspace-danger);
+	--monitor-danger-soft: var(--workspace-danger-soft);
+	--monitor-shadow: var(--workspace-shadow);
+}
+.traffic-monitor h1,
+.traffic-monitor h2,
+.traffic-monitor h3,
+.traffic-monitor p {
+	margin: 0;
+}
+.traffic-monitor button:focus-visible,
+.traffic-monitor tr:focus-visible {
+	outline: 3px solid var(--monitor-primary);
+	outline-offset: -3px;
+}
+.traffic-monitor:focus {
+	outline: none;
+}
+.traffic-monitor .eyebrow {
+	font-size: calc(10px + var(--monitor-panel-font-increment, 0px));
+	letter-spacing: 0.1em;
+	font-weight: 700;
+	color: var(--monitor-muted);
+}
+.traffic-monitor .subtitle {
+	font-size: 12px;
+	color: var(--monitor-muted);
+	padding-left: 12px;
+	margin-left: 4px;
+	border-left: 1px solid var(--monitor-border);
+}
+.traffic-monitor h2 {
+	font-size: calc(13px + var(--monitor-panel-font-increment, 0px));
+	font-weight: 650;
+}
+.traffic-monitor .count-label {
+	background: var(--monitor-primary-soft);
+	color: var(--monitor-primary);
+	border-radius: 5px;
+	padding: 1px 7px;
+	font-size: 11px;
+}
+.traffic-monitor .keyboard-hint {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	color: var(--monitor-muted);
+	white-space: nowrap;
+}
+.traffic-monitor kbd {
+	border: 1px solid var(--monitor-border);
+	background: var(--monitor-subtle);
+	border-radius: 4px;
+	padding: 1px 5px;
+	font-size: 11px;
+	line-height: 1.4;
+	font-family: inherit;
+	box-shadow: 0 1px 0 var(--monitor-border);
+}
+.traffic-monitor .record-plate {
+	font-weight: 650;
+	color: var(--monitor-text);
+	font-size: 14px;
+}
+.traffic-monitor .record-location {
+	display: block;
+	font-size: 13px;
+	font-weight: 600;
+}
+.traffic-monitor .record-title {
+	display: block;
+	font-size: 14px;
+	font-weight: 650;
+	color: var(--monitor-text);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.traffic-monitor .selected .record-title {
+	color: var(--monitor-primary-dark);
+}
+.traffic-monitor .record-time {
+	display: block;
+	font-size: 14px;
+	font-weight: 600;
+}
+.traffic-monitor .record-secondary {
+	display: block;
+	color: var(--monitor-muted);
+	font-size: 12px;
+	margin-top: 3px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.traffic-monitor .record-camera {
+	display: block;
+	color: var(--monitor-muted);
+	font-size: 10px;
+	margin-top: 2px;
+}
+.traffic-monitor .speed-value {
+	font-size: 16px;
+	font-weight: 650;
+}
+.traffic-monitor .speed-value small {
+	color: var(--monitor-muted);
+	font-size: 10px;
+	font-weight: 400;
+}
+.traffic-monitor .detail-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	height: 100%;
+	min-height: 180px;
+	padding: 20px;
+	gap: 10px;
+	color: var(--monitor-muted);
+}
+.traffic-monitor .detail-empty h3 {
+	color: var(--monitor-text);
+	font-size: 15px;
+}
+.traffic-monitor .detail-empty p {
+	font-size: 12px;
+	max-width: 300px;
+}
+.traffic-monitor .detail-panel {
+	--monitor-panel-font-increment: var(--detail-font-increment, 0px);
+	--workspace-font-increment: var(--detail-font-increment, 0px);
+	display: flex;
+	flex-direction: column;
+	font-size: calc(13px + var(--monitor-panel-font-increment));
+}
+.traffic-monitor .detail-panel .el-tag {
+	--el-tag-font-size: calc(12px + var(--monitor-panel-font-increment));
+}
+.traffic-monitor .detail-heading {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 10px;
+}
+.traffic-monitor .detail-heading .eyebrow {
+	text-transform: uppercase;
+	color: var(--monitor-primary-dark);
+}
+.traffic-monitor .detail-heading h2 {
+	margin-top: 2px;
+}
+.traffic-monitor .detail-heading > div:first-child {
+	flex: 1;
+}
+.traffic-monitor .detail-heading-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.traffic-monitor .record-counter {
+	margin-left: auto;
+	font-size: calc(10px + var(--monitor-panel-font-increment, 0px));
+	color: var(--monitor-muted);
+	white-space: nowrap;
+}
+.traffic-monitor .record-navigation {
+	display: flex;
+	gap: 4px;
+	flex-shrink: 0;
+}
+.traffic-monitor .record-navigation .el-button {
+	width: 26px;
+	min-height: 26px;
+	padding: 4px;
+}
+.traffic-monitor .detail-scroll {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+	padding: 6px 10px 8px;
+}
+.traffic-monitor .detail-scroll > .detail-error {
+	flex-shrink: 0;
+}
+.traffic-monitor .record-information {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+	padding-right: 4px;
+}
+.traffic-monitor .detail-error {
+	padding: 8px 10px;
+	margin-bottom: 12px;
+	border-radius: 6px;
+	font-size: 12px;
+	background: var(--monitor-warning-soft);
+	color: var(--monitor-warning);
+}
+.traffic-monitor .zoom-hint {
+	position: absolute;
+	bottom: 10px;
+	right: 10px;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	background: rgba(12, 23, 38, 0.8);
+	color: #fff;
+	padding: 4px 7px;
+	border-radius: 5px;
+	font-size: calc(10px + var(--monitor-panel-font-increment, 0px));
+	pointer-events: none;
+}
+.traffic-monitor .plate-summary {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	padding: 4px 8px;
+	border-radius: 5px;
+	background: var(--monitor-subtle);
+	margin-bottom: 8px;
+}
+.traffic-monitor .plate-summary span {
+	font-size: calc(11px + var(--monitor-panel-font-increment, 0px));
+	color: var(--monitor-muted);
+}
+.traffic-monitor .plate-summary strong {
+	font-size: calc(14px + var(--monitor-panel-font-increment, 0px));
+	font-weight: 700;
+}
+.traffic-monitor .plate-summary .el-button {
+	margin-left: auto;
+	min-height: 24px;
+	padding: 4px;
+}
+.traffic-monitor .information-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 6px 12px;
+	margin: 0;
+}
+.traffic-monitor .information-grid > div {
+	min-width: 0;
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--monitor-border);
+}
+.traffic-monitor .information-grid dt {
+	font-size: calc(11px + var(--monitor-panel-font-increment, 0px));
+	color: var(--monitor-muted);
+	margin-bottom: 1px;
+}
+.traffic-monitor .information-grid dd {
+	margin: 0;
+	font-size: calc(13px + var(--monitor-panel-font-increment, 0px));
+	font-weight: 550;
+	word-break: normal;
+	overflow-wrap: break-word;
+}
+.traffic-monitor .metadata-section {
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--monitor-border);
+}
+.traffic-monitor .metadata-section h3 {
+	font-size: calc(13px + var(--monitor-panel-font-increment, 0px));
+	font-weight: 650;
+	margin-bottom: 6px;
+}
+.traffic-monitor .record-note {
+	padding-top: 8px;
+	font-size: calc(13px + var(--monitor-panel-font-increment, 0px));
+	color: var(--monitor-muted);
+	white-space: pre-wrap;
+	word-break: normal;
+	overflow-wrap: break-word;
+}
+.traffic-monitor .record-note strong {
+	display: block;
+	color: var(--monitor-text);
+	margin-bottom: 3px;
+}
+.traffic-monitor .secondary-actions {
+	display: flex;
+	flex-shrink: 0;
+	flex-wrap: wrap;
+	gap: 6px;
+	border-top: 1px solid var(--monitor-border-strong);
+	padding: 6px 10px;
+	background: var(--monitor-heading-bg);
+}
+.traffic-monitor .secondary-actions .el-button {
+	font-size: calc(11px + var(--monitor-panel-font-increment, 0px));
+	min-height: 28px;
+	padding: 5px 8px;
+}
+.traffic-monitor .secondary-actions .monitor-report-button {
+	border-color: var(--monitor-primary);
+	color: var(--monitor-primary-dark);
+	background: var(--monitor-surface);
+	font-weight: 650;
+}
+.traffic-monitor .secondary-actions .monitor-report-button:hover {
+	background: var(--monitor-primary-soft);
+}
+.traffic-monitor .detail-heading > div:first-child {
+	min-width: 0;
+}
+.traffic-monitor .detail-heading h2 {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+@media (max-width: 1200px) {
+	.traffic-monitor .subtitle,
+	.traffic-monitor .keyboard-hint {
+		display: none;
+	}
+}
+@media (max-width: 960px) {
+	.traffic-monitor {
+		position: relative;
+		height: auto;
+		min-height: 100%;
+		overflow: visible;
+	}
+	.traffic-monitor .panel-splitter {
+		display: none;
+	}
+	.traffic-monitor .detail-panel {
+		max-height: 760px;
+	}
+}
+@media (max-width: 600px) {
+	.traffic-monitor {
+		padding: 8px;
+	}
+	.traffic-monitor h1 {
+		font-size: 16px;
+	}
+	.traffic-monitor .detail-heading {
+		padding: 8px 10px;
+	}
+	.traffic-monitor .record-navigation .el-button {
+		width: 36px;
+		min-height: 36px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.traffic-monitor *,
+	.traffic-monitor *::before,
+	.traffic-monitor *::after {
+		transition: none !important;
+		animation: none !important;
+		scroll-behavior: auto !important;
+	}
+}

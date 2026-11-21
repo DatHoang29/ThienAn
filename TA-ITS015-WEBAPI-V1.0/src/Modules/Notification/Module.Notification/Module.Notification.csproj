@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Utility\Shared.Utility.csproj" />
+    <ProjectReference Include="..\Module.Notification.Core\Module.Notification.Core.csproj" />
+
+    <!-- Đọc chu kỳ job retention từ bảng SysOpConfig, theo đúng nếp Module.Mail/MailConfigService.
+         Chỉ cần tầng Core (DTO cấu hình), KHÔNG tham chiếu Modules.CfgSystem để tránh vòng lặp. -->
+    <ProjectReference Include="..\..\CfgSystem\Modules.CfgSystem.Core\Modules.CfgSystem.Core.csproj" />
+
+    <!-- Broadcaster phát tín hiệu realtime qua kênh Notification của bộ transporter ITS. -->
+    <ProjectReference Include="..\..\DataTransporter\Modules.DataTransporter.ITS\Modules.DataTransporter.ITS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Resolve người nhận hỏi qua MessBus tới handler của phân hệ System (DLL):
+         ListUserInput -> List<UserOutput>, OrgInput -> List<SysOrg>. Xem NotiUserResolver. -->
+    <Reference Include="Modules.System">
+      <HintPath>..\..\..\DLLs\Modules.System.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

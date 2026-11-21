@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "ITS.Toll.Worker": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "launchUrl": "health",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "http://localhost:8710"
+    }
+  }
+}

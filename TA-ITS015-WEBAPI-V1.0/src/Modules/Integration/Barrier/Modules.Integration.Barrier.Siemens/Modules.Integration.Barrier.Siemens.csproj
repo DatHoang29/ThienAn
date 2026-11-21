@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    Driver Barrier hãng Siemens (PLC S7-1200).
+    Thay thế TACPLC_S71200.dll (.NET Framework) của dự án cũ CLVH.
+    DLL cũ bản chất cũng gọi S7.Net: Plc(CpuType.S71200, ip, rack 0, slot 0).WriteBit(DataBlock, ...).
+    Gói NuGet "S7netplus" chính là thư viện S7.Net (namespace S7.Net) bản hỗ trợ .NET hiện đại.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="S7netplus" Version="0.20.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Modules.Integration.Barrier.Base\Modules.Integration.Barrier.Base.csproj" />
+  </ItemGroup>
+
+</Project>

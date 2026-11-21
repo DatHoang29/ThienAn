@@ -1,0 +1,15 @@
+  {
+    "AppConfig": {
+      "AppCode": "TMS",
+      "Key": ""
+    },
+
+    "NxVms": {
+      "BaseUrl": "https://10.10.8.30:7001",
+      "ProxyBaseUrl": "http://localhost:5123",
+      "Username": "admin",
+      "Password": "Ta123456",
+      "TimeoutSeconds": 30
+
+    }
+   }

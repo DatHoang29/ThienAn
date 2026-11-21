@@ -1,0 +1,9 @@
+{
+  "Mail": {
+    "SecureSocketOptions": "StartTls", 
+    "Password": "fzjjvjqbivwxanri", 
+    "InlineImages": {
+      "logo": "Upload/logo.jpg"
+    }
+  }
+}

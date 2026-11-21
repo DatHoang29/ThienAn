@@ -1,0 +1,10 @@
+{
+  // Vai trò của bản deploy đối với phân hệ Media:
+  //   "Provider" = site ITS  : bật ITS-Media (/api/media/ItsMedia/*), WP gọi sang để lấy ảnh.
+  //   "Public"   = site WP   : bật WP-MediaPublic (/api/media/MediaPublic/*) cho FE Web Portal.
+  //   "Both"     = dev/test chạy chung một BE.
+  // Các cấu hình còn lại (URL ITS, API key, endpoint, thư mục...) nằm trong SysOpConfig, GroupCode = media_config.
+  "Media": {
+    "Role": "Both"
+  }
+}

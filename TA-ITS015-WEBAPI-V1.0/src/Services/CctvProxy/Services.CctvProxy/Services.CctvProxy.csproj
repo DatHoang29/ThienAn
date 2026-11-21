@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    Services.CctvProxy: lõi proxy CCTV (NxVMS) cho FE.
+    - Configuration: cấu hình service (appsettings) + cấu hình NxVMS đọc từ SysOpConfig (nhóm cctv_config).
+    - Features/Session: giữ phiên đăng nhập NxVMS (token) phía BE, FE không cầm token/cookie.
+    - Features/Proxy: chuyển tiếp WebSocket WebRTC signaling + HTTP media (download) sang NxVMS.
+    - Endpoints: map minimal API dùng chung cho host Worker (Kestrel).
+  -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Nền dùng chung cho service: DatabaseManager/SqlSugarAccess, LogManager, config loader registry. -->
+    <ProjectReference Include="..\..\Shared\Services.Shared.Runtime\Services.Shared.Runtime.csproj" />
+    <!-- Entity SysOpConfig thật (bảng tham số hoạt động) — KHÔNG tự tạo entity riêng. -->
+    <ProjectReference Include="..\..\..\Modules\CfgSystem\Modules.CfgSystem.Core\Modules.CfgSystem.Core.csproj" />
+    <!-- CctvStreamTicket: định dạng ticket dùng chung với WebAPI (Module.CCTV). -->
+    <ProjectReference Include="..\..\..\Shared\Shared.Utility\Shared.Utility.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EntityTenant (ID/TenantId/IsDelete...) nằm trong Shared.Core.dll. -->
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

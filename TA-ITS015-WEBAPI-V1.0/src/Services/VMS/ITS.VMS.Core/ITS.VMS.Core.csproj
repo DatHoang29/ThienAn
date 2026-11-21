@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    ITS.VMS.Core: tầng lõi dịch vụ trung gian điều khiển bảng VMS.
+    - Messaging : DTO gói tin + cấu hình + listener kênh NATS ta.its.control.vms (2 chiều, phân biệt bằng Type).
+    - Integration: nạp driver theo hãng và thực thi lệnh ra thiết bị (cô lập SDK native khỏi WebAPI).
+    - Logging   : ghi log vận hành theo loại + theo ngày.
+
+    LƯU Ý: Core CHỈ tham chiếu Modules.Integration.VMS.Base (interface IVmsIntegration + DTO Intg*).
+    KHÔNG tham chiếu Modules.Integration.VMS vì IntgVmsManager/BaseManager phụ thuộc Furion
+    (App.GetService, App.WebHostEnvironment.WebRootPath, Oops.Oh) — Worker không có Furion nên sẽ lỗi runtime.
+    Logic vendor-specific được cài lại trong VmsDeviceExecutor.
+  -->
+
+  <ItemGroup>
+    <!--
+      Tầng điều phối đa hãng DÙNG CHUNG với BE (IntgVmsManager): chọn hãng, đăng ký DLL driver,
+      xử lý khác biệt Chainzone/Dysten. Từ 22/09/2026 project này đã bỏ phụ thuộc Furion nên
+      dịch vụ dùng lại được, không phải chép logic hãng sang VmsDeviceExecutor nữa.
+      Kéo theo Modules.Integration.VMS.Base (IVmsIntegration + DTO Intg*).
+    -->
+    <ProjectReference Include="..\..\..\Modules\Integration\Modules.Integration.VMS\Modules.Integration.VMS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lắng nghe/phát gói tin điều khiển trên kênh NATS (cùng version với ITS.Toll.Core để tránh lệch assembly). -->
+    <PackageReference Include="NATS.Net" Version="2.7.3" />
+    <!--
+      KHÔNG khai Newtonsoft.Json ở đây: đã có sẵn 13.0.4 theo đường
+      Modules.Integration.VMS.Base -> Shared.DTO -> Shared.Reference.
+      Khai lại version thấp hơn sẽ bị NU1605 (package downgrade) chặn build.
+    -->
+  </ItemGroup>
+
+</Project>

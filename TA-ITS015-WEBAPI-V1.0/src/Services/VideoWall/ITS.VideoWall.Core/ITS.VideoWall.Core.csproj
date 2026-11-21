@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Module.VideoWall.Core: entities (VwController, VwScene...), base DTOs, options -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Modules\VideoWall\Module.VideoWall.Core\Module.VideoWall.Core.csproj" />
+  </ItemGroup>
+
+</Project>

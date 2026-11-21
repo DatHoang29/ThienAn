@@ -1,0 +1,22 @@
+{
+  "lz.button.fan.forward": "Run forward",
+  "lz.button.fan.reverse": "Run reverse",
+  "lz.button.fan.stop": "Stop fan",
+  "lz.button.fan.applyFrequency": "Apply",
+  "lz.label.fan.mode": "Mode",
+  "lz.label.fan.modeForward": "Running forward",
+  "lz.label.fan.modeReverse": "Running reverse",
+  "lz.label.fan.modeStop": "Stopped",
+  "lz.label.fan.frequency": "Frequency",
+  "lz.label.fan.setpoint": "Setpoint",
+  "lz.label.fan.setFrequency": "Set frequency",
+  "lz.label.fan.direction": "Direction",
+  "lz.label.fan.directionForward": "Forward",
+  "lz.label.fan.directionReverse": "Reverse",
+  "lz.label.fan.directionNone": "Stopped",
+  "lz.label.fan.simulateHint": "Simulation mode: commands are not sent to real drives, frequency/direction values are random.",
+  "lz.message.fan.confirmCommand": "Confirm \"{command}\" for {name}?",
+  "lz.message.fan.setFrequencyCommand": "Set frequency {value}",
+  "lz.message.fan.commandSuccess": "Done: {command}",
+  "lz.message.fan.commandFailed": "Failed: {command}"
+}

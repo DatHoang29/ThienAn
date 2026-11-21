@@ -1,0 +1,76 @@
+<Window x:Class="Module.VideoWall.WPF.Views.ActivityDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Chi tiết bước đấu nối"
+        Width="900"
+        Height="700"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding Step.Name}" />
+
+        <WrapPanel Grid.Row="1" Margin="0,0,0,12">
+            <StackPanel Margin="0,0,20,4" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Kết quả:" />
+                <TextBlock FontWeight="SemiBold" Text="{Binding Step.Outcome}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,20,4" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Method:" />
+                <TextBlock Text="{Binding Step.Method}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,20,4" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="HTTP:" />
+                <TextBlock Text="{Binding Step.HttpStatus}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,20,4" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Thời gian:" />
+                <TextBlock Text="{Binding Step.DurationMs, StringFormat={}{0} ms}" />
+            </StackPanel>
+            <StackPanel Margin="0,0,20,4" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Endpoint:" />
+                <TextBlock Text="{Binding Step.Endpoint}" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Margin="0,0,20,4" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Thông báo:" />
+                <TextBlock MaxWidth="700" Text="{Binding Step.Message}" TextWrapping="Wrap" />
+            </StackPanel>
+        </WrapPanel>
+
+        <GroupBox Grid.Row="2" Header="Request">
+            <TextBox AcceptsReturn="True"
+                     BorderThickness="0"
+                     FontFamily="Consolas"
+                     FontSize="12"
+                     HorizontalScrollBarVisibility="Auto"
+                     IsReadOnly="True"
+                     Text="{Binding Step.RequestXml, Mode=OneWay}"
+                     VerticalScrollBarVisibility="Auto" />
+        </GroupBox>
+
+        <GroupBox Grid.Row="3" Margin="0,10,0,0" Header="Response">
+            <TextBox AcceptsReturn="True"
+                     BorderThickness="0"
+                     FontFamily="Consolas"
+                     FontSize="12"
+                     HorizontalScrollBarVisibility="Auto"
+                     IsReadOnly="True"
+                     Text="{Binding Step.ResponseXml, Mode=OneWay}"
+                     VerticalScrollBarVisibility="Auto" />
+        </GroupBox>
+
+        <StackPanel Grid.Row="4"
+                    Margin="0,12,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button Style="{StaticResource ToolbarButton}" Click="OnCopy" Content="Copy response" />
+            <Button Style="{StaticResource ToolbarButton}" Click="OnClose" Content="Đóng" IsDefault="True" />
+        </StackPanel>
+    </Grid>
+</Window>

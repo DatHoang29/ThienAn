@@ -1,0 +1,7 @@
+{
+  "Notification": {
+    "RetentionDays": 90, // Số ngày giữ thông báo tính từ SendTime khi không có ExpireTime
+    "MaxRecipientsPerMessage": 20000, // Trần số người nhận của một lần gửi (chặn fan-out bất thường)
+    "EnableBroadcast": true // Bật/tắt broadcast realtime qua kênh ta.its.noti
+  }
+}

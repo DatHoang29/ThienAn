@@ -1,0 +1,199 @@
+<UserControl x:Class="Module.VideoWall.WPF.Views.DeviceTopologyTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="650" d:DesignWidth="1100"
+             Background="#FFFFFF">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <!-- Hàng 0: Header Tiêu đề & Nút thao tác nhanh -->
+            <RowDefinition Height="Auto" />
+            <!-- Hàng 1: 4 Thẻ chỉ số tổng quan (Metric Cards) -->
+            <RowDefinition Height="Auto" />
+            <!-- Hàng 2: Nội dung chi tiết (Sơ đồ ma trận & 2 Bảng danh sách) -->
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- HÀNG 0: HEADER (WrapPanel co giãn mượt mà) -->
+        <Border Grid.Row="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,0,0,8">
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="📊 Thông số Phần cứng &amp; Bố cục Tường ghép (Topology &amp; Capabilities)"
+                           FontWeight="Bold"
+                           FontSize="14"
+                           Foreground="#2D3748"
+                           VerticalAlignment="Center"
+                           Margin="0,2,12,2" />
+                <Border Background="#EBF8FF" BorderBrush="#3182CE" BorderThickness="1" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="0,2,12,2">
+                    <TextBlock Text="{Binding ProbeSummary, TargetNullValue='(Chưa khảo sát)'}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="#2B6CB0" />
+                </Border>
+                <Button Style="{StaticResource PrimaryButton}"
+                        Command="{Binding ProbeCommand}"
+                        Content="🔍 Khảo sát lại (Probe)"
+                        Height="26"
+                        Padding="12,2"
+                        Margin="0,2,0,2"
+                        ToolTip="Gửi lại chuỗi lệnh ISAPI để khảo sát cấu hình mới nhất từ bộ điều khiển" />
+            </WrapPanel>
+        </Border>
+
+        <!-- HÀNG 1: 4 THẺ CHỈ SỐ TỔNG QUAN (METRIC CARDS) -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Card 1: Tổng kích thước Tường ghép -->
+            <Border Grid.Column="0" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,4,0">
+                <StackPanel>
+                    <TextBlock Text="📐 TỔNG KÍCH THƯỚC TƯỜNG" FontSize="11" FontWeight="SemiBold" Foreground="#15803D" Margin="0,0,0,2" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ProbeTotalWidth}" FontSize="18" FontWeight="Bold" Foreground="#166534" />
+                        <TextBlock Text=" × " FontSize="18" FontWeight="Bold" Foreground="#166534" />
+                        <TextBlock Text="{Binding ProbeTotalHeight}" FontSize="18" FontWeight="Bold" Foreground="#166534" />
+                        <TextBlock Text=" px" FontSize="12" FontWeight="Normal" Foreground="#15803D" VerticalAlignment="Bottom" Margin="2,0,0,2" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding ProbeWallDimensionsFormatted}" FontSize="11" Foreground="#15803D" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Border>
+
+            <!-- Card 2: Cổng ra màn hình (Outputs) -->
+            <Border Grid.Column="1" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="2,0,2,0">
+                <StackPanel>
+                    <TextBlock Text="🖥️ CỔNG RA MÀN HÌNH (OUTPUTS)" FontSize="11" FontWeight="SemiBold" Foreground="#1D4ED8" Margin="0,0,0,2" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ProbeOutputCount}" FontSize="18" FontWeight="Bold" Foreground="#1E40AF" />
+                        <TextBlock Text=" Cổng (Màn hình)" FontSize="12" FontWeight="Normal" Foreground="#1D4ED8" VerticalAlignment="Bottom" Margin="4,0,0,2" />
+                    </StackPanel>
+                    <TextBlock Text="1920 × 1080 px (Full HD) / cổng ra" FontSize="11" Foreground="#1D4ED8" Margin="0,2,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- Card 3: Nguồn tín hiệu vào (Inputs) -->
+            <Border Grid.Column="2" Background="#FAF5FF" BorderBrush="#E9D5FF" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="2,0,2,0">
+                <StackPanel>
+                    <TextBlock Text="🎥 NGUỒN TÍN HIỆU VÀO (INPUTS)" FontSize="11" FontWeight="SemiBold" Foreground="#7E22CE" Margin="0,0,0,2" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ProbeInputCount}" FontSize="18" FontWeight="Bold" Foreground="#6B21A8" />
+                        <TextBlock Text=" Kênh Camera / HDMI" FontSize="12" FontWeight="Normal" Foreground="#7E22CE" VerticalAlignment="Bottom" Margin="4,0,0,2" />
+                    </StackPanel>
+                    <TextBlock Text="Cổng vào tín hiệu trên các bo mạch" FontSize="11" Foreground="#7E22CE" Margin="0,2,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- Card 4: Năng lực thiết bị (Capabilities) -->
+            <Border Grid.Column="3" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="4,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="⚡ NĂNG LỰC THIẾT BỊ (CAPABILITIES)" FontSize="11" FontWeight="SemiBold" Foreground="#B45309" Margin="0,0,0,2" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Max " FontSize="12" FontWeight="Normal" Foreground="#B45309" VerticalAlignment="Bottom" Margin="0,0,2,2" />
+                        <TextBlock Text="{Binding ProbeMaxWindowNums}" FontSize="18" FontWeight="Bold" Foreground="#92400E" />
+                        <TextBlock Text=" Ô / " FontSize="12" FontWeight="Normal" Foreground="#B45309" VerticalAlignment="Bottom" Margin="2,0,2,2" />
+                        <TextBlock Text="{Binding ProbeMaxSceneNums}" FontSize="18" FontWeight="Bold" Foreground="#92400E" />
+                        <TextBlock Text=" Scene" FontSize="12" FontWeight="Normal" Foreground="#B45309" VerticalAlignment="Bottom" Margin="2,0,0,2" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding ProbeCapabilitiesFormatted}" FontSize="11" Foreground="#B45309" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- HÀNG 2: 2 BẢNG CHI TIẾT (XẾP DỌC TRÊN DƯỚI: OUTPUTS Ở TRÊN, INPUTS Ở DƯỚI) -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <!-- BẢNG TRÊN: DANH SÁCH 12 MÀN HÌNH VẬT LÝ (OUTPUTS) -->
+                <RowDefinition Height="1.2*" MinHeight="140" />
+                <!-- Thanh phân cách mỏng -->
+                <RowDefinition Height="Auto" />
+                <!-- BẢNG DƯỚI: DANH SÁCH NGUỒN TÍN HIỆU CAMERA VÀO (INPUTS) -->
+                <RowDefinition Height="1*" MinHeight="120" />
+            </Grid.RowDefinitions>
+
+            <!-- BẢNG TRÊN: DANH SÁCH 12 MÀN HÌNH VẬT LÝ (OUTPUTS) -->
+            <Border Grid.Row="0" BorderThickness="1" BorderBrush="#D2D6DC" Background="#FFFFFF" CornerRadius="4" Padding="8,6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <WrapPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
+                        <TextBlock Text="🖥️ Danh sách Cổng ra Màn hình (Outputs — 12 Màn hình)" FontWeight="Bold" Foreground="#2D3748" FontSize="12" VerticalAlignment="Center" Margin="0,2,12,2" />
+                        <TextBlock Text="{Binding ProbeOutputCount, StringFormat='Tổng: {0} cổng'}" Foreground="#718096" FontSize="11" VerticalAlignment="Center" Margin="0,2,0,2" />
+                    </WrapPanel>
+
+                    <DataGrid Grid.Row="1"
+                              Style="{StaticResource ReadOnlyGrid}"
+                              ItemsSource="{Binding ProbeOutputsList}"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              AutoGenerateColumns="False"
+                              SelectionMode="Single"
+                              BorderBrush="#E2E8F0"
+                              BorderThickness="1">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="STT / Cổng" Width="100" Binding="{Binding Id, StringFormat='Cổng {0}'}" />
+                            <DataGridTextColumn Header="Hardware ID" Width="120" Binding="{Binding OutputId}" />
+                            <DataGridTextColumn Header="Tọa độ X" Width="100" Binding="{Binding X}" />
+                            <DataGridTextColumn Header="Tọa độ Y" Width="100" Binding="{Binding Y}" />
+                            <DataGridTextColumn Header="Chiều rộng (W)" Width="120" Binding="{Binding Width, StringFormat='{}{0} px'}" />
+                            <DataGridTextColumn Header="Chiều cao (H)" Width="120" Binding="{Binding Height, StringFormat='{}{0} px'}" />
+                            <DataGridTextColumn Header="Độ phân giải" Width="130" Binding="{Binding Resolution}" />
+                            <DataGridTextColumn Header="Chế độ tọa độ" Width="*" Binding="{Binding CoordinateMode}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <!-- Thanh ngăn cách mỏng có thể kéo dãn -->
+            <GridSplitter Grid.Row="1"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Height="4"
+                          Background="#E2E8F0"
+                          Cursor="SizeNS"
+                          Margin="0,3" />
+
+            <!-- BẢNG DƯỚI: DANH SÁCH NGUỒN TÍN HIỆU CAMERA VÀO (INPUTS) -->
+            <Border Grid.Row="2" BorderThickness="1" BorderBrush="#D2D6DC" Background="#FFFFFF" CornerRadius="4" Padding="8,6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <WrapPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
+                        <TextBlock Text="🎥 Danh sách Kênh Camera vào (Inputs)" FontWeight="Bold" Foreground="#2D3748" FontSize="12" VerticalAlignment="Center" Margin="0,2,12,2" />
+                        <TextBlock Text="{Binding ProbeInputCount, StringFormat='Tổng: {0} kênh'}" Foreground="#718096" FontSize="11" VerticalAlignment="Center" Margin="0,2,0,2" />
+                    </WrapPanel>
+
+                    <DataGrid Grid.Row="1"
+                              Style="{StaticResource ReadOnlyGrid}"
+                              ItemsSource="{Binding ProbeInputsList}"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              AutoGenerateColumns="False"
+                              SelectionMode="Single"
+                              BorderBrush="#E2E8F0"
+                              BorderThickness="1">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID Kênh" Width="90" Binding="{Binding Id}" />
+                            <DataGridTextColumn Header="Tên nguồn vào" Width="200" Binding="{Binding Name}" />
+                            <DataGridTextColumn Header="Loại cổng" Width="100" Binding="{Binding InputPortType}" />
+                            <DataGridTextColumn Header="Địa chỉ IP" Width="130" Binding="{Binding PortInBoard.IpAddress}" />
+                            <DataGridTextColumn Header="Port" Width="60" Binding="{Binding PortInBoard.Port}" />
+                            <DataGridTextColumn Header="Trạng thái" Width="100" Binding="{Binding VideoInputChannelAccessStatus}" />
+                            <DataGridTextColumn Header="Vị trí Bo mạch &amp; Cổng" Width="*" Binding="{Binding BoardInfo}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

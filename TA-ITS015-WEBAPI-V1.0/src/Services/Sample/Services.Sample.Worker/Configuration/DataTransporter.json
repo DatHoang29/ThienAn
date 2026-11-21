@@ -1,0 +1,53 @@
+{
+  "SocketCluster": {
+    "Enabled": false,
+    "Url": "ws://127.0.0.1:7046/socketcluster/"
+  },
+  "Nats": {
+    "Enabled": true,
+    "Url": "nats://115.78.1.139:12218",
+    //"Url": "nats://127.0.0.1:4222", ta.its.status.fms
+    "ClientName": "ITS_BE_SERVICE",
+    "AuthMode": "JWT",
+    "JwtFile": "Configuration/nats.creds",
+    "UserSeedFile": "Configuration/nats.creds",
+    "UseJetStream": true,
+    "Streams": [
+      {
+        "Name": "PubSub",
+        "Subjects": "ta.its.status.fms,ta.its.data.incident,ta.its.data.vms,ta.its.data.fms", // Còn thiếu heartbeat
+        "SubjectsList": [
+          {
+            "Subject": "ta.its.status.fms",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.incident",
+            "Mode": "pubsub"
+          },
+          {
+            "Subject": "ta.its.data.vms",
+            "Mode": "pubsub"
+          }
+          //{3
+          //  "Subject": "ta.its.data.fms",     
+          //  "Mode": "pubsub"
+          //  //"ConsumerName": "?"
+          //}
+        ]
+      },
+      {
+        "Name": "JetStream",
+        "Subjects": "ta.its.refresh",
+        "Storage": "file",
+        "MaxAge": "12h",
+        "SubjectsList": [
+          {
+            "Subject": "ta.its.refresh",
+            "Mode": "jetstream"
+          }
+        ]
+      }
+    ]
+  }
+}

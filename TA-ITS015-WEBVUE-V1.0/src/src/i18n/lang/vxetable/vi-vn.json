@@ -1,0 +1,612 @@
+{
+  "vxe": {
+    "base": {
+      "pleaseInput": "Xin vui lòng nhập",
+      "pleaseSelect": "Lựa chọn",
+      "comma": ",",
+      "fullStop": "."
+    },
+    "loading": {
+      "text": "Đang tải..."
+    },
+    "error": {
+      "groupFixed": "Nếu bạn sử dụng tiêu đề nhóm, các cột cố định phải được đặt theo nhóm.",
+      "groupMouseRange": "Không thể sử dụng tiêu đề nhóm và \"{0}\" cùng lúc, điều này có thể gây ra lỗi.",
+      "groupTag": "Tiêu đề cột nhóm nên sử dụng \"{0}\" thay vì \"{1}\", điều này có thể gây ra lỗi.",
+      "scrollErrProp": "Tham số \"{0}\" không được hỗ trợ khi bật tính năng cuộn ảo.",
+      "errConflicts": "Đối số \"{0}\" xung đột với \"{1}\"",
+      "unableInsert": "Không thể chèn vào vị trí đã chỉ định.",
+      "useErr": "Lỗi cài đặt mô-đun \"{0}\", có thể sai thứ tự, các mô-đun phụ thuộc cần được cài đặt trước Bảng.",
+      "barUnableLink": "Thanh công cụ không thể liên kết bảng.",
+      "expandContent": "Khe hàng mở rộng phải là \"nội dung\", vui lòng kiểm tra xem nó có chính xác không.",
+      "reqComp": "Yêu cầu thành phần \"{0}\", kiểm tra xem cài đặt có đúng không",
+      "reqModule": "yêu cầu mô-đun \"{0}\".",
+      "reqProp": "Thiếu tham số \"{0}\" cần thiết, điều này có thể gây ra lỗi.",
+      "emptyProp": "Thuộc tính \"{0}\" không được phép để trống.",
+      "errProp": "Tham số không được hỗ trợ \"{0}\", có thể là \"{1}\".",
+      "colRepet": "cột.{0}=\"{0}\" bị trùng lặp, điều này có thể khiến một số tính năng không sử dụng được",
+      "notFunc": "phương thức \"{0}\" không tồn tại.",
+      "errFunc": "Đối số \"{0}\" không phải là một phương thức",
+      "notValidators": "Trình xác nhận toàn cầu \"{0}\" không tồn tại.",
+      "notFormats": "Định dạng chung \"{0}\" không tồn tại.",
+      "notCommands": "Lệnh chung \"{0}\" không tồn tại.",
+      "notSlot": "vị trí \"{0}\" không tồn tại",
+      "noTree": "Cấu trúc cây không hỗ trợ \"{0}\".",
+      "notProp": "Tham số không được hỗ trợ \"{0}\"",
+      "checkProp": "Hộp kiểm có thể bị treo khi lượng dữ liệu quá lớn, nên đặt tham số \"{0}\" để tăng tốc độ hiển thị ",
+      "coverProp": "Tham số \"{1}\" đến \"{0}\" được xác định nhiều lần. ",
+      "delFunc": "Hàm \"{0}\" không được dùng nữa, vui lòng sử dụng \"{1}\".",
+      "delProp": "Thuộc tính \"{0}\" không được dùng nữa, vui lòng sử dụng \"{1}\".",
+      "delEvent": "Sự kiện \"{0}\" không được dùng nữa, vui lòng sử dụng \"{1}\"",
+      "removeProp": "Thuộc tính \"{0}\" không được dùng nữa và không được khuyến nghị, điều này có thể gây ra lỗi.",
+      "errFormat": "Nội dung được định dạng chung phải được xác định bằng \"VXETable.formats\". ",
+      "notType": "Loại tệp không được hỗ trợ \"{0}\"",
+      "notExp": "Trình duyệt không hỗ trợ nhập/xuất.",
+      "impFields": "Nhập không thành công, vui lòng kiểm tra xem tên trường và định dạng dữ liệu có chính xác không.",
+      "treeNotImp": "Bảng cây không hỗ trợ nhập."
+    },
+    "table": {
+      "emptyText": "Không có dữ liệu",
+      "allTitle": "Chọn tất cả/hủy",
+      "seqTitle": "không áp dụng",
+      "confirmFilter": "Xác nhận",
+      "resetFilter": "Cài lại",
+      "allFilter": "Tất cả",
+      "sortAsc": "Tăng dần: thấp nhất đến cao nhất",
+      "sortDesc": "Giảm dần: cao nhất đến thấp nhất",
+      "filter": "Bật tính năng lọc trên các cột đã chọn",
+      "impSuccess": "Đã nhập thành công {0} bản ghi",
+      "expLoading": "Xuất khẩu",
+      "expSuccess": "Xuất khẩu thành công",
+      "expFilename": "Xuất_{0}",
+      "expOriginFilename": "Xuất_bản gốc_{0}",
+      "customTitle": "Cài đặt cột",
+      "customAll": "Tất cả",
+      "customConfirm": "Xác nhận",
+      "customCancel": "Hủy bỏ",
+      "customRestore": "Khôi phục",
+      "maxFixedCol": "Số lượng cột Cố định tối đa không thể vượt quá {0}",
+      "resizeColTip": "Kéo để thay đổi kích thước"
+    },
+    "grid": {
+      "selectOneRecord": "Hãy chọn ít nhất một bản ghi!",
+      "deleteSelectRecord": "Bạn có chắc chắn muốn xóa bản ghi đã chọn không?",
+      "removeSelectRecord": "Bạn có chắc chắn muốn xóa bản ghi đã chọn không?",
+      "dataUnchanged": "Dữ liệu không thay đổi! ",
+      "delSuccess": "Đã xóa thành công bản ghi đã chọn!",
+      "saveSuccess": "Đã lưu thành công!",
+      "operError": "Đã xảy ra lỗi, thao tác không thành công!"
+    },
+    "select": {
+      "search": "Tìm kiếm",
+      "loadingText": "Đang tải",
+      "emptyText": "Không có dữ liệu"
+    },
+    "pager": {
+      "goto": "Tới",
+      "pagesize": "{0}/trang",
+      "total": "Tổng {0} dòng",
+      "pageClassifier": "",
+      "homePage": "Trang chủ",
+      "homePageTitle": "Trang chủ",
+      "prevPage": "Trang trước",
+      "prevPageTitle": "Trang trước",
+      "nextPage": "Trang tiếp theo",
+      "nextPageTitle": "Trang tiếp theo",
+      "prevJump": "Chuyển trang trước",
+      "prevJumpTitle": "Chuyển trang trước",
+      "nextJump": "Chuyển trang tiếp theo",
+      "nextJumpTitle": "Chuyển trang tiếp theo",
+      "endPage": "Trang cuối",
+      "endPageTitle": "Kết thúc"
+    },
+    "alert": {
+      "title": "Thông báo hệ thống"
+    },
+    "button": {
+      "confirm": "Xác nhận",
+      "cancel": "Hủy bỏ"
+    },
+    "filter": {
+      "search": "Tìm kiếm"
+    },
+    "custom": {
+      "cstmTitle": "Cài đặt cột",
+      "cstmRestore": "Khôi phục lại mặc định",
+      "cstmCancel": "Hủy bỏ",
+      "cstmConfirm": "Xác nhận",
+      "cstmConfirmRestore": "Vui lòng xác nhận có khôi phục cấu hình cột mặc định không?",
+      "cstmDragTarget": "Mục tiêu đang di chuyển: {0}",
+      "setting": {
+        "colSort": "Sắp xếp",
+        "sortHelpTip": "Bấm và kéo biểu tượng để điều chỉnh thứ tự các cột.",
+        "colTitle": "Tiêu đề",
+        "colResizable": "Chiều rộng cột (px)",
+        "colVisible": "Hiển thị",
+        "colFixed": "Cố định cột",
+        "colFixedMax": "Cố định cột (Tối đa {0})",
+        "fixedLeft": "Trái",
+        "fixedUnset": "Bỏ đặt",
+        "fixedRight": "Phải"
+      }
+    },
+    "import": {
+      "modes": {
+        "covering": "Chế độ ghi đè (ghi đè trực tiếp dữ liệu bảng)",
+        "insert": "Nối thêm phía dưới (nối thêm dữ liệu mới vào cuối bảng)",
+        "insertTop": "Nối thêm hàng đầu (nối thêm dữ liệu mới vào đầu bảng)",
+        "insertBottom": "Nối thêm phía dưới (nối thêm dữ liệu mới vào cuối bảng)"
+      },
+      "impTitle": "Nhập dữ liệu",
+      "impFile": "Tên tệp",
+      "impSelect": "Chọn tập tin",
+      "impType": "Loại tệp",
+      "impOpts": "Cài đặt",
+      "impMode": "Chế độ nhập",
+      "impConfirm": "Nhập khẩu",
+      "impCancel": "Hủy bỏ"
+    },
+    "export": {
+      "types": {
+        "csv": "CSV (Được phân tách bằng dấu phẩy) (*.csv)",
+        "html": "Trang web (*.html)",
+        "xml": "Dữ liệu XML(*.xml)",
+        "txt": "Văn bản (được phân cách bằng tab) (*.txt)",
+        "xls": "Sổ làm việc Excel 97-2003(*.xls)",
+        "xlsx": "Sổ làm việc Excel (*.xlsx)",
+        "pdf": "PDF (*.pdf)"
+      },
+      "modes": {
+        "current": "Dữ liệu hiện tại (dữ liệu của trang hiện tại)",
+        "selected": "Dữ liệu đã chọn (dữ liệu được chọn trên trang hiện tại)",
+        "all": "Dữ liệu đầy đủ (bao gồm tất cả dữ liệu phân trang)"
+      },
+      "printTitle": "In dữ liệu",
+      "expTitle": "Xuất dữ liệu",
+      "expName": "Tên tệp",
+      "expNamePlaceholder": "Vui lòng nhập tên tập tin",
+      "expSheetName": "Tiêu đề",
+      "expSheetNamePlaceholder": "vui lòng nhập tiêu đề",
+      "expType": "Lưu loại",
+      "expMode": "Chọn dữ liệu",
+      "expCurrentColumn": "Tất cả các lĩnh vực",
+      "expColumn": "Chọn trường",
+      "expOpts": "Cài đặt",
+      "expOptHeader": "tiêu đề",
+      "expHeaderTitle": "Tôi có cần tiêu đề không",
+      "expOptFooter": "Chân trang",
+      "expFooterTitle": "Bạn có cần bảng chân trang không",
+      "expOptColgroup": "Tiêu đề nhóm",
+      "expColgroupTitle": "Nếu nó tồn tại, các tiêu đề có cấu trúc nhóm sẽ được hỗ trợ",
+      "expOptMerge": "Hợp nhất",
+      "expMergeTitle": "Nếu nó tồn tại, các ô có cấu trúc được hợp nhất sẽ được hỗ trợ",
+      "expOptAllExpand": "Mở rộng các nút",
+      "expAllExpandTitle": "Nếu nó tồn tại, tất cả dữ liệu có cấu trúc cây có thể được mở rộng",
+      "expOptUseStyle": "Kiểu dáng",
+      "expUseStyleTitle": "Nếu nó tồn tại, các ô có kiểu sẽ được hỗ trợ",
+      "expOptOriginal": "Nguồn dữ liệu",
+      "expOriginalTitle": "Nếu là dữ liệu nguồn thì hỗ trợ nhập vào bảng",
+      "expPrint": "In",
+      "expConfirm": "Xuất khẩu",
+      "expCancel": "Hủy bỏ"
+    },
+    "modal": {
+      "errTitle": "Lỗi",
+      "zoomMin": "Giảm thiểu",
+      "zoomIn": "Tối đa hóa",
+      "zoomOut": "Sự giảm bớt",
+      "close": "Đóng"
+    },
+    "drawer": {
+      "close": "Đóng"
+    },
+    "form": {
+      "folding": "gấp",
+      "unfolding": "Mở ra"
+    },
+    "toolbar": {
+      "import": "Nhập",
+      "export": "Xuất",
+      "print": "In ấn",
+      "refresh": "Làm mới",
+      "zoomIn": "Toàn màn hình",
+      "zoomOut": "Thu nhỏ",
+      "custom": "Cài đặt cột",
+      "customAll": "Tất cả",
+      "customConfirm": "Xác nhận",
+      "customRestore": "Cài lại",
+      "fixedLeft": "Cố định bên trái",
+      "fixedRight": "Cố định bên phải",
+      "cancelFixed": "Huỷ cố định"
+    },
+    "input": {
+      "date": {
+        "m1": "Tháng 1",
+        "m2": "Tháng 2",
+        "m3": "Tháng 3",
+        "m4": "Tháng 4",
+        "m5": "Tháng 5",
+        "m6": "Tháng 6",
+        "m7": "Tháng 7",
+        "m8": "Tháng 8",
+        "m9": "Tháng 9",
+        "m10": "Tháng 10",
+        "m11": "Tháng 11",
+        "m12": "Tháng 12",
+        "quarterLabel": "{0}",
+        "monthLabel": "{0}",
+        "dayLabel": "{1} {0}",
+        "labelFormat": {
+          "date": "dd/MM/yyyy",
+          "time": "HH:mm:ss",
+          "datetime": "yyyy-MM-dd HH:mm:ss",
+          "week": "[Week] WW, yyyy",
+          "month": "MM/năm",
+          "quarter": "[Quarter] q, yyyy",
+          "year": "yyyy"
+        },
+        "weeks": {
+          "w": "Tuần",
+          "w0": "Chủ nhật",
+          "w1": "Thứ hai",
+          "w2": "Thứ ba",
+          "w3": "Thứ tư",
+          "w4": "Thứ năm",
+          "w5": "Thứ sáu",
+          "w6": "Thứ bảy"
+        },
+        "months": {
+          "m0": "Th.1",
+          "m1": "Th.2",
+          "m2": "Th.3",
+          "m3": "Th.4",
+          "m4": "Th.5",
+          "m5": "Th.6",
+          "m6": "Th.7",
+          "m7": "Th.8",
+          "m8": "Th.9",
+          "m9": "Th.10",
+          "m10": "Th.11",
+          "m11": "Th.12"
+        },
+        "quarters": {
+          "q1": "Quý 1",
+          "q2": "Quý 2",
+          "q3": "Quý 3",
+          "q4": "Quý 4"
+        }
+      }
+    },
+    "imagePreview": {
+      "popupTitle": "Xem trước",
+      "operBtn": {
+        "zoomOut": "Giảm bớt",
+        "zoomIn": "Phóng to",
+        "pctFull": "Chia tỷ lệ theo tỷ lệ",
+        "pct11": "Hiển thị kích thước ban đầu",
+        "rotateLeft": "Xoay trái",
+        "rotateRight": "Xoay phải",
+        "print": "Bấm để in",
+        "download": "Bấm chuột để tải xuống"
+      }
+    },
+    "upload": {
+      "fileBtnText": "Bấm hoặc kéo thả",
+      "imgBtnText": "Bấm hoặc kéo thả",
+      "dragPlaceholder": "Vui lòng kéo và thả tệp vào khu vực này để tải lên.",
+      "imgSizeHint": "Độc thân {0}",
+      "imgCountHint": "Lên đến {0}",
+      "fileTypeHint": "Hỗ trợ loại tệp {0}",
+      "fileSizeHint": "Kích thước tệp đơn không vượt quá {0}",
+      "fileCountHint": "Có thể tải lên tối đa {0} tệp",
+      "overCountErr": "Bạn chỉ có thể chọn tệp {0}!",
+      "overCountExtraErr": "Nó đã vượt quá số lượng tối đa {0}, và nhiều hơn {0} tệp sẽ bị bỏ qua!",
+      "overSizeErr": "Kích thước của tệp không quá {0}}!",
+      "reUpload": "Tải lên lại",
+      "uploadProgress": "Đang tải lên {0}%",
+      "uploadErr": "Không tải lên được",
+      "uploadSuccess": "Tải lên thành công"
+    },
+    "formDesign": {
+      "formName": "Tên biểu mẫu",
+      "defFormTitle": "Biểu mẫu không tên",
+      "widgetPropTab": "Thuộc tính trường",
+      "widgetFormTab": "Thuộc tính biểu mẫu",
+      "styleSetting": {
+        "btn": "Cài đặt kiểu dáng",
+        "title": "Cài đặt kiểu biểu mẫu",
+        "layoutTitle": "Bố cục trường",
+        "verticalLayout": "Bố cục dọc",
+        "horizontalLayout": "Bố cục ngang",
+        "styleTitle": "Kiểu tiêu đề",
+        "boldTitle": "Tiêu đề in đậm",
+        "fontBold": "In đậm",
+        "fontNormal": "Bình thường",
+        "colonTitle": "Hiển thị dấu hai chấm",
+        "colonVisible": "Dễ thấy",
+        "colonHidden": "Ẩn giấu",
+        "alignTitle": "Căn chỉnh tiêu đề",
+        "widthTitle": "Chiều rộng tiêu đề",
+        "alignLeft": "Bên trái",
+        "alignRight": "Phải",
+        "unitPx": "Px",
+        "unitPct": "Pct"
+      },
+      "widget": {
+        "group": {
+          "base": "Kiểm soát cơ sở",
+          "layout": "Kiểm soát bố cục",
+          "advanced": "Kiểm soát nâng cao"
+        },
+        "copyTitle": "Sao chép_{0}",
+        "component": {
+          "input": "Đầu vào",
+          "textarea": "Vùng văn bản",
+          "select": "Lựa chọn",
+          "row": "Hàng/cột",
+          "title": "Chữ",
+          "subtable": "Bàn phụ",
+          "VxeSwitch": "Có không",
+          "VxeInput": "Đầu vào",
+          "VxeNumberInput": "Con số",
+          "VxeDatePicker": "Ngày",
+          "VxeTextarea": "Vùng văn bản",
+          "VxeSelect": "Lựa chọn",
+          "VxeRadioGroup": "Đài",
+          "VxeCheckboxGroup": "Hộp kiểm",
+          "VxeUploadFile": "Tài liệu",
+          "VxeUploadImage": "Hình ảnh"
+        }
+      },
+      "widgetProp": {
+        "name": "Tên trường",
+        "placeholder": "Trình giữ chỗ trường",
+        "required": "Yêu cầu",
+        "displaySetting": {
+          "name": "Thiết lập màn hình",
+          "pc": "máy tính",
+          "mobile": "Điện thoại di động",
+          "visible": "Dễ thấy",
+          "hidden": "Ẩn giấu"
+        },
+        "dataSource": {
+          "name": "Nguồn dữ liệu",
+          "defValue": "Tùy chọn {0}",
+          "addOption": "Thêm tùy chọn",
+          "batchEditOption": "Chỉnh sửa hàng loạt",
+          "batchEditTip": "Mỗi hàng tương ứng với một tùy chọn, hỗ trợ sao chép và dán trực tiếp từ bảng, Excel và WPS.",
+          "batchEditSubTip": "Mỗi hàng tương ứng với một tùy chọn. ",
+          "buildOption": "Tùy chọn xây dựng"
+        },
+        "rowProp": {
+          "colSize": "Số cột",
+          "col2": "Hai cột",
+          "col3": "Ba cột",
+          "col4": "Bốn cột",
+          "col6": "Sáu cột",
+          "layout": "Cách trình bày"
+        },
+        "textProp": {
+          "name": "Nội dung",
+          "alignTitle": "Căn chỉnh",
+          "alignLeft": "Bên trái",
+          "alignCenter": "Trung tâm",
+          "alignRight": "Phải",
+          "colorTitle": "Màu sắc",
+          "sizeTitle": "Cỡ chữ",
+          "boldTitle": "Phông chữ in đậm",
+          "fontNormal": "Bình thường",
+          "fontBold": "In đậm"
+        },
+        "subtableProp": {
+          "seqTitle": "Có/Không",
+          "showSeq": "Hiển thị số sê-ri",
+          "showCheckbox": "Cho phép nhiều lựa chọn",
+          "errSubDrag": "Bảng phụ không hỗ trợ điều khiển này. "
+        },
+        "uploadProp": {
+          "limitFileCount": "Giới hạn số lượng tập tin",
+          "limitFileSize": "Giới hạn kích thước tập tin",
+          "multiFile": "Cho phép nhiều tập tin",
+          "limitImgCount": "Giới hạn số lượng hình ảnh",
+          "limitImgSize": "Giới hạn kích thước hình ảnh",
+          "multiImg": "Cho phép nhiều hình ảnh"
+        }
+      }
+    },
+    "listDesign": {
+      "fieldSettingTab": "Cài đặt trường",
+      "listSettingTab": "Cài đặt danh sách"
+    },
+    "plugins": {
+      "extendCellArea": {
+        "area": {
+          "mergeErr": "Không thể thực hiện thao tác trên các ô đã hợp nhất",
+          "multiErr": "Thao tác không thể được thực hiện trên nhiều vùng lựa chọn",
+          "extendErr": "Nếu vùng mở rộng chứa các ô được hợp nhất thì tất cả các ô được hợp nhất phải có cùng kích thước",
+          "pasteMultiErr": "Không thể dán, cần phải có vùng sao chép và vùng dán có cùng kích thước để thực hiện thao tác này",
+          "cpInvalidErr": "Không thể thực hiện thao tác này vì có các cột bị cấm trong khu vực bạn đã chọn ({0})"
+        },
+        "fnr": {
+          "title": "Tìm và thay thế",
+          "findLabel": "Tìm thấy",
+          "replaceLabel": "Thay thế",
+          "findTitle": "Những gì cần tìm:",
+          "replaceTitle": "Thay bằng:",
+          "tabs": {
+            "find": "Tìm thấy",
+            "replace": "Thay thế"
+          },
+          "filter": {
+            "re": "Biểu hiện thông thường",
+            "whole": "Cả từ",
+            "sensitive": "Trường hợp nhạy cảm"
+          },
+          "btns": {
+            "findNext": "Tìm tiếp theo",
+            "findAll": "Tìm tất cả",
+            "replace": "Thay thế",
+            "replaceAll": "Thay thế tất cả",
+            "cancel": "Hủy bỏ"
+          },
+          "header": {
+            "seq": "#",
+            "cell": "Tế bào",
+            "value": "Giá trị"
+          },
+          "empty": "(Trống)",
+          "reError": "Biểu thức chính quy không hợp lệ",
+          "recordCount": "Đã tìm thấy {0} ô",
+          "notCell": "Không tìm thấy ô phù hợp",
+          "replaceSuccess": "Đã thay thế thành công {0} ô"
+        }
+      },
+      "filterComplexInput": {
+        "menus": {
+          "fixedColumn": "Cột cố định",
+          "fixedGroup": "Nhóm đóng băng",
+          "cancelFixed": "Xóa đóng băng",
+          "fixedLeft": "Đóng băng bên trái",
+          "fixedRight": "Đóng băng bên phải"
+        },
+        "cases": {
+          "equal": "Bình đẳng",
+          "gt": "Lớn hơn",
+          "lt": "Ít hơn",
+          "begin": "Bắt đầu là",
+          "endin": "Kết thúc là",
+          "include": "Bao gồm",
+          "isSensitive": "Trường hợp nhạy cảm"
+        }
+      },
+      "filterCombination": {
+        "menus": {
+          "clearSort": "Xóa sắp xếp",
+          "sortAsc": "Thứ tự tăng dần",
+          "sortDesc": "Thứ tự giảm dần",
+          "fixedColumn": "Cột cố định",
+          "fixedGroup": "Nhóm đóng băng",
+          "cancelFixed": "Xóa đóng băng",
+          "fixedLeft": "Đóng băng bên trái",
+          "fixedRight": "Đóng băng bên phải",
+          "clearFilter": "LÀm sạch bộ lọc",
+          "textOption": "Bộ lọc văn bản",
+          "numberOption": "Bộ lọc số"
+        },
+        "popup": {
+          "title": "Lọc tùy chỉnh",
+          "currColumnTitle": "Cột hiện tại:",
+          "and": "Và",
+          "or": "Hoặc",
+          "describeHtml": "Sử dụng ?  <br/> sử dụng * để thể hiện bất kỳ số lượng ký tự nào"
+        },
+        "cases": {
+          "equal": "Bình đẳng",
+          "unequal": "Không công bằng",
+          "gt": "Lớn hơn",
+          "ge": "Lớn hơn hoặc bằng",
+          "lt": "Ít hơn",
+          "le": "Nhỏ hơn hoặc bằng",
+          "begin": "Bắt đầu là",
+          "notbegin": "Sự bắt đầu không phải",
+          "endin": "Kết thúc là",
+          "notendin": "Kết thúc không phải là",
+          "include": "Bao gồm",
+          "exclude": "Loại trừ",
+          "between": "Độ giữa",
+          "custom": "Bộ lọc tùy chỉnh",
+          "insensitive": "Trường hợp không nhạy cảm",
+          "isSensitive": "Trường hợp nhạy cảm"
+        },
+        "empty": "(Trống)",
+        "notData": "Không có dữ liệu"
+      }
+    },
+    "renderer": {
+      "search": "Tìm kiếm",
+      "cases": {
+        "equal": "Bình đẳng",
+        "unequal": "Không công bằng",
+        "gt": "Lớn hơn",
+        "ge": "Lớn hơn hoặc bằng",
+        "lt": "Ít hơn",
+        "le": "Nhỏ hơn hoặc bằng",
+        "begin": "Bắt đầu là",
+        "notbegin": "Sự bắt đầu không phải",
+        "endin": "Kết thúc là",
+        "notendin": "Kết thúc không phải là",
+        "include": "Bao gồm",
+        "exclude": "Loại trừ",
+        "between": "Độ giữa",
+        "custom": "Bộ lọc tùy chỉnh",
+        "insensitive": "Trường hợp không nhạy cảm",
+        "isSensitive": "Trường hợp nhạy cảm"
+      },
+      "combination": {
+        "menus": {
+          "clearSort": "Xóa sắp xếp",
+          "sortAsc": "Thứ tự tăng dần",
+          "sortDesc": "Thứ tự giảm dần",
+          "fixedColumn": "Cột cố định",
+          "fixedGroup": "Nhóm cố định",
+          "cancelFixed": "Xóa đã sửa",
+          "fixedLeft": "Đã sửa bên trái",
+          "fixedRight": "Đã sửa bên phải",
+          "clearFilter": "LÀm sạch bộ lọc",
+          "textOption": "Bộ lọc văn bản",
+          "numberOption": "Bộ lọc số"
+        },
+        "popup": {
+          "title": "Lọc tùy chỉnh",
+          "currColumnTitle": "Cột hiện tại:",
+          "and": "Và",
+          "or": "Hoặc",
+          "describeHtml": "Sử dụng ?  <br/> sử dụng * để thể hiện bất kỳ số lượng ký tự nào"
+        },
+        "empty": "(Trống)",
+        "notData": "Không có dữ liệu"
+      }
+    },
+    "pro": {
+      "area": {
+        "mergeErr": "Không thể thực hiện thao tác trên các ô đã hợp nhất",
+        "multiErr": "Thao tác không thể được thực hiện trên nhiều vùng lựa chọn",
+        "extendErr": "Nếu vùng mở rộng chứa các ô được hợp nhất thì tất cả các ô được hợp nhất phải có cùng kích thước",
+        "pasteMultiErr": "Không thể dán, cần phải có vùng sao chép và vùng dán có cùng kích thước để thực hiện thao tác này"
+      },
+      "fnr": {
+        "title": "Tìm và thay thế",
+        "findLabel": "Tìm thấy",
+        "replaceLabel": "Thay thế",
+        "findTitle": "Những gì cần tìm:",
+        "replaceTitle": "Thay bằng:",
+        "tabs": {
+          "find": "Tìm thấy",
+          "replace": "Thay thế"
+        },
+        "filter": {
+          "re": "Biểu hiện thông thường",
+          "whole": "Cả từ",
+          "sensitive": "Trường hợp nhạy cảm"
+        },
+        "btns": {
+          "findNext": "Tìm tiếp theo",
+          "findAll": "Tìm tất cả",
+          "replace": "Thay thế",
+          "replaceAll": "Thay thế tất cả",
+          "cancel": "Hủy bỏ"
+        },
+        "header": {
+          "seq": "#",
+          "cell": "Ô",
+          "value": "Giá trị"
+        },
+        "empty": "(Trống)",
+        "reError": "Biểu thức chính quy không hợp lệ",
+        "recordCount": "Đã tìm thấy {0} ô",
+        "notCell": "Không tìm thấy ô phù hợp",
+        "replaceSuccess": "Đã thay thế thành công {0} ô"
+      }
+    }
+  }
+}

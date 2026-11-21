@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Controllers\Incident\Dto\**" />
+    <Compile Remove="Controllers\WorkExecute\Dto\**" />
+    <EmbeddedResource Remove="Controllers\Incident\Dto\**" />
+    <EmbeddedResource Remove="Controllers\WorkExecute\Dto\**" />
+    <None Remove="Controllers\Incident\Dto\**" />
+    <None Remove="Controllers\WorkExecute\Dto\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Modules.TMS.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Utility\Shared.Utility.csproj" />
+    <ProjectReference Include="..\..\DataTransporter\Modules.DataTransporter.ITS\Modules.DataTransporter.ITS.csproj" />
+    <ProjectReference Include="..\..\FMS\Modules.FMS\Modules.FMS.csproj" />
+    <ProjectReference Include="..\..\CfgSystem\Modules.CfgSystem.Core\Modules.CfgSystem.Core.csproj" />
+    <ProjectReference Include="..\..\CfgSystem\Modules.CfgSystem\Modules.CfgSystem.csproj" />
+    <ProjectReference Include="..\..\VideoWall\Module.VideoWall.Core\Module.VideoWall.Core.csproj" />
+    <ProjectReference Include="..\..\VMS\Modules.VMS.Core\Modules.VMS.Core.csproj" />
+    <ProjectReference Include="..\Modules.TMS.Core\Modules.TMS.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Controllers\MaintenanceSchedule\Exceptions\" />
+    <Folder Include="Controllers\MaintenanceSchedule\Validators\" />
+  </ItemGroup>
+  <Import Project="Modules.TMS.dotnet_reactor.targets" Condition="Exists('Modules.TMS.dotnet_reactor.targets')" />
+  <ItemGroup>
+    <!-- Chi de doc entity VdsConfig (bang tham so van hanh VDS tren SQL Server). Truoc 23/09/2026 con
+         can VdsConfigRules va tang dem Counting; ca hai da chuyen di (luat sang Modules.VDS, tang dem va
+         DurationHelper sang Shared.Utility) nen phu thuoc nay chi con mot ly do duy nhat. -->
+    <ProjectReference Include="../../VDS/Modules.VDS.Core/Modules.VDS.Core.csproj" />
+  </ItemGroup>
+</Project>

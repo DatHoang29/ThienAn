@@ -1,0 +1,30 @@
+{
+  "Logging": {
+    // Thư mục gốc thay thế cho ${basedir} trong PathTemplate ("${basedir}" = thư mục chạy app).
+    "BaseDirectory": "${basedir}",
+
+    "Defaults": {
+      "PathTemplate": "LogFile/${shortdate}/${kind}.log",
+      "RollingSizeKB": 10240,
+      "KeepFileCount": 30,
+      "FileShareRead": true
+    },
+
+    // Key = tên kind trong LogKind. Main: lifecycle + từ chối ticket; Config: nạp cấu hình;
+    // Device: phiên đăng nhập NxVMS; Data: mở/đóng luồng proxy.
+    "Kinds": {
+      "Main":   { "PathTemplate": "LogFile/${shortdate}/TACMainLog.txt" },
+      "Error":  { "PathTemplate": "LogFile/${shortdate}/TACError.txt", "KeepFileCount": 90 },
+      "Config": { "PathTemplate": "LogFile/${shortdate}/TACConfigLog.txt" },
+      "Data":   { "PathTemplate": "LogFile/${shortdate}/TACStreamLog.txt" },
+      "Device": { "PathTemplate": "LogFile/${shortdate}/TACNxVmsLog.txt" },
+      "Nats":   { "PathTemplate": "LogFile/${shortdate}/TACNatsLog.txt" }
+    },
+
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "System.Net.Http.HttpClient": "Warning"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\CfgSystem\Modules.CfgSystem.Core\Modules.CfgSystem.Core.csproj" />
+    <ProjectReference Include="..\..\CfgSystem\Modules.CfgSystem\Modules.CfgSystem.csproj" />
+    <ProjectReference Include="..\..\DataTransporter\Modules.DataTransporter.ITS\Modules.DataTransporter.ITS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Shared.Utility\Shared.Utility.csproj" />
+    <ProjectReference Include="..\Modules.VDS.Core\Modules.VDS.Core.csproj" />
+    <!-- Modules.TMS.Core: entity Tms* trên SQL Server mà module VDS đọc/ghi — TmsEquipment (danh mục
+         camera), TmsTrafficSegment (đoạn A→B), TmsIncident, TmsTrafficSummary.
+         Tầng đếm dùng chung với worker đã chuyển xuống Shared.Utility/Counting (23/09/2026). -->
+    <ProjectReference Include="..\..\TMS\Modules.TMS.Core\Modules.TMS.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,41 @@
+@import './index.scss';
+
+/* Page width less than 576px
+------------------------------- */
+@media screen and (max-width: $xs) {
+	.el-form-item__label {
+		width: 100% !important;
+		text-align: left !important;
+		// Mobile label right alignment issue
+		justify-content: flex-start !important;
+	}
+	.el-form-item__content {
+		margin-left: 0 !important;
+	}
+	.el-form-item {
+		// Responsive form needs to be reprocessed on the login page
+		display: unset !important;
+	}
+	// Form filter in table demonstration
+	.table-form-btn {
+		display: flex !important;
+		.el-form-item__label {
+			width: auto !important;
+		}
+	}
+	// Maximum height of form filter in table demonstration, adapted for mobile
+	.table-search-container {
+		max-height: 160px;
+		overflow: auto;
+	}
+	// Remove left margin of form on small screens
+	.el-form-item__label-wrap{
+		margin-left: 0px !important;
+	}
+	// Input box width adaptation in the list page query form
+    .el-form--inline .el-form-item .el-select,
+    .el-form--inline .el-form-item .el-input
+    {
+        width: 100% !important;
+    }
+}

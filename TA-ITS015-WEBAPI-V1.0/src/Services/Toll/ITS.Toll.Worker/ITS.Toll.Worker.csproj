@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ITS.Toll.Worker</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    ITS.Toll.Worker: host HTTP (Kestrel, minimal API) để TCS chủ động đẩy dữ liệu sang ITS.
+    - POST /api/toll/record : push 1 bản ghi kèm thao tác Insert/Update/Delete.
+    - POST /api/toll/import  : báo import theo ngày → ITS tự pull lại TCS.
+    Dùng lại toàn bộ lõi ITS.Toll.Core (TollCallBackService/TollDataStore/TollApiClient/TollOpConfigReader).
+    Chạy được cả console (dotnet run) lẫn Windows Service (sc create).
+  -->
+
+  <ItemGroup>
+    <!-- Cho phép chạy như Windows Service (hiện ở tab Services). -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.10" />
+    <!-- Messaging: lắng nghe/gửi tín hiệu lấy dữ liệu thủ công qua kênh NATS ta.its.control.toll. -->
+    <PackageReference Include="NATS.Net" Version="2.7.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ITS.Toll.Core\ITS.Toll.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <!-- File xác thực NATS (bí mật) - cần có trong thư mục chạy để listener đọc được. -->
+    <None Update="Configuration\nats.creds">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
